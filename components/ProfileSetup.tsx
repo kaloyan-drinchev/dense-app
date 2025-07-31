@@ -13,6 +13,7 @@ import { UserProfile } from '@/types/workout';
 import { calculateBMI, getBMICategory } from '@/utils/helpers';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import { SetupWizard } from './SetupWizard';
+import { AuthScreen } from './AuthScreen';
 
 export const ProfileSetup: React.FC<{
   onComplete: () => void;
@@ -29,6 +30,7 @@ export const ProfileSetup: React.FC<{
     }
   );
   const [showWizard, setShowWizard] = useState(false);
+  const [showTestAuth, setShowTestAuth] = useState(false);
 
   const handleChange = (field: keyof UserProfile, value: any) => {
     setProfile((prev) => ({ ...prev, [field]: value }));
@@ -53,7 +55,11 @@ export const ProfileSetup: React.FC<{
 
   return (
     <>
-      <ScrollView style={styles.container}>
+      <ScrollView 
+        style={styles.container}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+      >
       <Text style={styles.title}>Complete Your Profile</Text>
       <Text style={styles.subtitle}>
         This information helps us personalize your workout experience
@@ -277,6 +283,15 @@ export const ProfileSetup: React.FC<{
         <Text style={styles.wizardButtonText}>Go to Wizard</Text>
         <Icon name="chevron-right" size={20} color={colors.secondary} />
       </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={styles.testButton}
+        onPress={() => setShowTestAuth(true)}
+      >
+        <Icon name="zap" size={20} color={colors.warning} />
+        <Text style={styles.testButtonText}>Test Auth Screen</Text>
+        <Icon name="chevron-right" size={20} color={colors.warning} />
+      </TouchableOpacity>
     </ScrollView>
     
       <SetupWizard
@@ -285,6 +300,15 @@ export const ProfileSetup: React.FC<{
         onComplete={() => {
           setShowWizard(false);
           // You can add additional logic here if needed
+        }}
+      />
+      
+      <AuthScreen
+        visible={showTestAuth}
+        onClose={() => setShowTestAuth(false)}
+        onComplete={() => {
+          setShowTestAuth(false);
+          // Test complete - just close
         }}
       />
     </>
@@ -422,5 +446,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.secondary,
+  },
+  testButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.warning,
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  testButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.warning,
   },
 });

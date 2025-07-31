@@ -15,6 +15,284 @@ import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 
+interface AuthContentProps {
+  onComplete: () => void;
+  onBack: () => void;
+}
+
+const AuthContent: React.FC<AuthContentProps> = ({ onComplete, onBack }) => {
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>('register');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    confirmPassword: '',
+    name: '',
+  });
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const handleTabSwitch = (tab: 'login' | 'register') => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setActiveTab(tab);
+    setValidationErrors({});
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData({ ...formData, [field]: value });
+    if (validationErrors[field]) {
+      setValidationErrors({ ...validationErrors, [field]: '' });
+    }
+  };
+
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.email) {
+      errors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      errors.email = 'Please enter a valid email';
+    }
+
+    if (!formData.password) {
+      errors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
+    }
+
+    if (activeTab === 'register') {
+      if (!formData.name) {
+        errors.name = 'Name is required';
+      }
+      if (!formData.confirmPassword) {
+        errors.confirmPassword = 'Please confirm your password';
+      } else if (formData.password !== formData.confirmPassword) {
+        errors.confirmPassword = 'Passwords do not match';
+      }
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    if (validateForm()) {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      onComplete();
+    } else {
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    }
+  };
+
+  const handleSocialLogin = (provider: string) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onComplete();
+  };
+
+  return (
+    <View style={styles.authContent}>
+      {/* Header */}
+      <View style={styles.authHeader}>
+        <Text style={styles.authTitle}>Save Your Progress! 🎉</Text>
+        <Text style={styles.authSubtitle}>
+          Create an account to save your personalized preferences and track your fitness journey
+        </Text>
+      </View>
+
+      {/* Tab Switcher */}
+      <View style={styles.authTabContainer}>
+        <TouchableOpacity
+          style={[styles.authTab, activeTab === 'register' && styles.authActiveTab]}
+          onPress={() => handleTabSwitch('register')}
+        >
+          <Text style={[styles.authTabText, activeTab === 'register' && styles.authActiveTabText]}>
+            Create Account
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.authTab, activeTab === 'login' && styles.authActiveTab]}
+          onPress={() => handleTabSwitch('login')}
+        >
+          <Text style={[styles.authTabText, activeTab === 'login' && styles.authActiveTabText]}>
+            Sign In
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Social Login Buttons */}
+      <View style={styles.authSocialContainer}>
+        <TouchableOpacity 
+          style={styles.authSocialButton}
+          onPress={() => handleSocialLogin('Google')}
+        >
+          <Icon name="globe" size={20} color={colors.white} />
+          <Text style={styles.authSocialButtonText}>Continue with Google</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.authSocialButton}
+          onPress={() => handleSocialLogin('Apple')}
+        >
+          <Icon name="smartphone" size={20} color={colors.white} />
+          <Text style={styles.authSocialButtonText}>Continue with Apple</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Divider */}
+      <View style={styles.authDividerContainer}>
+        <View style={styles.authDividerLine} />
+        <Text style={styles.authDividerText}>or</Text>
+        <View style={styles.authDividerLine} />
+      </View>
+
+      {/* Form */}
+      <View style={styles.authFormContainer}>
+        {activeTab === 'register' && (
+          <View style={styles.authInputContainer}>
+            <View style={styles.authInputWrapper}>
+              <Icon name="user" size={20} color={colors.lightGray} />
+              <TextInput
+                style={styles.authTextInput}
+                placeholder="Full Name"
+                placeholderTextColor={colors.lightGray}
+                value={formData.name}
+                onChangeText={(value) => handleInputChange('name', value)}
+                autoCapitalize="words"
+                autoComplete="name"
+                textContentType="name"
+              />
+            </View>
+            {validationErrors.name && (
+              <Text style={styles.authErrorText}>{validationErrors.name}</Text>
+            )}
+          </View>
+        )}
+
+        <View style={styles.authInputContainer}>
+          <View style={styles.authInputWrapper}>
+            <Icon name="mail" size={20} color={colors.lightGray} />
+            <TextInput
+              style={styles.authTextInput}
+              placeholder="Email Address"
+              placeholderTextColor={colors.lightGray}
+              value={formData.email}
+              onChangeText={(value) => handleInputChange('email', value)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="username"
+              textContentType="emailAddress"
+            />
+          </View>
+          {validationErrors.email && (
+            <Text style={styles.authErrorText}>{validationErrors.email}</Text>
+          )}
+        </View>
+
+        <View style={styles.authInputContainer}>
+          <View style={styles.authInputWrapper}>
+            <Icon name="lock" size={20} color={colors.lightGray} />
+            <TextInput
+              style={styles.authTextInput}
+              placeholder="Password"
+              placeholderTextColor={colors.lightGray}
+              value={formData.password}
+              onChangeText={(value) => handleInputChange('password', value)}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              autoComplete="off"
+              textContentType="oneTimeCode"
+              passwordRules=""
+              importantForAutofill="no"
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.authEyeButton}
+            >
+              <Icon 
+                name={showPassword ? 'eye-off' : 'eye'} 
+                size={20} 
+                color={colors.lightGray} 
+              />
+            </TouchableOpacity>
+          </View>
+          {validationErrors.password && (
+            <Text style={styles.authErrorText}>{validationErrors.password}</Text>
+          )}
+        </View>
+
+        {activeTab === 'register' && (
+          <View style={styles.authInputContainer}>
+            <View style={styles.authInputWrapper}>
+              <Icon name="lock" size={20} color={colors.lightGray} />
+              <TextInput
+                style={styles.authTextInput}
+                placeholder="Confirm Password"
+                placeholderTextColor={colors.lightGray}
+                value={formData.confirmPassword}
+                onChangeText={(value) => handleInputChange('confirmPassword', value)}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                autoComplete="off"
+                textContentType="oneTimeCode"
+                passwordRules=""
+                importantForAutofill="no"
+              />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.authEyeButton}
+              >
+                <Icon 
+                  name={showConfirmPassword ? 'eye-off' : 'eye'} 
+                  size={20} 
+                  color={colors.lightGray} 
+                />
+              </TouchableOpacity>
+            </View>
+            {validationErrors.confirmPassword && (
+              <Text style={styles.authErrorText}>{validationErrors.confirmPassword}</Text>
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* Submit Button */}
+      <TouchableOpacity style={styles.authSubmitButton} onPress={handleSubmit}>
+        <Text style={styles.authSubmitButtonText}>
+          {activeTab === 'register' ? 'Create Account' : 'Sign In'}
+        </Text>
+        <Icon name="arrow-right" size={20} color={colors.white} />
+      </TouchableOpacity>
+
+      {/* Skip Option */}
+      <TouchableOpacity style={styles.authSkipButton} onPress={onComplete}>
+        <Text style={styles.authSkipButtonText}>Skip for now</Text>
+      </TouchableOpacity>
+
+      {/* Back to wizard */}
+      <TouchableOpacity style={styles.authBackButton} onPress={onBack}>
+        <Icon name="chevron-left" size={20} color={colors.lightGray} />
+        <Text style={styles.authBackButtonText}>Back to setup</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 interface SetupWizardProps {
   visible: boolean;
   onClose: () => void;
@@ -37,6 +315,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [validationError, setValidationError] = useState('');
+  const [showAuthScreen, setShowAuthScreen] = useState(false);
   const [preferences, setPreferences] = useState({
     workoutTime: '',
     workoutDays: [] as string[],
@@ -54,6 +333,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
     if (visible) {
       setCurrentStep(0);
       setValidationError('');
+      setShowAuthScreen(false);
       setPreferences({
         workoutTime: '',
         workoutDays: [] as string[],
@@ -124,6 +404,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
   const weekDays = ['3 days', '4 days', '5 days', '6 days', '7 days'];
   const goals = ['Build Muscle', 'Lose Weight', 'Get Stronger', 'Improve Endurance', 'General Fitness'];
   const equipment = ['Dumbbells', 'Barbell', 'Resistance Bands', 'Pull-up Bar', 'Gym Access', 'Bodyweight Only'];
+
+
 
   const validateCurrentStep = () => {
     const step = steps[currentStep];
@@ -198,11 +480,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    // Navigate to Home tab and close wizard
-    router.push('/(tabs)');
-    onComplete();
-    onClose();
-    // Note: Reset happens automatically when wizard is opened again via useEffect
+    setShowAuthScreen(true);
   };
 
   const toggleArrayValue = (array: string[], value: string, setter: (newArray: string[]) => void) => {
@@ -502,60 +780,84 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
         style={styles.container}
       >
         <View style={styles.header}>
-          <Text style={styles.stepCounter}>
-            {currentStep + 1} of {steps.length}
-          </Text>
+          {!showAuthScreen && (
+            <Text style={styles.stepCounter}>
+              {currentStep + 1} of {steps.length}
+            </Text>
+          )}
         </View>
 
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${((currentStep + 1) / steps.length) * 100}%` },
-              ]}
-            />
-          </View>
-        </View>
-
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={[
-            styles.stepHeader, 
-            steps[currentStep].id === 'complete' && styles.compactStepHeader
-          ]}>
-            <View style={[
-              styles.stepIcon, 
-              steps[currentStep].id === 'complete' && styles.compactStepIcon,
-              { backgroundColor: steps[currentStep].color + '20' }
-            ]}>
-              <Icon 
-                name={steps[currentStep].icon as any} 
-                size={steps[currentStep].id === 'complete' ? 24 : 32} 
-                color={steps[currentStep].color} 
+        {!showAuthScreen && (
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View
+                style={[
+                  styles.progressFill,
+                  { width: `${((currentStep + 1) / steps.length) * 100}%` },
+                ]}
               />
             </View>
-            <Text style={[
-              styles.stepTitle,
-              steps[currentStep].id === 'complete' && styles.compactStepTitle
-            ]}>{steps[currentStep].title}</Text>
-            <Text style={[
-              styles.stepSubtitle,
-              steps[currentStep].id === 'complete' && styles.compactStepSubtitle
-            ]}>{steps[currentStep].subtitle}</Text>
           </View>
+        )}
 
-          {renderStepContent()}
-          
-          {/* Validation Error Display */}
-          {validationError && (
-            <View style={styles.errorContainer}>
-              <Icon name="alert-circle" size={20} color={colors.error} />
-              <Text style={styles.errorText}>{validationError}</Text>
-            </View>
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+        >
+          {!showAuthScreen ? (
+            <>
+              <View style={[
+                styles.stepHeader, 
+                steps[currentStep].id === 'complete' && styles.compactStepHeader
+              ]}>
+                <View style={[
+                  styles.stepIcon, 
+                  steps[currentStep].id === 'complete' && styles.compactStepIcon,
+                  { backgroundColor: steps[currentStep].color + '20' }
+                ]}>
+                  <Icon 
+                    name={steps[currentStep].icon as any} 
+                    size={steps[currentStep].id === 'complete' ? 24 : 32} 
+                    color={steps[currentStep].color} 
+                  />
+                </View>
+                <Text style={[
+                  styles.stepTitle,
+                  steps[currentStep].id === 'complete' && styles.compactStepTitle
+                ]}>{steps[currentStep].title}</Text>
+                <Text style={[
+                  styles.stepSubtitle,
+                  steps[currentStep].id === 'complete' && styles.compactStepSubtitle
+                ]}>{steps[currentStep].subtitle}</Text>
+              </View>
+
+              {renderStepContent()}
+              
+              {/* Validation Error Display */}
+              {validationError && (
+                <View style={styles.errorContainer}>
+                  <Icon name="alert-circle" size={20} color={colors.error} />
+                  <Text style={styles.errorText}>{validationError}</Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <AuthContent 
+              onComplete={() => {
+                router.push('/(tabs)');
+                onComplete();
+                onClose();
+              }}
+              onBack={() => {
+                setShowAuthScreen(false);
+              }}
+            />
           )}
         </ScrollView>
 
-        {steps[currentStep].id !== 'complete' && (
+        {steps[currentStep].id !== 'complete' && !showAuthScreen && (
           <View style={styles.navigationContainer}>
             {currentStep === 0 ? (
               // First step: Next button on bottom right
@@ -901,5 +1203,155 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.white,
     fontWeight: '600',
+  },
+  // Auth Content Styles
+  authContent: {
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  authHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  authTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  authSubtitle: {
+    fontSize: 14,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  authTabContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.darkGray,
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 24,
+  },
+  authTab: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 7,
+    alignItems: 'center',
+  },
+  authActiveTab: {
+    backgroundColor: colors.primary,
+  },
+  authTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.lightGray,
+  },
+  authActiveTabText: {
+    color: colors.white,
+  },
+  authSocialContainer: {
+    gap: 10,
+    marginBottom: 24,
+  },
+  authSocialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.darkGray,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 10,
+  },
+  authSocialButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.white,
+  },
+  authDividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 12,
+  },
+  authDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.mediumGray,
+  },
+  authDividerText: {
+    fontSize: 12,
+    color: colors.lightGray,
+    fontWeight: '500',
+  },
+  authFormContainer: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  authInputContainer: {
+    gap: 6,
+  },
+  authInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.darkGray,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 2,
+    gap: 10,
+  },
+  authTextInput: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.white,
+    paddingVertical: 14,
+  },
+  authEyeButton: {
+    padding: 4,
+  },
+  authErrorText: {
+    fontSize: 12,
+    color: colors.error,
+    marginLeft: 4,
+  },
+  authSubmitButton: {
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    gap: 8,
+    marginBottom: 12,
+  },
+  authSubmitButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
+  authSkipButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  authSkipButtonText: {
+    fontSize: 14,
+    color: colors.lightGray,
+    fontWeight: '500',
+  },
+  authBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+  },
+  authBackButtonText: {
+    fontSize: 14,
+    color: colors.lightGray,
+    fontWeight: '500',
   },
 });

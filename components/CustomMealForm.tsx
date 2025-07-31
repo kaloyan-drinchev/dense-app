@@ -201,7 +201,11 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView}>
+              <ScrollView 
+          style={styles.scrollView}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.formGroup}>
           <Text style={styles.label}>Meal Name</Text>
           <TextInput
