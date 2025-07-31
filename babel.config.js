@@ -3,8 +3,7 @@ module.exports = function (api) {
   return {
     presets: [['babel-preset-expo', { jsxImportSource: 'nativewind' }]],
     plugins: [
-      // Updated Reanimated plugin location
-      'react-native-worklets/plugin',
+      // No additional plugins needed
     ],
   };
 };
