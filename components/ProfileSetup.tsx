@@ -12,6 +12,7 @@ import { useWorkoutStore } from '@/store/workout-store';
 import { UserProfile } from '@/types/workout';
 import { calculateBMI, getBMICategory } from '@/utils/helpers';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
+import { SetupWizard } from './SetupWizard';
 
 export const ProfileSetup: React.FC<{
   onComplete: () => void;
@@ -27,6 +28,7 @@ export const ProfileSetup: React.FC<{
       fitnessLevel: 'beginner',
     }
   );
+  const [showWizard, setShowWizard] = useState(false);
 
   const handleChange = (field: keyof UserProfile, value: any) => {
     setProfile((prev) => ({ ...prev, [field]: value }));
@@ -50,7 +52,8 @@ export const ProfileSetup: React.FC<{
   const bmiCategory = getBMICategory(bmi);
 
   return (
-    <ScrollView style={styles.container}>
+    <>
+      <ScrollView style={styles.container}>
       <Text style={styles.title}>Complete Your Profile</Text>
       <Text style={styles.subtitle}>
         This information helps us personalize your workout experience
@@ -265,7 +268,26 @@ export const ProfileSetup: React.FC<{
       >
         <Text style={styles.saveButtonText}>Save Profile</Text>
       </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={styles.wizardButton}
+        onPress={() => setShowWizard(true)}
+      >
+        <Icon name="settings" size={20} color={colors.secondary} />
+        <Text style={styles.wizardButtonText}>Go to Wizard</Text>
+        <Icon name="chevron-right" size={20} color={colors.secondary} />
+      </TouchableOpacity>
     </ScrollView>
+    
+      <SetupWizard
+        visible={showWizard}
+        onClose={() => setShowWizard(false)}
+        onComplete={() => {
+          setShowWizard(false);
+          // You can add additional logic here if needed
+        }}
+      />
+    </>
   );
 };
 
@@ -383,5 +405,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.white,
+  },
+  wizardButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.secondary,
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  wizardButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.secondary,
   },
 });
