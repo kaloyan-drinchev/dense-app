@@ -25,8 +25,7 @@ import { ScanResultsModal } from '@/components/ScanResultsModal';
 import { CustomMealsList } from '@/components/CustomMealsList';
 import { CustomMealForm } from '@/components/CustomMealForm';
 import { FoodItem, MealType, CustomMeal } from '@/types/nutrition';
-import Icon from 'react-native-vector-icons/Feather';
-import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 export default function NutritionScreen() {
@@ -204,7 +203,7 @@ export default function NutritionScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
@@ -434,8 +433,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
-    paddingBottom: 32,
+    paddingHorizontal: 16,  // Only left/right padding
+    paddingTop: 8,          // Minimal top padding
+    paddingBottom: 32,      // Keep bottom unchanged
   },
   header: {
     flexDirection: 'row',

@@ -10,7 +10,7 @@ import { Exercise, ExerciseSet } from '@/types/workout';
 import { colors } from '@/constants/colors';
 import { useWorkoutStore } from '@/store/workout-store';
 import { generateId } from '@/utils/helpers';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 
 interface ExerciseTrackerProps {
   exercise: Exercise;

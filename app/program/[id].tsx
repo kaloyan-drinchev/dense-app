@@ -14,8 +14,7 @@ import { useWorkoutStore } from '@/store/workout-store';
 import { colors } from '@/constants/colors';
 import { WeekCard } from '@/components/WeekCard';
 import { LinearGradient } from 'expo-linear-gradient';
-import Icon from 'react-native-vector-icons/Feather';
-import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 export default function ProgramDetailScreen() {

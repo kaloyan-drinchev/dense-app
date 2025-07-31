@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Week } from '@/types/workout';
 import { colors } from '@/constants/colors';
 import { getProgressPercentage } from '@/utils/helpers';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 
 interface WeekCardProps {
   week: Week;

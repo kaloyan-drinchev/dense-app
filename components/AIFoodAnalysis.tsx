@@ -9,7 +9,7 @@ import {
 import { colors } from '@/constants/colors';
 import { COMMON_FOODS } from '@/mocks/foods';
 import { FoodItem, MealType } from '@/types/nutrition';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 
 interface AIFoodAnalysisProps {
   voiceInput: string;

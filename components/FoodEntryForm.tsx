@@ -12,7 +12,7 @@ import { colors } from '@/constants/colors';
 import { FoodItem, MealType } from '@/types/nutrition';
 import { calculateNutrition, createFoodEntry } from '@/mocks/foods';
 import { useNutritionStore } from '@/store/nutrition-store';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 interface FoodEntryFormProps {

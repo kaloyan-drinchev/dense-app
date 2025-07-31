@@ -2,8 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Workout } from '@/types/workout';
 import { colors } from '@/constants/colors';
-import Icon from 'react-native-vector-icons/Feather';
-import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 
 interface WorkoutCardProps {
   workout: Workout;

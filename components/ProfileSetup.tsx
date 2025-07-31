@@ -11,8 +11,7 @@ import { colors } from '@/constants/colors';
 import { useWorkoutStore } from '@/store/workout-store';
 import { UserProfile } from '@/types/workout';
 import { calculateBMI, getBMICategory } from '@/utils/helpers';
-import Icon from 'react-native-vector-icons/Feather';
-import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 
 export const ProfileSetup: React.FC<{
   onComplete: () => void;
@@ -287,7 +286,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.dark,
-    padding: 16,
+    paddingHorizontal: 16,  // Only left/right padding
+    paddingTop: 8,          // Minimal top padding
+    paddingBottom: 16,      // Bottom padding
   },
   title: {
     fontSize: 24,

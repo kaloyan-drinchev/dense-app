@@ -1,8 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { colors } from '@/constants/colors';
-import Icon from 'react-native-vector-icons/Feather';
-import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 
 export default function TabLayout() {
   return (
@@ -13,7 +12,7 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: colors.darkGray,
           borderTopColor: colors.mediumGray,
-          height: 60,
+          height: 70,
           paddingBottom: 8,
         },
         tabBarLabelStyle: {

@@ -9,7 +9,7 @@ import {
 import { colors } from '@/constants/colors';
 import { CustomMeal, MealType } from '@/types/nutrition';
 import { useNutritionStore } from '@/store/nutrition-store';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 

@@ -12,8 +12,7 @@ import { colors } from '@/constants/colors';
 import { ProgressChart } from '@/components/ProgressChart';
 import { WeightLogger } from '@/components/WeightLogger';
 import { formatDate } from '@/utils/helpers';
-import Icon from 'react-native-vector-icons/Feather';
-import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 
 export default function ProgressScreen() {
   const { userProgress, activeProgram } = useWorkoutStore();
@@ -23,7 +22,7 @@ export default function ProgressScreen() {
 
   if (!userProgress || !activeProgram) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={[]}>
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyTitle}>No Active Program</Text>
           <Text style={styles.emptyText}>
@@ -44,7 +43,7 @@ export default function ProgressScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
@@ -222,8 +221,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
-    paddingBottom: 32,
+    paddingHorizontal: 16,  // Only left/right padding
+    paddingTop: 8,          // Minimal top padding
+    paddingBottom: 32,      // Keep bottom unchanged
   },
   header: {
     marginBottom: 24,

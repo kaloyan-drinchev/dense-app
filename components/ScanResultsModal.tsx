@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { colors } from '@/constants/colors';
 import { FoodItem, MealType } from '@/types/nutrition';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 interface ScanResultsModalProps {

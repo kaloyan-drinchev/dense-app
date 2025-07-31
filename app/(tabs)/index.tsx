@@ -12,8 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '@/store/workout-store';
 import { colors } from '@/constants/colors';
 import { formatDate } from '@/utils/helpers';
-import Icon from 'react-native-vector-icons/Feather';
-import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ProfileSetup } from '@/components/ProfileSetup';
 
@@ -31,7 +30,7 @@ export default function HomeScreen() {
 
   if (showProfileSetup) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={[]}>
         <ProfileSetup onComplete={() => setShowProfileSetup(false)} />
       </SafeAreaView>
     );
@@ -61,7 +60,7 @@ export default function HomeScreen() {
   const nextWorkout = getNextWorkout();
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
@@ -270,7 +269,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
+    paddingHorizontal: 16,  // Only left/right padding
+    paddingTop: 8,          // Minimal top padding
+    paddingBottom: 16,      // Bottom padding
   },
   header: {
     marginBottom: 24,

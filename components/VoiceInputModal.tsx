@@ -9,7 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { colors } from '@/constants/colors';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 interface VoiceInputModalProps {

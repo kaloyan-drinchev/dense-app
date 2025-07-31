@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { colors } from '@/constants/colors';
 import { useWorkoutStore } from '@/store/workout-store';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 

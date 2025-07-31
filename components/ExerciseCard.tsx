@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { Exercise } from '@/types/workout';
 import { colors } from '@/constants/colors';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 import { formatTime } from '@/utils/helpers';
 
 interface ExerciseCardProps {

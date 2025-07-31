@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { colors } from '@/constants/colors';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 import { FoodItem } from '@/types/nutrition';
 import { COMMON_FOODS } from '@/mocks/foods';
 

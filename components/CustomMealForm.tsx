@@ -18,7 +18,7 @@ import {
 import { useNutritionStore } from '@/store/nutrition-store';
 import { COMMON_FOODS, calculateNutrition } from '@/mocks/foods';
 import { generateId } from '@/utils/helpers';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 interface CustomMealFormProps {

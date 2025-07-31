@@ -11,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Program } from '@/types/workout';
 import { colors, programColors } from '@/constants/colors';
-import Icon from 'react-native-vector-icons/Feather';
+import { Feather as Icon } from '@expo/vector-icons';
 
 interface ProgramCardProps {
   program: Program;

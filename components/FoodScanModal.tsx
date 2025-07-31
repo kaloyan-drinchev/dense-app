@@ -11,8 +11,7 @@ import {
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 // import { BarCodeScanner, BarCodeScannerResult } from 'expo-barcode-scanner';
 import { colors } from '@/constants/colors';
-import Icon from 'react-native-vector-icons/Feather';
-import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import { FoodItem, MealType } from '@/types/nutrition';
 import { COMMON_FOODS } from '@/mocks/foods';
 import * as Haptics from 'expo-haptics';

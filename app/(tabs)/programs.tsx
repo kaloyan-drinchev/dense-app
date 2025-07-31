@@ -23,7 +23,7 @@ export default function ProgramsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         <View style={styles.header}>
           <Text style={styles.title}>Choose Your Program</Text>
@@ -83,8 +83,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
-    paddingBottom: 32,
+    paddingHorizontal: 16,  // Only left/right padding
+    paddingTop: 8,          // Minimal top padding
+    paddingBottom: 32,      // Keep bottom unchanged
   },
   header: {
     marginBottom: 24,
