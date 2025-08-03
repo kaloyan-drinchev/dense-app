@@ -12,9 +12,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '@/store/workout-store';
 import { colors } from '@/constants/colors';
 import { formatDate } from '@/utils/helpers';
-import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
+import {
+  Feather as Icon,
+  MaterialIcons as MaterialIcon,
+} from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ProfileSetup } from '@/components/ProfileSetup';
+import ConnectionTest from '@/components/ConnectionTest';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -72,6 +76,11 @@ export default function HomeScreen() {
           <Text style={styles.date}>
             {formatDate(new Date().toISOString())}
           </Text>
+        </View>
+
+        {/* Temporary Backend Connection Test */}
+        <View style={styles.connectionTestContainer}>
+          <ConnectionTest />
         </View>
 
         {activeProgram && userProgress ? (
@@ -269,12 +278,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingHorizontal: 16,  // Only left/right padding
-    paddingTop: 8,          // Minimal top padding
-    paddingBottom: 16,      // Bottom padding
+    paddingHorizontal: 16, // Only left/right padding
+    paddingTop: 8, // Minimal top padding
+    paddingBottom: 16, // Bottom padding
   },
   header: {
     marginBottom: 24,
+  },
+  connectionTestContainer: {
+    marginBottom: 24,
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 4,
   },
   greeting: {
     fontSize: 28,

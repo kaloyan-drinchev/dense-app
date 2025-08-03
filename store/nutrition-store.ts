@@ -1,9 +1,16 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DailyLog, FoodEntry, NutritionGoals, NutritionPreferences, CustomMeal } from '@/types/nutrition';
+import {
+  DailyLog,
+  FoodEntry,
+  NutritionGoals,
+  NutritionPreferences,
+  CustomMeal,
+} from '@/types/nutrition';
 import { COMMON_FOODS, calculateNutrition } from '@/mocks/foods';
 import { generateId } from '@/utils/helpers';
+import { ApiService } from '@/utils/api';
 
 interface NutritionState {
   dailyLogs: { [date: string]: DailyLog };
@@ -11,14 +18,22 @@ interface NutritionState {
   nutritionPreferences: NutritionPreferences;
   recentFoods: string[]; // IDs of recently added foods
   customMeals: CustomMeal[]; // Custom meals created by the user
-  
+  isLoading: boolean;
+  error: string | null;
+  isConnected: boolean;
+  currentUserId: string | null;
+
+  // User management
+  setCurrentUser: (userId: string) => void;
+
   // Actions
-  addFoodEntry: (date: string, entry: FoodEntry) => void;
+  addFoodEntry: (date: string, entry: FoodEntry) => Promise<void>;
   removeFoodEntry: (date: string, entryId: string) => void;
   updateNutritionGoals: (goals: Partial<NutritionGoals>) => void;
   updateNutritionPreferences: (prefs: Partial<NutritionPreferences>) => void;
   clearDailyLog: (date: string) => void;
-  
+  loadNutritionData: (date: string) => Promise<void>;
+
   // Custom meals actions
   addCustomMeal: (meal: CustomMeal) => void;
   updateCustomMeal: (mealId: string, updates: Partial<CustomMeal>) => void;
@@ -27,13 +42,18 @@ interface NutritionState {
 }
 
 // Helper to calculate default calorie goal based on user profile
-const calculateDefaultCalorieGoal = (weight: number, height: number, age: number, goal: string): number => {
+const calculateDefaultCalorieGoal = (
+  weight: number,
+  height: number,
+  age: number,
+  goal: string
+): number => {
   // Basic BMR calculation (Harris-Benedict equation)
   const bmr = 10 * weight + 6.25 * height - 5 * age + 5;
-  
+
   // Adjust based on activity level (moderate activity)
   const tdee = bmr * 1.55;
-  
+
   // Adjust based on goal
   if (goal === 'bulking') return Math.round(tdee * 1.1); // 10% surplus
   if (goal === 'cutting') return Math.round(tdee * 0.8); // 20% deficit
@@ -67,11 +87,15 @@ const calculateTotalNutrition = (entries: FoodEntry[]) => {
       protein: parseFloat((total.protein + entry.nutrition.protein).toFixed(1)),
       carbs: parseFloat((total.carbs + entry.nutrition.carbs).toFixed(1)),
       fat: parseFloat((total.fat + entry.nutrition.fat).toFixed(1)),
-      fiber: entry.nutrition.fiber 
-        ? parseFloat(((total.fiber || 0) + (entry.nutrition.fiber || 0)).toFixed(1))
+      fiber: entry.nutrition.fiber
+        ? parseFloat(
+            ((total.fiber || 0) + (entry.nutrition.fiber || 0)).toFixed(1)
+          )
         : total.fiber,
       sugar: entry.nutrition.sugar
-        ? parseFloat(((total.sugar || 0) + (entry.nutrition.sugar || 0)).toFixed(1))
+        ? parseFloat(
+            ((total.sugar || 0) + (entry.nutrition.sugar || 0)).toFixed(1)
+          )
         : total.sugar,
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
@@ -96,33 +120,90 @@ export const useNutritionStore = create<NutritionState>()(
       },
       recentFoods: [],
       customMeals: [],
-      
-      addFoodEntry: (date, entry) => {
+      isLoading: false,
+      error: null,
+      isConnected: false,
+      currentUserId: null,
+
+      // User management
+      setCurrentUser: (userId: string) => {
+        set({ currentUserId: userId });
+      },
+
+      // Load nutrition data from backend
+      loadNutritionData: async (date: string) => {
+        const { currentUserId } = get();
+        if (!currentUserId) return;
+
+        try {
+          set({ isLoading: true, error: null });
+          const nutritionData = await ApiService.getNutritionHistory(
+            currentUserId,
+            date
+          );
+
+          // Transform backend data to match frontend format
+          const dailyLog: DailyLog = {
+            date: nutritionData.date,
+            entries: nutritionData.entries.map((entry: any) => ({
+              id: entry.id,
+              foodId: entry.foodId,
+              name: entry.name,
+              amount: entry.amount,
+              unit: entry.unit,
+              mealType: entry.mealType,
+              timestamp: entry.loggedAt,
+              nutrition: entry.nutrition,
+            })),
+            totalNutrition: nutritionData.totalNutrition,
+            calorieGoal: get().nutritionGoals.calories,
+          };
+
+          set({
+            dailyLogs: {
+              ...get().dailyLogs,
+              [date]: dailyLog,
+            },
+            isLoading: false,
+            isConnected: true,
+          });
+        } catch (error) {
+          console.error('Failed to load nutrition data:', error);
+          set({
+            error: 'Failed to load nutrition data from server',
+            isLoading: false,
+            isConnected: false,
+          });
+        }
+      },
+
+      addFoodEntry: async (date, entry) => {
         const { dailyLogs, nutritionGoals } = get();
-        
+
         // Create or get the daily log for the date
-        const dailyLog = dailyLogs[date] || createEmptyDailyLog(date, nutritionGoals.calories);
-        
+        const dailyLog =
+          dailyLogs[date] || createEmptyDailyLog(date, nutritionGoals.calories);
+
         // Add the entry
         const updatedEntries = [...dailyLog.entries, entry];
-        
+
         // Calculate new total nutrition
         const totalNutrition = calculateTotalNutrition(updatedEntries);
-        
+
         // Update the daily log
         const updatedDailyLog = {
           ...dailyLog,
           entries: updatedEntries,
           totalNutrition,
         };
-        
+
         // Update recent foods
         const currentRecentFoods = get().recentFoods;
         const updatedRecentFoods = [
           entry.foodId,
-          ...currentRecentFoods.filter(id => id !== entry.foodId)
+          ...currentRecentFoods.filter((id) => id !== entry.foodId),
         ].slice(0, 10); // Keep only the 10 most recent
-        
+
         // Update state
         set({
           dailyLogs: {
@@ -131,27 +212,47 @@ export const useNutritionStore = create<NutritionState>()(
           },
           recentFoods: updatedRecentFoods,
         });
+
+        // Sync with backend
+        const { currentUserId, isConnected } = get();
+        if (currentUserId && isConnected) {
+          try {
+            await ApiService.logFood(currentUserId, {
+              foodId: entry.foodId,
+              name: entry.name,
+              amount: entry.amount,
+              unit: entry.unit,
+              mealType: entry.mealType,
+              nutrition: entry.nutrition,
+            });
+          } catch (error) {
+            console.error('Failed to sync food entry with backend:', error);
+            // Don't revert local changes, just log the error
+          }
+        }
       },
-      
+
       removeFoodEntry: (date, entryId) => {
         const { dailyLogs } = get();
         const dailyLog = dailyLogs[date];
-        
+
         if (!dailyLog) return;
-        
+
         // Remove the entry
-        const updatedEntries = dailyLog.entries.filter(entry => entry.id !== entryId);
-        
+        const updatedEntries = dailyLog.entries.filter(
+          (entry) => entry.id !== entryId
+        );
+
         // Calculate new total nutrition
         const totalNutrition = calculateTotalNutrition(updatedEntries);
-        
+
         // Update the daily log
         const updatedDailyLog = {
           ...dailyLog,
           entries: updatedEntries,
           totalNutrition,
         };
-        
+
         // Update state
         set({
           dailyLogs: {
@@ -160,33 +261,33 @@ export const useNutritionStore = create<NutritionState>()(
           },
         });
       },
-      
+
       updateNutritionGoals: (goals) => {
-        set(state => ({
+        set((state) => ({
           nutritionGoals: {
             ...state.nutritionGoals,
             ...goals,
           },
         }));
       },
-      
+
       updateNutritionPreferences: (prefs) => {
-        set(state => ({
+        set((state) => ({
           nutritionPreferences: {
             ...state.nutritionPreferences,
             ...prefs,
           },
         }));
       },
-      
+
       clearDailyLog: (date) => {
         const { dailyLogs, nutritionGoals } = get();
-        
+
         if (!dailyLogs[date]) return;
-        
+
         // Create an empty log
         const emptyLog = createEmptyDailyLog(date, nutritionGoals.calories);
-        
+
         // Update state
         set({
           dailyLogs: {
@@ -195,53 +296,55 @@ export const useNutritionStore = create<NutritionState>()(
           },
         });
       },
-      
+
       // Custom meals actions
       addCustomMeal: (meal) => {
-        set(state => ({
+        set((state) => ({
           customMeals: [...state.customMeals, meal],
         }));
       },
-      
+
       updateCustomMeal: (mealId, updates) => {
-        set(state => {
-          const mealIndex = state.customMeals.findIndex(meal => meal.id === mealId);
-          
+        set((state) => {
+          const mealIndex = state.customMeals.findIndex(
+            (meal) => meal.id === mealId
+          );
+
           if (mealIndex === -1) return state;
-          
+
           const updatedMeals = [...state.customMeals];
           updatedMeals[mealIndex] = {
             ...updatedMeals[mealIndex],
             ...updates,
             updatedAt: new Date().toISOString(),
           };
-          
+
           return {
             customMeals: updatedMeals,
           };
         });
       },
-      
+
       removeCustomMeal: (mealId) => {
-        set(state => ({
-          customMeals: state.customMeals.filter(meal => meal.id !== mealId),
+        set((state) => ({
+          customMeals: state.customMeals.filter((meal) => meal.id !== mealId),
         }));
       },
-      
+
       addCustomMealToLog: (date, mealId) => {
         const { customMeals } = get();
-        const meal = customMeals.find(m => m.id === mealId);
-        
+        const meal = customMeals.find((m) => m.id === mealId);
+
         if (!meal) return;
-        
+
         // Create entries for each food in the custom meal
         const foodEntries: FoodEntry[] = [];
-        
+
         meal.foods.forEach(({ foodId, amount }) => {
-          const food = COMMON_FOODS.find(f => f.id === foodId);
-          
+          const food = COMMON_FOODS.find((f) => f.id === foodId);
+
           if (!food) return;
-          
+
           const entry: FoodEntry = {
             id: generateId(),
             foodId,
@@ -252,12 +355,12 @@ export const useNutritionStore = create<NutritionState>()(
             timestamp: new Date().toISOString(),
             nutrition: calculateNutrition(food, amount),
           };
-          
+
           foodEntries.push(entry);
         });
-        
+
         // Add each entry to the log
-        foodEntries.forEach(entry => {
+        foodEntries.forEach((entry) => {
           get().addFoodEntry(date, entry);
         });
       },
@@ -265,6 +368,15 @@ export const useNutritionStore = create<NutritionState>()(
     {
       name: 'nutrition-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        dailyLogs: state.dailyLogs,
+        nutritionGoals: state.nutritionGoals,
+        nutritionPreferences: state.nutritionPreferences,
+        recentFoods: state.recentFoods,
+        customMeals: state.customMeals,
+        currentUserId: state.currentUserId,
+        isConnected: state.isConnected,
+      }),
     }
   )
 );
@@ -272,8 +384,9 @@ export const useNutritionStore = create<NutritionState>()(
 // Initialize nutrition goals based on user profile
 export const initializeNutritionGoals = () => {
   const { updateNutritionGoals } = useNutritionStore.getState();
-  const userProfile = require('@/store/workout-store').useWorkoutStore.getState().userProfile;
-  
+  const userProfile =
+    require('@/store/workout-store').useWorkoutStore.getState().userProfile;
+
   if (userProfile) {
     const calorieGoal = calculateDefaultCalorieGoal(
       userProfile.weight,
@@ -281,20 +394,20 @@ export const initializeNutritionGoals = () => {
       userProfile.age,
       userProfile.goal
     );
-    
+
     // Set protein based on body weight (1.8g per kg for bulking, 2.2g for cutting)
     const proteinGoal = Math.round(
       userProfile.weight * (userProfile.goal === 'cutting' ? 2.2 : 1.8)
     );
-    
+
     // Set fat at 25-30% of calories
     const fatGoal = Math.round((calorieGoal * 0.3) / 9);
-    
+
     // Remaining calories from carbs
     const carbGoal = Math.round(
-      (calorieGoal - (proteinGoal * 4) - (fatGoal * 9)) / 4
+      (calorieGoal - proteinGoal * 4 - fatGoal * 9) / 4
     );
-    
+
     updateNutritionGoals({
       calories: calorieGoal,
       protein: proteinGoal,
