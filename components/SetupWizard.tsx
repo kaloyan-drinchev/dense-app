@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Modal,
 } from 'react-native';
 import { colors } from '@/constants/colors';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
@@ -14,6 +13,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import { wizardResultsService, userProfileService } from '@/db/services';
+import { useAuthStore } from '@/store/auth-store';
 
 interface AuthContentProps {
   onComplete: () => void;
@@ -317,15 +318,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
   const [validationError, setValidationError] = useState('');
   const [showAuthScreen, setShowAuthScreen] = useState(false);
   const [preferences, setPreferences] = useState({
-    workoutTime: '',
-    workoutDays: [] as string[],
-    fitnessGoals: [] as string[],
-    preferredEquipment: [] as string[],
-    notificationSettings: {
-      workoutReminders: true,
-      progressUpdates: true,
-      nutritionTips: false,
-    },
+    primaryGoal: '',
+    focusMuscle: '',
+    trainingTime: '',
+    // Profile details
+    age: '',
+    weight: '',
+    height: '',
+    fitnessLevel: '',
   });
 
   // Reset wizard when it becomes visible
@@ -335,15 +335,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
       setValidationError('');
       setShowAuthScreen(false);
       setPreferences({
-        workoutTime: '',
-        workoutDays: [] as string[],
-        fitnessGoals: [] as string[],
-        preferredEquipment: [] as string[],
-        notificationSettings: {
-          workoutReminders: true,
-          progressUpdates: true,
-          nutritionTips: false,
-        },
+        primaryGoal: '',
+        focusMuscle: '',
+        trainingTime: '',
+        // Profile details
+        age: '',
+        weight: '',
+        height: '',
+        fitnessLevel: '',
       });
     }
   }, [visible]);
@@ -352,58 +351,51 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
     {
       id: 'welcome',
       title: 'Welcome to DENSE! 💪',
-      subtitle: 'Let\'s customize your fitness journey',
+      subtitle: 'Let\'s find your perfect program',
       icon: 'target',
       color: colors.primary,
     },
     {
-      id: 'workout-time',
-      title: 'When do you prefer to workout?',
-      subtitle: 'Choose your optimal training time',
-      icon: 'clock',
-      color: colors.secondary,
-    },
-    {
-      id: 'workout-days',
-      title: 'How many days per week?',
-      subtitle: 'Select your preferred workout schedule',
-      icon: 'calendar',
-      color: colors.primary,
-    },
-    {
       id: 'fitness-goals',
-      title: 'What are your main goals?',
-      subtitle: 'Help us personalize your experience',
+      title: 'What are your fitness goals?',
+      subtitle: 'Choose your primary objective',
       icon: 'award',
       color: colors.secondary,
     },
     {
-      id: 'equipment',
-      title: 'What equipment do you have?',
-      subtitle: 'We\'ll suggest appropriate exercises',
-      icon: 'settings',
+      id: 'muscle-focus',
+      title: 'Which muscle group to focus on?',
+      subtitle: 'Select your main area of development',
+      icon: 'zap',
       color: colors.primary,
     },
     {
-      id: 'notifications',
-      title: 'Stay motivated with reminders',
-      subtitle: 'Configure your notification preferences',
-      icon: 'bell',
+      id: 'training-time',
+      title: 'How much time can you train?',
+      subtitle: 'Choose your preferred workout duration',
+      icon: 'clock',
       color: colors.secondary,
     },
     {
+      id: 'profile-details',
+      title: 'Complete your profile',
+      subtitle: 'Help us personalize your experience',
+      icon: 'user',
+      color: colors.primary,
+    },
+    {
       id: 'complete',
-      title: 'All set! 🚀',
-      subtitle: 'Your personalized journey begins now',
+      title: 'Perfect Match Found! 🎯',
+      subtitle: 'We\'ve found the ideal program for you',
       icon: 'check-circle',
       color: colors.success,
     },
   ];
 
-  const workoutTimes = ['Morning (6-9 AM)', 'Afternoon (12-3 PM)', 'Evening (6-9 PM)', 'Night (9-11 PM)'];
-  const weekDays = ['3 days', '4 days', '5 days', '6 days', '7 days'];
-  const goals = ['Build Muscle', 'Lose Weight', 'Get Stronger', 'Improve Endurance', 'General Fitness'];
-  const equipment = ['Dumbbells', 'Barbell', 'Resistance Bands', 'Pull-up Bar', 'Gym Access', 'Bodyweight Only'];
+  const goals = ['Build Muscle', 'Get Stronger', 'Lose Weight', 'General Fitness'];
+  const muscleGroups = ['Chest', 'Back', 'Shoulders'];
+  const trainingTimes = ['30-45 minutes', '45-60 minutes', '60-90 minutes'];
+  const fitnessLevels = ['Beginner', 'Intermediate', 'Advanced'];
 
 
 
@@ -412,27 +404,31 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
     setValidationError('');
 
     switch (step.id) {
-      case 'workout-time':
-        if (!preferences.workoutTime) {
-          setValidationError('Please select your preferred workout time');
-          return false;
-        }
-        break;
-      case 'workout-days':
-        if (preferences.workoutDays.length === 0) {
-          setValidationError('Please select at least one workout frequency');
-          return false;
-        }
-        break;
       case 'fitness-goals':
-        if (preferences.fitnessGoals.length === 0) {
-          setValidationError('Please select at least one fitness goal');
+        if (!preferences.primaryGoal) {
+          setValidationError('Please select your primary fitness goal');
           return false;
         }
         break;
-      case 'equipment':
-        if (preferences.preferredEquipment.length === 0) {
-          setValidationError('Please select at least one equipment option');
+      case 'muscle-focus':
+        if (!preferences.focusMuscle) {
+          setValidationError('Please select your muscle group focus');
+          return false;
+        }
+        break;
+      case 'training-time':
+        if (!preferences.trainingTime) {
+          setValidationError('Please select your preferred training duration');
+          return false;
+        }
+        break;
+      case 'profile-details':
+        if (!preferences.age || !preferences.weight || !preferences.height || !preferences.fitnessLevel) {
+          setValidationError('Please fill in all profile details');
+          return false;
+        }
+        if (parseInt(preferences.age) < 16 || parseInt(preferences.age) > 80) {
+          setValidationError('Please enter a valid age (16-80)');
           return false;
         }
         break;
@@ -476,21 +472,95 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
     }
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
+    
+    try {
+      // Get current user
+      const { user, setWizardCompleted } = useAuthStore.getState();
+      if (!user) {
+        console.error('No user found for wizard completion');
+        setShowAuthScreen(true);
+        return;
+      }
+
+      // Get matched program
+      const matchedProgram = getMatchedProgram();
+      
+      // Save wizard results to database
+      await wizardResultsService.create({
+        userId: user.email,
+        primaryGoal: preferences.primaryGoal.toLowerCase().replace(' ', '_'),
+        fitnessLevel: preferences.fitnessLevel.toLowerCase(),
+        workoutFrequency: '5_times', // Default based on training programs
+        preferredWorkoutLength: preferences.trainingTime.replace('-', '_').replace(' ', '_'),
+        workoutLocation: 'gym', // Default for our muscle-focused programs
+        focusMuscle: preferences.focusMuscle.toLowerCase(),
+        suggestedPrograms: JSON.stringify([matchedProgram.id]),
+      });
+
+      // Update user profile with new details
+      await userProfileService.update(user.email, {
+        age: parseInt(preferences.age),
+        weight: parseFloat(preferences.weight),
+        height: parseFloat(preferences.height),
+        goal: preferences.primaryGoal,
+      });
+
+      // Mark wizard as completed
+      setWizardCompleted();
+      
+      console.log('✅ Wizard completed and saved:', {
+        goal: preferences.primaryGoal,
+        muscle: preferences.focusMuscle,
+        time: preferences.trainingTime,
+        program: matchedProgram.name,
+      });
+
+    } catch (error) {
+      console.error('❌ Failed to save wizard results:', error);
+    }
+    
     setShowAuthScreen(true);
   };
 
-  const toggleArrayValue = (array: string[], value: string, setter: (newArray: string[]) => void) => {
-    // Clear validation error when user makes a selection
-    setValidationError('');
-    if (array.includes(value)) {
-      setter(array.filter(item => item !== value));
-    } else {
-      setter([...array, value]);
+  // Program matching logic
+  const getMatchedProgram = () => {
+    const { primaryGoal, focusMuscle, trainingTime } = preferences;
+    
+    // Match muscle focus to program
+    let programName = '';
+    let programId = '';
+    
+    switch (focusMuscle.toLowerCase()) {
+      case 'chest':
+        programName = 'Chest Domination';
+        programId = 'chest-focus-program';
+        break;
+      case 'back':
+        programName = 'Back Builder Elite';
+        programId = 'back-focus-program';
+        break;
+      case 'shoulders':
+        programName = 'Shoulder Sculptor';
+        programId = 'shoulders-focus-program';
+        break;
+      default:
+        programName = 'Chest Domination';
+        programId = 'chest-focus-program';
     }
+    
+    return {
+      id: programId,
+      name: programName,
+      description: `Perfect for your ${primaryGoal.toLowerCase()} goals with ${focusMuscle.toLowerCase()} focus`,
+      duration: '12 weeks',
+      focusArea: focusMuscle.toLowerCase(),
+      trainingTime: trainingTime,
+      goal: primaryGoal,
+    };
   };
 
   const renderStepContent = () => {
@@ -501,77 +571,22 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
         return (
           <View style={styles.welcomeContent}>
             <Text style={styles.welcomeText}>
-              We'll guide you through a quick setup to personalize your experience and help you achieve your fitness goals faster.
+              Answer 3 quick questions and we'll recommend the perfect 12-week program tailored to your goals and preferences.
             </Text>
             <View style={styles.featureList}>
               <View style={styles.featureItem}>
                 <Icon name="target" size={20} color={colors.primary} />
-                <Text style={styles.featureText}>Personalized workout plans</Text>
+                <Text style={styles.featureText}>Muscle-focused programs</Text>
               </View>
               <View style={styles.featureItem}>
                 <Icon name="trending-up" size={20} color={colors.secondary} />
-                <Text style={styles.featureText}>Progress tracking</Text>
+                <Text style={styles.featureText}>12-week structured plans</Text>
               </View>
               <View style={styles.featureItem}>
-                <Icon name="bell" size={20} color={colors.success} />
-                <Text style={styles.featureText}>Smart reminders</Text>
+                <Icon name="zap" size={20} color={colors.success} />
+                <Text style={styles.featureText}>Personalized recommendations</Text>
               </View>
             </View>
-          </View>
-        );
-
-      case 'workout-time':
-        return (
-          <View style={styles.optionsContainer}>
-            {workoutTimes.map((time) => (
-              <TouchableOpacity
-                key={time}
-                style={[
-                  styles.optionButton,
-                  preferences.workoutTime === time && styles.selectedOption,
-                ]}
-                onPress={() => {
-                  setValidationError('');
-                  setPreferences({ ...preferences, workoutTime: time });
-                }}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    preferences.workoutTime === time && styles.selectedOptionText,
-                  ]}
-                >
-                  {time}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        );
-
-      case 'workout-days':
-        return (
-          <View style={styles.optionsContainer}>
-            {weekDays.map((days) => (
-              <TouchableOpacity
-                key={days}
-                style={[
-                  styles.optionButton,
-                  preferences.workoutDays.includes(days) && styles.selectedOption,
-                ]}
-                onPress={() => toggleArrayValue(preferences.workoutDays, days, (newDays) => 
-                  setPreferences({ ...preferences, workoutDays: newDays })
-                )}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    preferences.workoutDays.includes(days) && styles.selectedOptionText,
-                  ]}
-                >
-                  {days}
-                </Text>
-              </TouchableOpacity>
-            ))}
           </View>
         );
 
@@ -583,16 +598,17 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
                 key={goal}
                 style={[
                   styles.optionButton,
-                  preferences.fitnessGoals.includes(goal) && styles.selectedOption,
+                  preferences.primaryGoal === goal && styles.selectedOption,
                 ]}
-                onPress={() => toggleArrayValue(preferences.fitnessGoals, goal, (newGoals) => 
-                  setPreferences({ ...preferences, fitnessGoals: newGoals })
-                )}
+                onPress={() => {
+                  setValidationError('');
+                  setPreferences({ ...preferences, primaryGoal: goal });
+                }}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    preferences.fitnessGoals.includes(goal) && styles.selectedOptionText,
+                    preferences.primaryGoal === goal && styles.selectedOptionText,
                   ]}
                 >
                   {goal}
@@ -602,169 +618,196 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
           </View>
         );
 
-      case 'equipment':
+      case 'muscle-focus':
         return (
           <View style={styles.optionsContainer}>
-            {equipment.map((item) => (
+            {muscleGroups.map((muscle) => (
               <TouchableOpacity
-                key={item}
+                key={muscle}
                 style={[
                   styles.optionButton,
-                  preferences.preferredEquipment.includes(item) && styles.selectedOption,
+                  preferences.focusMuscle === muscle && styles.selectedOption,
                 ]}
-                onPress={() => toggleArrayValue(preferences.preferredEquipment, item, (newEquipment) => 
-                  setPreferences({ ...preferences, preferredEquipment: newEquipment })
-                )}
+                onPress={() => {
+                  setValidationError('');
+                  setPreferences({ ...preferences, focusMuscle: muscle });
+                }}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    preferences.preferredEquipment.includes(item) && styles.selectedOptionText,
+                    preferences.focusMuscle === muscle && styles.selectedOptionText,
                   ]}
                 >
-                  {item}
+                  {muscle}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         );
 
-      case 'notifications':
+      case 'training-time':
         return (
-          <View style={styles.notificationsContainer}>
-            <View style={styles.notificationItem}>
-              <View style={styles.notificationInfo}>
-                <Text style={styles.notificationTitle}>Workout Reminders</Text>
-                <Text style={styles.notificationSubtitle}>Get notified when it's time to exercise</Text>
-              </View>
+          <View style={styles.optionsContainer}>
+            {trainingTimes.map((time) => (
               <TouchableOpacity
+                key={time}
                 style={[
-                  styles.toggleButton,
-                  preferences.notificationSettings.workoutReminders && styles.toggleActive,
+                  styles.optionButton,
+                  preferences.trainingTime === time && styles.selectedOption,
                 ]}
                 onPress={() => {
                   setValidationError('');
-                  setPreferences({
-                    ...preferences,
-                    notificationSettings: {
-                      ...preferences.notificationSettings,
-                      workoutReminders: !preferences.notificationSettings.workoutReminders,
-                    },
-                  });
+                  setPreferences({ ...preferences, trainingTime: time });
                 }}
               >
-                <View style={[
-                  styles.toggleIndicator,
-                  preferences.notificationSettings.workoutReminders && styles.toggleIndicatorActive,
-                ]} />
+                <Text
+                  style={[
+                    styles.optionText,
+                    preferences.trainingTime === time && styles.selectedOptionText,
+                  ]}
+                >
+                  {time}
+                </Text>
               </TouchableOpacity>
+            ))}
+          </View>
+        );
+
+      case 'profile-details':
+        return (
+          <View style={styles.profileContainer}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Age</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter your age"
+                placeholderTextColor={colors.lightGray}
+                value={preferences.age}
+                onChangeText={(value) => {
+                  setValidationError('');
+                  setPreferences({ ...preferences, age: value });
+                }}
+                keyboardType="numeric"
+                maxLength={2}
+              />
             </View>
-            
-            <View style={styles.notificationItem}>
-              <View style={styles.notificationInfo}>
-                <Text style={styles.notificationTitle}>Progress Updates</Text>
-                <Text style={styles.notificationSubtitle}>Celebrate your achievements</Text>
+
+            <View style={styles.inputRow}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
+                <Text style={styles.inputLabel}>Weight (kg)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="70"
+                  placeholderTextColor={colors.lightGray}
+                  value={preferences.weight}
+                  onChangeText={(value) => {
+                    setValidationError('');
+                    setPreferences({ ...preferences, weight: value });
+                  }}
+                  keyboardType="numeric"
+                  maxLength={3}
+                />
               </View>
-              <TouchableOpacity
-                style={[
-                  styles.toggleButton,
-                  preferences.notificationSettings.progressUpdates && styles.toggleActive,
-                ]}
-                onPress={() => {
-                  setValidationError('');
-                  setPreferences({
-                    ...preferences,
-                    notificationSettings: {
-                      ...preferences.notificationSettings,
-                      progressUpdates: !preferences.notificationSettings.progressUpdates,
-                    },
-                  });
-                }}
-              >
-                <View style={[
-                  styles.toggleIndicator,
-                  preferences.notificationSettings.progressUpdates && styles.toggleIndicatorActive,
-                ]} />
-              </TouchableOpacity>
+
+              <View style={[styles.inputGroup, { flex: 1, marginLeft: 10 }]}>
+                <Text style={styles.inputLabel}>Height (cm)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="175"
+                  placeholderTextColor={colors.lightGray}
+                  value={preferences.height}
+                  onChangeText={(value) => {
+                    setValidationError('');
+                    setPreferences({ ...preferences, height: value });
+                  }}
+                  keyboardType="numeric"
+                  maxLength={3}
+                />
+              </View>
             </View>
-            
-            <View style={styles.notificationItem}>
-              <View style={styles.notificationInfo}>
-                <Text style={styles.notificationTitle}>Nutrition Tips</Text>
-                <Text style={styles.notificationSubtitle}>Daily nutrition advice and tips</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Fitness Level</Text>
+              <View style={styles.optionsContainer}>
+                {fitnessLevels.map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.optionButton,
+                      preferences.fitnessLevel === level && styles.selectedOption,
+                    ]}
+                    onPress={() => {
+                      setValidationError('');
+                      setPreferences({ ...preferences, fitnessLevel: level });
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        preferences.fitnessLevel === level && styles.selectedOptionText,
+                      ]}
+                    >
+                      {level}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-              <TouchableOpacity
-                style={[
-                  styles.toggleButton,
-                  preferences.notificationSettings.nutritionTips && styles.toggleActive,
-                ]}
-                onPress={() => {
-                  setValidationError('');
-                  setPreferences({
-                    ...preferences,
-                    notificationSettings: {
-                      ...preferences.notificationSettings,
-                      nutritionTips: !preferences.notificationSettings.nutritionTips,
-                    },
-                  });
-                }}
-              >
-                <View style={[
-                  styles.toggleIndicator,
-                  preferences.notificationSettings.nutritionTips && styles.toggleIndicatorActive,
-                ]} />
-              </TouchableOpacity>
             </View>
           </View>
         );
 
       case 'complete':
+        const matchedProgram = getMatchedProgram();
         return (
           <View style={styles.completeContent}>
             <View style={styles.congratulationsContainer}>
-              <Text style={styles.congratulationsTitle}>🎉 Congratulations!</Text>
+              <Text style={styles.congratulationsTitle}>🎯 Perfect Match!</Text>
               <Text style={styles.congratulationsSubtitle}>
-                Your personalized fitness journey is ready to begin!
-              </Text>
-              <Text style={styles.completeText}>
-                We've customized your experience based on your preferences. 
-                You're all set to start achieving your fitness goals!
+                We found the ideal program for you
               </Text>
             </View>
             
-            <View style={styles.summaryContainer}>
-              <Text style={styles.summaryTitle}>Your Setup:</Text>
-              <View style={styles.summaryGrid}>
-                <View style={styles.summaryCard}>
-                  <Icon name="clock" size={20} color={colors.primary} />
-                  <Text style={styles.summaryCardTitle}>Workout Time</Text>
-                  <Text style={styles.summaryCardValue}>{preferences.workoutTime || 'Not set'}</Text>
+            <View style={styles.programCard}>
+              <View style={styles.programHeader}>
+                <Text style={styles.programName}>{matchedProgram.name}</Text>
+                <Text style={styles.programDuration}>{matchedProgram.duration}</Text>
+              </View>
+              <Text style={styles.programDescription}>{matchedProgram.description}</Text>
+              
+              <View style={styles.programDetails}>
+                <View style={styles.programDetailItem}>
+                  <Icon name="target" size={16} color={colors.primary} />
+                  <Text style={styles.programDetailText}>Goal: {matchedProgram.goal}</Text>
                 </View>
-                
-                <View style={styles.summaryCard}>
-                  <Icon name="calendar" size={20} color={colors.secondary} />
-                  <Text style={styles.summaryCardTitle}>Frequency</Text>
-                  <Text style={styles.summaryCardValue}>{preferences.workoutDays.join(', ') || 'Not set'}</Text>
+                <View style={styles.programDetailItem}>
+                  <Icon name="zap" size={16} color={colors.secondary} />
+                  <Text style={styles.programDetailText}>Focus: {matchedProgram.focusArea}</Text>
                 </View>
-                
-                <View style={styles.summaryCard}>
-                  <Icon name="target" size={20} color={colors.success} />
-                  <Text style={styles.summaryCardTitle}>Goals</Text>
-                  <Text style={styles.summaryCardValue}>{preferences.fitnessGoals.slice(0, 2).join(', ') || 'Not set'}</Text>
-                </View>
-                
-                <View style={styles.summaryCard}>
-                  <Icon name="settings" size={20} color={colors.warning} />
-                  <Text style={styles.summaryCardTitle}>Equipment</Text>
-                  <Text style={styles.summaryCardValue}>{preferences.preferredEquipment.slice(0, 2).join(', ') || 'Not set'}</Text>
+                <View style={styles.programDetailItem}>
+                  <Icon name="clock" size={16} color={colors.success} />
+                  <Text style={styles.programDetailText}>Time: {matchedProgram.trainingTime}</Text>
                 </View>
               </View>
             </View>
             
-            <TouchableOpacity style={styles.getStartedButton} onPress={handleComplete}>
-              <Text style={styles.getStartedButtonText}>Get Started</Text>
-              <Icon name="arrow-right" size={20} color={colors.white} />
-            </TouchableOpacity>
+            <View style={styles.programActions}>
+              <TouchableOpacity style={styles.getStartedButton} onPress={handleComplete}>
+                <Text style={styles.getStartedButtonText}>Save & Continue</Text>
+                <Icon name="arrow-right" size={20} color={colors.white} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.seeProgramButton} 
+                onPress={() => {
+                  const matchedProgram = getMatchedProgram();
+                  router.push(`/program/${matchedProgram.id}`);
+                }}
+              >
+                <Text style={styles.seeProgramButtonText}>See the Program</Text>
+                <Icon name="eye" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
           </View>
         );
 
@@ -774,11 +817,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" statusBarTranslucent>
-      <LinearGradient
-        colors={[colors.dark, colors.darkGray]}
-        style={styles.container}
-      >
+    <LinearGradient
+      colors={[colors.dark, colors.darkGray]}
+      style={styles.container}
+    >
         <View style={styles.header}>
           {!showAuthScreen && (
             <Text style={styles.stepCounter}>
@@ -884,8 +926,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
           </View>
         )}
       </LinearGradient>
-    </Modal>
-  );
+    );
 };
 
 const styles = StyleSheet.create({
@@ -1353,5 +1394,103 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.lightGray,
     fontWeight: '500',
+  },
+  // Program Card Styles
+  programCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 30,
+    borderWidth: 2,
+    borderColor: colors.primary + '30',
+  },
+  programHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  programName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.white,
+    flex: 1,
+  },
+  programDuration: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+    backgroundColor: colors.primary + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  programDescription: {
+    fontSize: 16,
+    color: colors.lightGray,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  programDetails: {
+    gap: 8,
+  },
+  programDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  programDetailText: {
+    fontSize: 14,
+    color: colors.white,
+    fontWeight: '500',
+  },
+  // Profile Form Styles
+  profileContainer: {
+    gap: 20,
+    paddingBottom: 40,
+  },
+  inputGroup: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 16,
+    color: colors.white,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  textInput: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: colors.white,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  // Program Actions
+  programActions: {
+    gap: 16,
+  },
+  seeProgramButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    gap: 8,
+  },
+  seeProgramButtonText: {
+    fontSize: 18,
+    color: colors.primary,
+    fontWeight: 'bold',
   },
 });

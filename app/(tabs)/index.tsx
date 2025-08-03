@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -17,28 +17,17 @@ import {
   MaterialIcons as MaterialIcon,
 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ProfileSetup } from '@/components/ProfileSetup';
-import ConnectionTest from '@/components/ConnectionTest';
+
 
 export default function HomeScreen() {
   const router = useRouter();
   const { userProfile, userProgress, activeProgram, programs } =
     useWorkoutStore();
-  const [showProfileSetup, setShowProfileSetup] = useState(!userProfile);
 
-  useEffect(() => {
-    if (!userProfile) {
-      setShowProfileSetup(true);
-    }
-  }, [userProfile]);
 
-  if (showProfileSetup) {
-    return (
-      <SafeAreaView style={styles.container} edges={[]}>
-        <ProfileSetup onComplete={() => setShowProfileSetup(false)} />
-      </SafeAreaView>
-    );
-  }
+  const handleEditProfile = () => {
+    router.push('/profile');
+  };
 
   const handleProgramSelect = () => {
     router.push('/programs');
@@ -76,11 +65,6 @@ export default function HomeScreen() {
           <Text style={styles.date}>
             {formatDate(new Date().toISOString())}
           </Text>
-        </View>
-
-        {/* Temporary Backend Connection Test */}
-        <View style={styles.connectionTestContainer}>
-          <ConnectionTest />
         </View>
 
         {activeProgram && userProgress ? (
@@ -285,12 +269,7 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 24,
   },
-  connectionTestContainer: {
-    marginBottom: 24,
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    padding: 4,
-  },
+
   greeting: {
     fontSize: 28,
     fontWeight: 'bold',

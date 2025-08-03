@@ -1,311 +1,322 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
-  Alert,
-  Platform,
+  SafeAreaView,
 } from 'react-native';
-import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useWorkoutStore } from '@/store/workout-store';
-import { colors } from '@/constants/colors';
-import { WeekCard } from '@/components/WeekCard';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { Feather as Icon } from '@expo/vector-icons';
+import { colors } from '@/constants/colors';
+import { programService } from '@/db/services';
+import { PROGRAMS } from '@/mocks/programs';
 
-export default function ProgramDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+export default function ProgramView() {
   const router = useRouter();
-  const { programs, startProgram, userProgress } = useWorkoutStore();
+  const { id } = useLocalSearchParams();
+  const [program, setProgram] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const program = programs.find((p) => p.id === id);
+  useEffect(() => {
+    const loadProgram = async () => {
+      try {
+        // Try to find program in mocks first
+        const mockProgram = PROGRAMS.find(p => p.id === id);
+        
+        if (mockProgram) {
+          setProgram(mockProgram);
+        } else {
+          // Fallback to database if needed
+          const dbProgram = await programService.getById(id as string);
+          setProgram(dbProgram);
+        }
+      } catch (error) {
+        console.error('Failed to load program:', error);
+      }
+      setLoading(false);
+    };
 
-  if (!program) {
+    if (id) {
+      loadProgram();
+    }
+  }, [id]);
+
+  const getProgramIcon = (focusArea: string) => {
+    switch (focusArea) {
+      case 'chest': return 'zap';
+      case 'back': return 'shield';
+      case 'shoulders': return 'trending-up';
+      default: return 'target';
+    }
+  };
+
+  const getProgramColor = (focusArea: string) => {
+    switch (focusArea) {
+      case 'chest': return colors.primary;
+      case 'back': return colors.secondary;
+      case 'shoulders': return colors.success;
+      default: return colors.primary;
+    }
+  };
+
+  if (loading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Program not found</Text>
-      </View>
+      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading program...</Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
     );
   }
 
-  const isProgramActive = userProgress && userProgress.programId === program.id;
+  if (!program) {
+    return (
+      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>Program not found</Text>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <Text style={styles.backButtonText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
 
-  const handleStartProgram = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-
-    if (userProgress && userProgress.programId !== program.id) {
-      Alert.alert(
-        'Switch Programs?',
-        'You already have a program in progress. Starting a new program will reset your current progress.',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Switch',
-            onPress: () => {
-              startProgram(program.id);
-              if (Platform.OS !== 'web') {
-                Haptics.notificationAsync(
-                  Haptics.NotificationFeedbackType.Success
-                );
-              }
-            },
-          },
-        ]
-      );
-    } else {
-      startProgram(program.id);
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    }
-  };
-
-  const handleWeekPress = (weekId: string) => {
-    router.push(`/program/week/${weekId}`);
-  };
+  const programIcon = getProgramIcon(program.focusArea || program.type);
+  const programColor = getProgramColor(program.focusArea || program.type);
 
   return (
-    <View style={styles.container}>
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: program.imageUrl }}
-            style={styles.image}
-            contentFit="cover"
-          />
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.8)']}
-            style={styles.gradient}
-          />
-          <View style={styles.imageContent}>
-            <View style={styles.programBadge}>
-              <Text style={styles.programBadgeText}>
-                {program.type.toUpperCase()}
-              </Text>
-            </View>
-            <Text style={styles.programTitle}>{program.name}</Text>
-            <Text style={styles.programDuration}>
-              {program.duration} Weeks • 5 Workouts/Week
-            </Text>
-          </View>
+    <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
+            <Icon name="arrow-left" size={24} color={colors.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Program Details</Text>
+          <View style={styles.headerButton} />
         </View>
 
-        <View style={styles.content}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Program Overview</Text>
-            <Text style={styles.description}>{program.description}</Text>
-
-            <View style={styles.infoCards}>
-              <View style={styles.infoCard}>
-                <Icon name="calendar" size={24} color={colors.primary} />
-                <Text style={styles.infoValue}>{program.duration}</Text>
-                <Text style={styles.infoLabel}>Weeks</Text>
-              </View>
-
-              <View style={styles.infoCard}>
-                <MaterialIcon
-                  name="fitness-center"
-                  size={24}
-                  color={colors.primary}
-                />
-                <Text style={styles.infoValue}>5</Text>
-                <Text style={styles.infoLabel}>Days/Week</Text>
-              </View>
-
-              <View style={styles.infoCard}>
-                <Icon name="clock" size={24} color={colors.primary} />
-                <Text style={styles.infoValue}>
-                  {program.type === 'cutting' ? '~80' : '~60'}
-                </Text>
-                <Text style={styles.infoLabel}>Min/Workout</Text>
-              </View>
+        <ScrollView 
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Program Hero */}
+          <View style={styles.heroSection}>
+            <View style={[styles.programIcon, { backgroundColor: programColor + '20' }]}>
+              <Icon name={programIcon as any} size={40} color={programColor} />
             </View>
-
-            {!isProgramActive ? (
-              <TouchableOpacity
-                style={styles.startButton}
-                onPress={handleStartProgram}
-              >
-                <Icon name="play" size={20} color={colors.white} />
-                <Text style={styles.startButtonText}>Start Program</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.continueButton}
-                onPress={() =>
-                  handleWeekPress(
-                    program.weeks[userProgress.currentWeek - 1].id
-                  )
-                }
-              >
-                <Text style={styles.continueButtonText}>Continue Program</Text>
-                <Icon name="arrow-right" size={20} color={colors.white} />
-              </TouchableOpacity>
-            )}
+            
+            <Text style={styles.programTitle}>{program.name}</Text>
+            <Text style={styles.programDuration}>🕐 {program.duration} weeks</Text>
+            <Text style={styles.programDescription}>{program.description}</Text>
           </View>
 
-          {isProgramActive && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Your Progress</Text>
+          {/* Program Stats */}
+          <View style={styles.statsSection}>
+            <Text style={styles.sectionTitle}>Program Overview</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Icon name="target" size={20} color={colors.primary} />
+                <Text style={styles.statLabel}>Focus Area</Text>
+                <Text style={styles.statValue}>{program.focusArea || program.type}</Text>
+              </View>
+              
+              <View style={styles.statCard}>
+                <Icon name="calendar" size={20} color={colors.secondary} />
+                <Text style={styles.statLabel}>Duration</Text>
+                <Text style={styles.statValue}>{program.duration} weeks</Text>
+              </View>
+              
+              <View style={styles.statCard}>
+                <Icon name="trending-up" size={20} color={colors.success} />
+                <Text style={styles.statLabel}>Difficulty</Text>
+                <Text style={styles.statValue}>Intermediate</Text>
+              </View>
+              
+              <View style={styles.statCard}>
+                <Icon name="zap" size={20} color={colors.warning} />
+                <Text style={styles.statLabel}>Workouts</Text>
+                <Text style={styles.statValue}>{program.weeks?.[0]?.workouts?.length || 5}/week</Text>
+              </View>
+            </View>
+          </View>
 
-              {program.weeks.map((week) => (
-                <WeekCard
-                  key={week.id}
-                  week={week}
-                  onPress={() => handleWeekPress(week.id)}
-                  isActive={userProgress.currentWeek === week.weekNumber}
-                />
-              ))}
+          {/* Weekly Structure */}
+          {program.weeks && program.weeks[0] && (
+            <View style={styles.structureSection}>
+              <Text style={styles.sectionTitle}>Weekly Structure</Text>
+              <View style={styles.weeklyStructure}>
+                {program.weeks[0].workouts.map((workout: any, index: number) => (
+                  <View key={workout.id} style={styles.workoutDay}>
+                    <View style={styles.dayNumber}>
+                      <Text style={styles.dayNumberText}>{workout.day}</Text>
+                    </View>
+                    <View style={styles.workoutInfo}>
+                      <Text style={styles.workoutName}>{workout.name}</Text>
+                      <Text style={styles.workoutFocus}>{workout.focusArea}</Text>
+                      <Text style={styles.exerciseCount}>
+                        {workout.exercises?.length || 0} exercises
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Program Details</Text>
-
-            <View style={styles.detailCard}>
-              <Text style={styles.detailTitle}>Training Split</Text>
-              <View style={styles.splitList}>
-                <View style={styles.splitItem}>
-                  <View style={styles.splitDay}>
-                    <Text style={styles.splitDayText}>Day 1</Text>
+          {/* Sample Exercises */}
+          {program.weeks?.[0]?.workouts?.[0]?.exercises && (
+            <View style={styles.exercisesSection}>
+              <Text style={styles.sectionTitle}>Sample Exercises</Text>
+              <Text style={styles.sectionSubtitle}>From your first workout</Text>
+              <View style={styles.exercisesList}>
+                {program.weeks[0].workouts[0].exercises.slice(0, 4).map((exercise: any, index: number) => (
+                  <View key={exercise.id} style={styles.exerciseItem}>
+                    <View style={styles.exerciseIcon}>
+                      <Icon name="activity" size={16} color={colors.primary} />
+                    </View>
+                    <View style={styles.exerciseDetails}>
+                      <Text style={styles.exerciseName}>{exercise.name}</Text>
+                      <Text style={styles.exerciseSpecs}>
+                        {exercise.sets} sets × {exercise.reps} reps
+                      </Text>
+                    </View>
+                    <Text style={styles.exerciseMuscle}>{exercise.targetMuscle}</Text>
                   </View>
-                  <Text style={styles.splitName}>Chest & Triceps</Text>
-                </View>
-                <View style={styles.splitItem}>
-                  <View style={styles.splitDay}>
-                    <Text style={styles.splitDayText}>Day 2</Text>
-                  </View>
-                  <Text style={styles.splitName}>Back & Biceps</Text>
-                </View>
-                <View style={styles.splitItem}>
-                  <View style={styles.splitDay}>
-                    <Text style={styles.splitDayText}>Day 3</Text>
-                  </View>
-                  <Text style={styles.splitName}>Legs</Text>
-                </View>
-                <View style={styles.splitItem}>
-                  <View style={styles.splitDay}>
-                    <Text style={styles.splitDayText}>Day 4</Text>
-                  </View>
-                  <Text style={styles.splitName}>Shoulders & Abs</Text>
-                </View>
-                <View style={styles.splitItem}>
-                  <View style={styles.splitDay}>
-                    <Text style={styles.splitDayText}>Day 5</Text>
-                  </View>
-                  <Text style={styles.splitName}>Arms & Calves</Text>
-                </View>
+                ))}
               </View>
             </View>
+          )}
 
-            {program.type === 'cutting' && (
-              <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>Cardio</Text>
-                <Text style={styles.detailText}>
-                  This program includes 20 minutes of stair master cardio after
-                  each workout session to maximize fat burning while preserving
-                  muscle mass.
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.detailCard}>
-              <Text style={styles.detailTitle}>Progressive Overload</Text>
-              <Text style={styles.detailText}>
-                This program implements progressive overload by{' '}
-                {program.type === 'bulking'
-                  ? 'gradually increasing weight and decreasing reps as you progress through the weeks.'
-                  : 'maintaining challenging weights while decreasing rest periods to increase workout intensity.'}
-              </Text>
-            </View>
+          {/* Call to Action */}
+          <View style={styles.ctaSection}>
+            <TouchableOpacity 
+              style={[styles.startButton, { backgroundColor: programColor }]}
+              onPress={() => {
+                // Navigate to main app
+                router.push('/(tabs)');
+              }}
+            >
+              <Text style={styles.startButtonText}>Start This Program</Text>
+              <Icon name="arrow-right" size={20} color={colors.white} />
+            </TouchableOpacity>
+            
+            <Text style={styles.ctaNote}>
+              Ready to transform your {program.focusArea || program.type}? Let's begin your journey!
+            </Text>
           </View>
-        </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
-
-const Clock = ({ size, color }: { size: number; color: string }) => (
-  <View
-    style={{
-      width: size,
-      height: size,
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}
-  >
-    <Text style={{ color, fontSize: size * 0.8, fontWeight: 'bold' }}>⏱️</Text>
-  </View>
-);
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.dark,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: colors.white,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    color: colors.error,
+  },
+  backButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: colors.white,
+    fontWeight: '600',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.darkGray,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
   },
   scrollView: {
     flex: 1,
   },
-  errorText: {
-    fontSize: 18,
-    color: colors.white,
-    textAlign: 'center',
-    marginTop: 24,
+  scrollContent: {
+    paddingBottom: 40,
   },
-  imageContainer: {
-    height: 240,
-    width: '100%',
+  heroSection: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 30,
   },
-  image: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  gradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  imageContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-  },
-  programBadge: {
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-  },
-  programBadgeText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.white,
+  programIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   programTitle: {
     fontSize: 28,
     fontWeight: 'bold',
     color: colors.white,
-    marginBottom: 4,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   programDuration: {
     fontSize: 16,
-    color: colors.lighterGray,
+    color: colors.primary,
+    fontWeight: '600',
+    marginBottom: 16,
   },
-  content: {
-    padding: 16,
+  programDescription: {
+    fontSize: 16,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 24,
   },
-  section: {
-    marginBottom: 24,
+  statsSection: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
   },
   sectionTitle: {
     fontSize: 20,
@@ -313,103 +324,148 @@ const styles = StyleSheet.create({
     color: colors.white,
     marginBottom: 16,
   },
-  description: {
-    fontSize: 16,
-    color: colors.lighterGray,
-    lineHeight: 24,
+  sectionSubtitle: {
+    fontSize: 14,
+    color: colors.lightGray,
     marginBottom: 16,
   },
-  infoCards: {
+  statsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
+    flexWrap: 'wrap',
+    gap: 12,
   },
-  infoCard: {
+  statCard: {
     flex: 1,
+    minWidth: '45%',
     backgroundColor: colors.darkGray,
-    borderRadius: 12,
     padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    marginHorizontal: 4,
+    gap: 8,
   },
-  infoValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginVertical: 8,
-  },
-  infoLabel: {
+  statLabel: {
     fontSize: 12,
     color: colors.lightGray,
+    fontWeight: '500',
+  },
+  statValue: {
+    fontSize: 16,
+    color: colors.white,
+    fontWeight: 'bold',
+    textTransform: 'capitalize',
+  },
+  structureSection: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
+  weeklyStructure: {
+    gap: 12,
+  },
+  workoutDay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.darkGray,
+    padding: 16,
+    borderRadius: 12,
+    gap: 16,
+  },
+  dayNumber: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dayNumberText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
+  workoutInfo: {
+    flex: 1,
+  },
+  workoutName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: 4,
+  },
+  workoutFocus: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  exerciseCount: {
+    fontSize: 12,
+    color: colors.lightGray,
+  },
+  exercisesSection: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
+  exercisesList: {
+    gap: 12,
+  },
+  exerciseItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.darkGray,
+    padding: 12,
+    borderRadius: 8,
+    gap: 12,
+  },
+  exerciseIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  exerciseDetails: {
+    flex: 1,
+  },
+  exerciseName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.white,
+    marginBottom: 2,
+  },
+  exerciseSpecs: {
+    fontSize: 12,
+    color: colors.lightGray,
+  },
+  exerciseMuscle: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  ctaSection: {
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 16,
   },
   startButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 8,
     paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
     gap: 8,
+    width: '100%',
   },
   startButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.white,
-  },
-  continueButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 16,
-    gap: 8,
-  },
-  continueButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.white,
-  },
-  detailCard: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  detailTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.white,
-    marginBottom: 12,
   },
-  detailText: {
-    fontSize: 16,
-    color: colors.lighterGray,
-    lineHeight: 24,
-  },
-  splitList: {
-    gap: 12,
-  },
-  splitItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  splitDay: {
-    width: 60,
-    height: 30,
-    backgroundColor: colors.primary,
-    borderRadius: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  splitDayText: {
+  ctaNote: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.white,
-  },
-  splitName: {
-    fontSize: 16,
-    color: colors.white,
+    color: colors.lightGray,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });

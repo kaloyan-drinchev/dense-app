@@ -5,14 +5,17 @@
   "scripts": {
     "start": "expo start --tunnel",
     "start-web": "expo start --web",
-    "start-web-dev": "DEBUG=expo* expo start --web --tunnel"
+    "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
     "@react-native-async-storage/async-storage": "2.1.2",
-    "@react-navigation/native": "7.1.6",
+    "@react-navigation/native": "^7.1.17",
     "@types/react": "~19.0.10",
     "axios": "^1.6.0",
+    "drizzle-orm": "^0.44.4",
     "expo": "^53.0.9",
     "expo-barcode-scanner": "^13.0.1",
     "expo-blur": "~14.1.4",
@@ -25,9 +28,10 @@
     "expo-linear-gradient": "~14.1.4",
     "expo-linking": "~7.1.5",
     "expo-location": "~18.1.5",
-    "expo-router": "~5.1.4",
+    "expo-router": "^5.1.4",
     "expo-speech": "~13.1.7",
     "expo-splash-screen": "~0.30.8",
+    "expo-sqlite": "~15.2.14",
     "expo-status-bar": "~2.2.3",
     "expo-symbols": "~0.4.4",
     "expo-system-ui": "~5.0.7",
@@ -46,6 +50,8 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@expo/ngrok": "^4.1.0",
+    "babel-plugin-inline-import": "^3.0.0",
+    "drizzle-kit": "^0.28.1",
     "typescript": "~5.8.2"
   },
   "private": true

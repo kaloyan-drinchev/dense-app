@@ -12,13 +12,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useWorkoutStore } from '@/store/workout-store';
+import { useAuthStore } from '@/store/auth-store';
 import { colors } from '@/constants/colors';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import ConnectionTest from '@/components/ConnectionTest';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { userProfile, resetProgress } = useWorkoutStore();
+  const { user, logout } = useAuthStore();
   const [notifications, setNotifications] = useState(true);
 
   const handleNotificationsToggle = () => {
@@ -61,6 +64,35 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleLogout = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out? Your local data will be saved.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: () => {
+            logout();
+            if (Platform.OS !== 'web') {
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView
@@ -70,20 +102,27 @@ export default function SettingsScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Settings</Text>
         </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Developer</Text>
+          
+          <View style={styles.connectionTestContainer}>
+            <ConnectionTest />
+          </View>
+        </View>
 
         <View style={styles.profileCard}>
           <View style={styles.profileAvatar}>
             <Text style={styles.profileInitial}>
-              {userProfile?.name ? userProfile.name[0].toUpperCase() : '?'}
+              {user?.name ? user.name[0].toUpperCase() : userProfile?.name ? userProfile.name[0].toUpperCase() : '?'}
             </Text>
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>
-              {userProfile?.name || 'Set up your profile'}
+              {user?.name || userProfile?.name || 'Set up your profile'}
             </Text>
             <Text style={styles.profileDetails}>
-              {userProfile
-                ? `${userProfile.weight} kg • ${userProfile.height} cm • ${userProfile.age} years`
+              {user?.email || (userProfile && userProfile.weight && userProfile.height && userProfile.age)
+                ? user?.email || `${userProfile?.weight} kg • ${userProfile?.height} cm • ${userProfile?.age} years`
                 : 'Tap to complete your profile'}
             </Text>
           </View>
@@ -117,8 +156,27 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
+
+          <TouchableOpacity
+            style={styles.settingItem}
+            onPress={handleLogout}
+          >
+            <View
+              style={[styles.settingIcon, { backgroundColor: colors.primary }]}
+            >
+              <Icon name="log-out" size={20} color={colors.white} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Sign Out</Text>
+              <Text style={styles.settingDescription}>
+                Sign out of your account
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.settingItem}
@@ -138,6 +196,7 @@ export default function SettingsScreen() {
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
         </View>
+
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About</Text>
@@ -265,5 +324,11 @@ const styles = StyleSheet.create({
   settingDescription: {
     fontSize: 14,
     color: colors.lighterGray,
+  },
+  connectionTestContainer: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
   },
 });

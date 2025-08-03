@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,28 +6,25 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Modal,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { colors } from '@/constants/colors';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '@/store/auth-store';
 
 interface AuthScreenProps {
-  visible: boolean;
-  onClose: () => void;
   onComplete: () => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({
-  visible,
-  onClose,
-  onComplete,
-}) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
   const router = useRouter();
+  const { login, register, isLoading, error, clearError } = useAuthStore();
+  
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('register');
   const [formData, setFormData] = useState({
     email: '',
@@ -38,6 +35,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Clear any auth errors when component mounts
+  useEffect(() => {
+    clearError();
+  }, []);
 
   const handleTabSwitch = (tab: 'login' | 'register') => {
     if (Platform.OS !== 'web') {
@@ -88,17 +90,32 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
     if (validateForm()) {
-      // For now, just simulate success and navigate to home
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      try {
+        let result;
+        
+        if (activeTab === 'login') {
+          result = await login(formData.email, formData.password);
+        } else {
+          result = await register(formData.email, formData.password, formData.name);
+        }
+
+        if (result.success) {
+          if (Platform.OS !== 'web') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+          handleContinueToApp();
+        } else {
+          Alert.alert('Error', result.error || 'Authentication failed');
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Something went wrong. Please try again.');
       }
-      handleContinueToApp();
     } else {
       if (Platform.OS !== 'web') {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -123,17 +140,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   const handleContinueToApp = () => {
-    router.push('/(tabs)');
     onComplete();
-    onClose();
   };
 
   return (
-    <Modal visible={visible} animationType="slide" statusBarTranslucent>
-      <LinearGradient
-        colors={[colors.dark, colors.darkGray]}
-        style={styles.container}
-      >
+    <LinearGradient
+      colors={[colors.dark, colors.darkGray]}
+      style={styles.container}
+    >
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoid}
@@ -322,12 +336,26 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </View>
 
             {/* Submit Button */}
-            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+            <TouchableOpacity 
+              style={[styles.submitButton, isLoading && styles.disabledButton]} 
+              onPress={handleSubmit}
+              disabled={isLoading}
+            >
               <Text style={styles.submitButtonText}>
-                {activeTab === 'register' ? 'Create Account' : 'Sign In'}
+                {isLoading 
+                  ? (activeTab === 'register' ? 'Creating Account...' : 'Signing In...') 
+                  : (activeTab === 'register' ? 'Create Account' : 'Sign In')
+                }
               </Text>
-              <Icon name="arrow-right" size={20} color={colors.white} />
+              {!isLoading && <Icon name="arrow-right" size={20} color={colors.white} />}
             </TouchableOpacity>
+
+            {/* Show auth error if any */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
 
             {/* Skip Option */}
             <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
@@ -345,7 +373,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           </ScrollView>
         </KeyboardAvoidingView>
       </LinearGradient>
-    </Modal>
   );
 };
 
@@ -518,5 +545,16 @@ const styles = StyleSheet.create({
   termsLink: {
     color: colors.primary,
     fontWeight: '500',
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  errorContainer: {
+    backgroundColor: colors.error + '20',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: colors.error + '40',
   },
 });

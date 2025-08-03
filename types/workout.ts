@@ -44,7 +44,8 @@ export type Program = {
   id: string;
   name: string;
   description: string;
-  type: 'bulking' | 'cutting';
+  type: 'chest-focus' | 'back-focus' | 'shoulders-focus' | 'leg-focus' | 'full-body';
+  focusArea: 'chest' | 'back' | 'shoulders' | 'legs' | 'full-body';
   duration: number; // in weeks
   imageUrl: string;
   weeks: Week[];

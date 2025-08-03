@@ -36,7 +36,7 @@ const ConnectionTest: React.FC = () => {
         setConnectionStatus('failed');
         Alert.alert(
           '❌ Failed',
-          'Could not connect to backend. Make sure the backend server is running on http://localhost:3001'
+          'Could not connect to backend. Make sure the backend server is running on http://192.168.1.5:3001'
         );
       }
     } catch (error) {
@@ -55,6 +55,153 @@ const ConnectionTest: React.FC = () => {
       );
     } catch (error) {
       Alert.alert('❌ Programs Error', `Failed to load programs: ${error}`);
+    }
+  };
+
+  const testDatabaseConnection = async () => {
+    try {
+      const dbResult = await ApiService.testDatabase();
+      Alert.alert(
+        '🗄️ Remote Database Test',
+        `✅ ${dbResult.message}\n\nTimestamp: ${dbResult.data?.current_time || 'N/A'}`
+      );
+    } catch (error) {
+      Alert.alert('❌ Remote Database Error', `Failed to connect to remote database: ${error}`);
+    }
+  };
+
+  const testLocalDatabase = async () => {
+    try {
+      const { SyncService } = await import('@/db/sync');
+      const result = await SyncService.testLocalDatabase();
+      Alert.alert(
+        '💾 Local Database Test',
+        `${result.success ? '✅' : '❌'} ${result.message}`
+      );
+    } catch (error) {
+      Alert.alert('❌ Local Database Error', `Failed to test local database: ${error}`);
+    }
+  };
+
+  const loadInitialData = async () => {
+    try {
+      const { SyncService } = await import('@/db/sync');
+      const result = await SyncService.initializeApp();
+      Alert.alert(
+        '📱 Load Initial Data',
+        result.success 
+          ? `✅ Data loaded!\nPrograms loaded: ${result.pulledCount}`
+          : `❌ Loading failed: ${result.error}`
+      );
+    } catch (error) {
+      Alert.alert('❌ Load Error', `Failed to load initial data: ${error}`);
+    }
+  };
+
+  const forceReloadPrograms = async () => {
+    try {
+      const { SyncService } = await import('@/db/sync');
+      const result = await SyncService.forceReloadPrograms();
+      Alert.alert(
+        '🔄 Force Reload Programs',
+        result.success 
+          ? `✅ Programs refreshed!\nReloaded: ${result.pulledCount} fresh programs`
+          : `❌ Reload failed: ${result.error}`
+      );
+    } catch (error) {
+      Alert.alert('❌ Reload Error', `Failed to reload programs: ${error}`);
+    }
+  };
+
+  const syncNewContent = async () => {
+    try {
+      const { ContentSyncService } = await import('@/db/content-sync');
+      const result = await ContentSyncService.syncNewPrograms();
+      Alert.alert(
+        '🆕 Sync New Content',
+        result.success 
+          ? (result.newPrograms > 0 
+              ? `✅ Found ${result.newPrograms} new programs!` 
+              : '✅ No new content available')
+          : `❌ Sync failed: ${result.error}`
+      );
+    } catch (error) {
+      Alert.alert('❌ Content Sync Error', `Failed to sync new content: ${error}`);
+    }
+  };
+
+  const showAppInfo = async () => {
+    try {
+      const { AppUpdateManager } = await import('@/utils/app-updates');
+      await AppUpdateManager.showCurrentVersionInfo();
+    } catch (error) {
+      Alert.alert('❌ Error', `Failed to show app info: ${error}`);
+    }
+  };
+
+  const showUserData = async () => {
+    try {
+      const { userProfileService } = await import('@/db/services');
+      const { useAuthStore } = await import('@/store/auth-store');
+      
+      // Get current user from auth store
+      const currentUser = useAuthStore.getState().user;
+      
+      if (!currentUser) {
+        Alert.alert('ℹ️ No User', 'No user is currently logged in');
+        return;
+      }
+      
+      // Get user profile from database
+      const dbProfile = await userProfileService.getById(currentUser.email);
+      
+      if (dbProfile) {
+        Alert.alert(
+          '👤 Your Account Data',
+          `📧 Email: ${dbProfile.email}\n` +
+          `👤 Name: ${dbProfile.name}\n` +
+          `🆔 Database ID: ${dbProfile.id}\n` +
+          `📅 Created: ${dbProfile.createdAt}\n` +
+          `🔄 Updated: ${dbProfile.updatedAt}`
+        );
+      } else {
+        Alert.alert('❌ Error', 'User profile not found in database');
+      }
+    } catch (error) {
+      Alert.alert('❌ Error', `Failed to show user data: ${error}`);
+    }
+  };
+
+  const showWizardData = async () => {
+    try {
+      const { wizardResultsService } = await import('@/db/services');
+      const { useAuthStore } = await import('@/store/auth-store');
+      
+      // Get current user from auth store
+      const currentUser = useAuthStore.getState().user;
+      
+      if (!currentUser) {
+        Alert.alert('ℹ️ No User', 'No user is currently logged in');
+        return;
+      }
+      
+      // Get wizard results from database
+      const wizardResults = await wizardResultsService.getByUserId(currentUser.email);
+      
+      if (wizardResults) {
+        Alert.alert(
+          '🧙 Your Wizard Results',
+          `🎯 Primary Goal: ${wizardResults.primaryGoal || 'Not set'}\n` +
+          `💪 Fitness Level: ${wizardResults.fitnessLevel || 'Not set'}\n` +
+          `📅 Workout Frequency: ${wizardResults.workoutFrequency || 'Not set'}\n` +
+          `🏠 Location: ${wizardResults.workoutLocation || 'Not set'}\n` +
+          `✅ Completed: ${wizardResults.completedAt || 'Not completed'}`
+        );
+      } else {
+        Alert.alert('ℹ️ No Wizard Data', 'You haven\'t completed the wizard yet');
+      }
+    } catch (error) {
+      Alert.alert('❌ Error', `Failed to show wizard data: ${error}`);
     }
   };
 
@@ -102,10 +249,44 @@ const ConnectionTest: React.FC = () => {
         <Text style={styles.buttonText}>Test Connection</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.button} onPress={testLocalDatabase}>
+        <Text style={styles.buttonText}>Test Local Database</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.button} onPress={loadInitialData}>
+        <Text style={styles.buttonText}>Load Initial Data</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.button} onPress={forceReloadPrograms}>
+        <Text style={styles.buttonText}>🔄 Force Reload Programs</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.button} onPress={syncNewContent}>
+        <Text style={styles.buttonText}>Check for New Content</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.button} onPress={showAppInfo}>
+        <Text style={styles.buttonText}>Show App Info</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.button} onPress={showUserData}>
+        <Text style={styles.buttonText}>Show My Account Data</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.button} onPress={showWizardData}>
+        <Text style={styles.buttonText}>Show My Wizard Results</Text>
+      </TouchableOpacity>
+
       {connectionStatus === 'connected' && (
-        <TouchableOpacity style={styles.button} onPress={testProgramsAPI}>
-          <Text style={styles.buttonText}>Test Programs API</Text>
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity style={styles.button} onPress={testProgramsAPI}>
+            <Text style={styles.buttonText}>Test Programs API</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.button} onPress={testDatabaseConnection}>
+            <Text style={styles.buttonText}>Test Remote Database</Text>
+          </TouchableOpacity>
+        </>
       )}
 
       {programs.length > 0 && (

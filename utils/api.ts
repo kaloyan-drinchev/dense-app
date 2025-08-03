@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios';
 
 // API Configuration
 const API_BASE_URL = __DEV__
-  ? 'http://192.168.1.8:3001' // Development backend - Using gateway IP
+  ? 'http://192.168.1.5:3001' // Development backend - Using local IP
   : 'https://your-production-backend.com'; // Production backend
 
 // Create axios instance
@@ -61,11 +61,25 @@ export class ApiService {
   // Test connection to backend
   static async testConnection(): Promise<boolean> {
     try {
+      console.log('🔍 Testing connection to:', `${API_BASE_URL}/api/test`);
+      console.log('🔍 Base URL:', apiClient.defaults.baseURL);
       const response = await apiClient.get('/test');
       return response.status === 200;
     } catch (error) {
       console.error('Connection test failed:', error);
       return false;
+    }
+  }
+
+  // Test database connection
+  static async testDatabase() {
+    try {
+      console.log('🔍 Testing database connection to:', `${API_BASE_URL}/api/test-db`);
+      const response = await apiClient.get('/test-db');
+      return response.data;
+    } catch (error) {
+      console.error('Database test failed:', error);
+      throw error;
     }
   }
 
