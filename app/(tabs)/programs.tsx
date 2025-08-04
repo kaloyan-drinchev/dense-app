@@ -1,14 +1,49 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, View, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useWorkoutStore } from "@/store/workout-store";
+import { useAuthStore } from "@/store/auth-store";
 import { colors } from "@/constants/colors";
 import { ProgramCard } from "@/components/ProgramCard";
 
 export default function ProgramsScreen() {
   const router = useRouter();
   const { programs, setActiveProgram, startProgram, userProgress } = useWorkoutStore();
+  const { user } = useAuthStore();
+  const [userRecommendedPrograms, setUserRecommendedPrograms] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch user's recommended programs from wizard results
+  useEffect(() => {
+    const fetchUserRecommendations = async () => {
+      if (!user?.email) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { wizardResultsService } = await import('@/db/services');
+        const wizardResults = await wizardResultsService.getByUserId(user.email);
+        
+        if (wizardResults?.suggestedPrograms) {
+          const recommendedIds = JSON.parse(wizardResults.suggestedPrograms);
+          setUserRecommendedPrograms(recommendedIds);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user recommendations:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserRecommendations();
+  }, [user?.email]);
+
+  // Filter programs to show only recommended ones
+  const displayPrograms = userRecommendedPrograms.length > 0 
+    ? programs.filter(program => userRecommendedPrograms.includes(program.id))
+    : programs;
 
   const handleProgramPress = (programId: string) => {
     // If user already has a program in progress, just view it
@@ -26,14 +61,19 @@ export default function ProgramsScreen() {
     <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         <View style={styles.header}>
-          <Text style={styles.title}>Choose Your Program</Text>
+          <Text style={styles.title}>
+            {userRecommendedPrograms.length > 0 ? 'Your Recommended Program' : 'Choose Your Program'}
+          </Text>
           <Text style={styles.subtitle}>
-            Select a 12-week program that matches your fitness goals
+            {userRecommendedPrograms.length > 0 
+              ? 'Based on your wizard answers, this program is perfect for your goals'
+              : 'Select a 12-week program that matches your fitness goals'
+            }
           </Text>
         </View>
 
         <View style={styles.programsContainer}>
-          {programs.map((program) => (
+          {displayPrograms.map((program) => (
             <ProgramCard
               key={program.id}
               program={program}
@@ -43,31 +83,68 @@ export default function ProgramsScreen() {
         </View>
 
         <View style={styles.infoSection}>
-          <Text style={styles.infoTitle}>About Our Programs</Text>
+          <Text style={styles.infoTitle}>
+            {userRecommendedPrograms.length > 0 ? 'About Your Program' : 'About Our Programs'}
+          </Text>
           <Text style={styles.infoText}>
-            Both programs follow a traditional "bro split" targeting different muscle groups each day.
-            Each workout is designed to be completed in about 1 hour.
+            {userRecommendedPrograms.length > 0 
+              ? 'Your personalized 12-week muscle-focused training plan combines targeted muscle work with full-body development. Each workout is designed to be completed in about 1 hour with progressive overload principles.'
+              : 'All programs are 12-week muscle-focused training plans that combine targeted muscle work with full-body development. Each workout is designed to be completed in about 1 hour with progressive overload principles.'
+            }
           </Text>
           
-          <View style={styles.programInfo}>
-            <Text style={styles.programInfoTitle}>Mass Builder</Text>
-            <Text style={styles.programInfoText}>
-              • Focus on progressive overload{"\n"}
-              • Heavier weights, lower reps as you progress{"\n"}
-              • Designed to maximize muscle growth and strength{"\n"}
-              • Optimal for caloric surplus diet
-            </Text>
-          </View>
-          
-          <View style={styles.programInfo}>
-            <Text style={styles.programInfoTitle}>Shred Master</Text>
-            <Text style={styles.programInfoText}>
-              • Maintain strength while losing fat{"\n"}
-              • Shorter rest periods for increased calorie burn{"\n"}
-              • 20 minutes of stair master cardio after each workout{"\n"}
-              • Optimal for caloric deficit diet
-            </Text>
-          </View>
+          {userRecommendedPrograms.length > 0 ? (
+            // Show only the recommended program info
+            displayPrograms.map((program) => (
+              <View key={program.id} style={styles.programInfo}>
+                <Text style={styles.programInfoTitle}>{program.name}</Text>
+                <Text style={styles.programInfoText}>
+                  {program.id === 'chest-focus-program' && (
+                    '• Specialized chest development with supporting muscles\n• Heavy compound movements + isolation work\n• Progressive rep schemes from 8-6-3 reps\n• Build massive chest size and pressing strength'
+                  )}
+                  {program.id === 'back-focus-program' && (
+                    '• Complete posterior chain development\n• Pulling power and back width focus\n• Deadlifts, rows, and pull-up variations\n• Create the V-taper and thick back muscles'
+                  )}
+                  {program.id === 'shoulders-focus-program' && (
+                    '• 3D shoulder development (front, side, rear)\n• Military press and overhead strength\n• High-volume shoulder isolation work\n• Build boulder shoulders and pressing power'
+                  )}
+                </Text>
+              </View>
+            ))
+          ) : (
+            // Show all programs info if no recommendations
+            <>
+              <View style={styles.programInfo}>
+                <Text style={styles.programInfoTitle}>Chest Domination</Text>
+                <Text style={styles.programInfoText}>
+                  • Specialized chest development with supporting muscles{"\n"}
+                  • Heavy compound movements + isolation work{"\n"}
+                  • Progressive rep schemes from 8-6-3 reps{"\n"}
+                  • Build massive chest size and pressing strength
+                </Text>
+              </View>
+              
+              <View style={styles.programInfo}>
+                <Text style={styles.programInfoTitle}>Back Builder Elite</Text>
+                <Text style={styles.programInfoText}>
+                  • Complete posterior chain development{"\n"}
+                  • Pulling power and back width focus{"\n"}
+                  • Deadlifts, rows, and pull-up variations{"\n"}
+                  • Create the V-taper and thick back muscles
+                </Text>
+              </View>
+
+              <View style={styles.programInfo}>
+                <Text style={styles.programInfoTitle}>Shoulder Sculptor</Text>
+                <Text style={styles.programInfoText}>
+                  • 3D shoulder development (front, side, rear){"\n"}
+                  • Military press and overhead strength{"\n"}
+                  • High-volume shoulder isolation work{"\n"}
+                  • Build boulder shoulders and pressing power
+                </Text>
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
