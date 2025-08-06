@@ -691,8 +691,8 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
 
       {/* Content */}
       <ScrollView 
-        style={styles.content} 
-        contentContainerStyle={{ paddingBottom: 40 }}
+        style={styles.scrollContent} 
+        contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.stepHeader}>
@@ -706,28 +706,30 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         {validationError ? (
           <Text style={{ color: 'red', textAlign: 'center', marginTop: 20 }}>{validationError}</Text>
         ) : null}
-
-        {/* Navigation buttons */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 40, marginBottom: 20 }}>
-          {currentStep > 0 && (
-            <TouchableOpacity 
-              onPress={() => setCurrentStep(currentStep - 1)}
-              style={[styles.continueButton, { backgroundColor: colors.darkGray }]}
-            >
-              <Text style={styles.continueButtonText}>Back</Text>
-            </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity 
-            onPress={handleNext}
-            style={[styles.continueButton, { marginLeft: currentStep > 0 ? 16 : 0, flex: 1 }]}
-          >
-            <Text style={styles.continueButtonText}>
-              {currentStep === steps.length - 1 ? 'Generate My Program! 💪' : 'Continue'}
-            </Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
+
+      {/* Navigation buttons - Fixed at bottom */}
+      <View style={styles.bottomNavigationContainer}>
+        {currentStep > 0 ? (
+          <TouchableOpacity 
+            onPress={() => setCurrentStep(currentStep - 1)}
+            style={styles.backButton}
+          >
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.placeholderButton} />
+        )}
+        
+        <TouchableOpacity 
+          onPress={handleNext}
+          style={styles.nextButton}
+        >
+          <Text style={styles.nextButtonText}>
+            {currentStep === steps.length - 1 ? 'Generate My Program! 💪' : 'Next'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </LinearGradient>
   );
 }

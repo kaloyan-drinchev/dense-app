@@ -45,6 +45,10 @@ export const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
+  scrollContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
   contentContainer: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -107,6 +111,51 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.white,
     fontWeight: 'bold',
+  },
+  navigationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 40,
+    marginBottom: 20,
+    paddingHorizontal: 0,
+  },
+  backButton: {
+    backgroundColor: colors.darkGray,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: colors.white,
+    fontWeight: 'bold',
+  },
+  nextButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  nextButtonText: {
+    fontSize: 16,
+    color: colors.white,
+    fontWeight: 'bold',
+  },
+  placeholderButton: {
+    minWidth: 100,
+  },
+  bottomNavigationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingBottom: 40,
   },
   // Program View Styles
   inlineProgram: {
