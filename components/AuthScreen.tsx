@@ -25,16 +25,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
   const router = useRouter();
   const { login, register, isLoading, error, clearError } = useAuthStore();
   
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>('register');
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    confirmPassword: '',
     name: '',
   });
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Clear any auth errors when component mounts
   useEffect(() => {
@@ -78,11 +76,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
     if (activeTab === 'register') {
       if (!formData.name) {
         errors.name = 'Name is required';
-      }
-      if (!formData.confirmPassword) {
-        errors.confirmPassword = 'Please confirm your password';
-      } else if (formData.password !== formData.confirmPassword) {
-        errors.confirmPassword = 'Passwords do not match';
       }
     }
 
@@ -129,13 +122,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
     }
     // TODO: Implement social login
     // For now, simulate success
-    handleContinueToApp();
-  };
-
-  const handleSkip = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
     handleContinueToApp();
   };
 
@@ -292,42 +278,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                 )}
               </View>
 
-              {activeTab === 'register' && (
-                <View style={styles.inputContainer}>
-                  <View style={styles.inputWrapper}>
-                    <Icon name="lock" size={20} color={colors.lightGray} />
-                                          <TextInput
-                        style={styles.textInput}
-                        placeholder="Confirm Password"
-                        placeholderTextColor={colors.lightGray}
-                        value={formData.confirmPassword}
-                        onChangeText={(value) => handleInputChange('confirmPassword', value)}
-                        secureTextEntry={!showConfirmPassword}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        spellCheck={false}
-                        autoComplete="off"
-                        textContentType="oneTimeCode"
-                        passwordRules=""
-                        importantForAutofill="no"
-                      />
-                    <TouchableOpacity
-                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                      style={styles.eyeButton}
-                    >
-                      <Icon 
-                        name={showConfirmPassword ? 'eye-off' : 'eye'} 
-                        size={20} 
-                        color={colors.lightGray} 
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  {validationErrors.confirmPassword && (
-                    <Text style={styles.errorText}>{validationErrors.confirmPassword}</Text>
-                  )}
-                </View>
-              )}
-
               {activeTab === 'login' && (
                 <TouchableOpacity style={styles.forgotPassword}>
                   <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
@@ -356,11 +306,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
-
-            {/* Skip Option */}
-            <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-              <Text style={styles.skipButtonText}>Skip for now</Text>
-            </TouchableOpacity>
 
             {/* Terms */}
             {activeTab === 'register' && (
@@ -525,16 +470,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.white,
-  },
-  skipButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    marginBottom: 20,
-  },
-  skipButtonText: {
-    fontSize: 16,
-    color: colors.lightGray,
-    fontWeight: '500',
   },
   termsText: {
     fontSize: 12,
