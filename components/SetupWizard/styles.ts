@@ -1,0 +1,463 @@
+import { StyleSheet } from 'react-native';
+import { colors } from '@/constants/colors';
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.dark,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    flex: 1,
+  },
+  stepCounter: {
+    fontSize: 16,
+    color: colors.lightGray,
+    fontWeight: '600',
+  },
+  progressContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 60,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: colors.darkGray,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 2,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  contentContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingProgressContainer: {
+    width: '80%',
+    marginTop: 30,
+  },
+  loadingProgressBar: {
+    height: 6,
+    backgroundColor: colors.darkGray,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  loadingProgressFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 3,
+  },
+  generatingIcon: {
+    fontSize: 64,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  generatingDescription: {
+    fontSize: 16,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 30,
+    paddingHorizontal: 20,
+  },
+  stepHeader: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  stepTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  stepSubtitle: {
+    fontSize: 16,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  continueButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  continueButtonText: {
+    fontSize: 16,
+    color: colors.white,
+    fontWeight: 'bold',
+  },
+  // Program View Styles
+  inlineProgram: {
+    paddingVertical: 20,
+  },
+  inlineProgramName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  inlineProgramDescription: {
+    fontSize: 14,
+    color: colors.lightGray,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  programStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    paddingVertical: 16,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.lightGray,
+  },
+  workoutCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  workoutName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.white,
+    marginBottom: 4,
+  },
+  workoutDuration: {
+    fontSize: 14,
+    color: colors.lightGray,
+    marginBottom: 12,
+  },
+  exerciseItem: {
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.mediumGray,
+  },
+  exerciseName: {
+    fontSize: 14,
+    color: colors.white,
+    fontWeight: '500',
+  },
+  exerciseDetails: {
+    fontSize: 12,
+    color: colors.primary,
+  },
+  finishButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  finishButtonText: {
+    fontSize: 16,
+    color: colors.white,
+    fontWeight: 'bold',
+  },
+  // Check Program Button Styles
+  checkProgramContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  checkProgramContent: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  checkProgramEmoji: {
+    fontSize: 60,
+    marginBottom: 20,
+  },
+  checkProgramTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  checkProgramSubtitle: {
+    fontSize: 16,
+    color: colors.lightGray,
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+  checkProgramStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 30,
+    width: '100%',
+  },
+  checkProgramStat: {
+    alignItems: 'center',
+  },
+  checkProgramStatNumber: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  checkProgramStatLabel: {
+    fontSize: 14,
+    color: colors.lightGray,
+    marginTop: 4,
+  },
+  checkProgramButton: {
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    width: '100%',
+    marginBottom: 16,
+  },
+  checkProgramButtonText: {
+    fontSize: 18,
+    color: colors.white,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
+  viewLaterButton: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    width: '100%',
+  },
+  viewLaterButtonText: {
+    fontSize: 16,
+    color: colors.lightGray,
+    fontWeight: '500',
+  },
+  // Step Content Styles
+  welcomeContent: {
+    paddingBottom: 40,
+  },
+  welcomeText: {
+    fontSize: 16,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 30,
+  },
+  featureList: {
+    alignItems: 'center',
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    marginBottom: 12,
+    width: '100%',
+  },
+  featureText: {
+    fontSize: 16,
+    color: colors.white,
+    marginLeft: 12,
+    fontWeight: '500',
+  },
+  inputContainer: {
+    width: '100%',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    color: colors.white,
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  textInput: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: colors.white,
+    borderWidth: 1,
+    borderColor: colors.mediumGray,
+  },
+  optionsContainer: {
+    width: '100%',
+  },
+  optionButton: {
+    backgroundColor: colors.darkGray,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  selectedOption: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  disabledOption: {
+    opacity: 0.5,
+  },
+  optionText: {
+    fontSize: 16,
+    color: colors.white,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  selectedOptionText: {
+    color: colors.white,
+    fontWeight: 'bold',
+  },
+  scheduleContainer: {
+    width: '100%',
+  },
+  daySelectionContainer: {
+    marginTop: 30,
+  },
+  daySelectionTitle: {
+    fontSize: 16,
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 20,
+    fontWeight: '500',
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  dayButton: {
+    backgroundColor: colors.darkGray,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+    width: '30%',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  selectedDay: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  disabledDay: {
+    opacity: 0.5,
+  },
+  dayText: {
+    fontSize: 14,
+    color: colors.white,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  selectedDayText: {
+    color: colors.white,
+    fontWeight: 'bold',
+  },
+  priorityHint: {
+    fontSize: 14,
+    color: colors.lightGray,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  priorityGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  priorityButton: {
+    backgroundColor: colors.darkGray,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+    width: '48%',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  selectedPriority: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  disabledPriority: {
+    opacity: 0.5,
+  },
+  priorityText: {
+    fontSize: 16,
+    color: colors.white,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  selectedPriorityText: {
+    color: colors.white,
+    fontWeight: 'bold',
+  },
+  completeContent: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  completeText: {
+    fontSize: 16,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 30,
+  },
+  summaryContainer: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+  },
+  summaryTitle: {
+    fontSize: 18,
+    color: colors.white,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  summaryItem: {
+    fontSize: 14,
+    color: colors.lightGray,
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+});

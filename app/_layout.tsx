@@ -126,9 +126,7 @@ function AppNavigator() {
   if (showWizard) {
     return (
       <SetupWizard 
-        visible={true}
         onClose={() => setShowWizard(false)}
-        onComplete={() => setShowWizard(false)}
       />
     );
   }
