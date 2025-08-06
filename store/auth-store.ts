@@ -51,27 +51,25 @@ export const useAuthStore = create<AuthState>()(
           // Simulate login delay
           await new Promise(resolve => setTimeout(resolve, 1000));
 
-          // Create or get user from local database
-          let userProfile = await userProfileService.getById(email);
+          // Check if user exists in local database
+          const userProfile = await userProfileService.getById(email);
           
           if (!userProfile) {
-            // Create new user profile in local database with email as ID
-            userProfile = await userProfileService.create({
-              name: email.split('@')[0], // Use email prefix as name initially
-              email: email,
-            });
-            
-            // Update the ID to be the email for easy lookup
-            userProfile = await userProfileService.update(userProfile.id, {
-              id: email,
-            });
+            // User doesn't exist - show proper error
+            const errorMessage = 'No account found with this email. Please register first.';
+            set({ isLoading: false, error: errorMessage });
+            console.log('❌ Login failed: User not found for email:', email);
+            return { success: false, error: errorMessage };
           }
 
+          // TODO: In a real app, you would validate the password here
+          // For now, we're just checking if the user exists in the database
+
           const user: User = {
-            id: userProfile?.id || email,
-            email: userProfile?.email || email,
-            name: userProfile?.name || email.split('@')[0],
-            createdAt: userProfile?.createdAt || new Date().toISOString(),
+            id: userProfile.id,
+            email: userProfile.email,
+            name: userProfile.name,
+            createdAt: userProfile.createdAt,
           };
 
           // Check if user has completed wizard
