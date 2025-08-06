@@ -67,9 +67,9 @@ export const useAuthStore = create<AuthState>()(
 
           const user: User = {
             id: userProfile.id,
-            email: userProfile.email,
-            name: userProfile.name,
-            createdAt: userProfile.createdAt,
+            email: userProfile.email || '',
+            name: userProfile.name || '',
+            createdAt: userProfile.createdAt || '',
           };
 
           // Check if user has completed wizard

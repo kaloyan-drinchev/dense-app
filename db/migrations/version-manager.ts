@@ -1,7 +1,7 @@
 import { expo_sqlite } from '../client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CURRENT_DB_VERSION = 1;
+const CURRENT_DB_VERSION = 2;
 const DB_VERSION_KEY = 'database_version';
 
 export class DatabaseVersionManager {
@@ -54,10 +54,10 @@ export class DatabaseVersionManager {
       case 1:
         await this.migrationV1();
         break;
+      case 2:
+        await this.migrationV2();
+        break;
       // Add more migrations as needed
-      // case 2:
-      //   await this.migrationV2();
-      //   break;
       default:
         console.warn(`⚠️ No migration defined for version ${version}`);
     }
@@ -131,6 +131,48 @@ export class DatabaseVersionManager {
     }
   }
   
+  /**
+   * Migration to version 2 - DENSE V1 9-Step Onboarding Schema
+   */
+  private static async migrationV2(): Promise<void> {
+    console.log('📝 Running migration V2: DENSE V1 9-Step Onboarding Schema');
+    
+    try {
+      // Add new columns for 9-step onboarding
+      const newColumns = [
+        'squat_kg REAL',
+        'bench_kg REAL', 
+        'deadlift_kg REAL',
+        'training_experience TEXT',
+        'body_fat_level TEXT',
+        'training_days_per_week INTEGER',
+        'preferred_training_days TEXT',
+        'muscle_priorities TEXT',
+        'pump_work_preference TEXT',
+        'recovery_profile TEXT',
+        'program_duration_weeks INTEGER',
+        'generated_split TEXT'
+      ];
+
+      for (const column of newColumns) {
+        try {
+          await expo_sqlite.execAsync(`
+            ALTER TABLE user_wizard_results ADD COLUMN ${column};
+          `);
+          console.log(`✅ Added column: ${column.split(' ')[0]}`);
+        } catch (error) {
+          // Column might already exist, that's okay
+          console.log(`ℹ️ Column ${column.split(' ')[0]} already exists or error adding it`);
+        }
+      }
+      
+      console.log('✅ Migration V2 completed: DENSE V1 schema ready');
+    } catch (error) {
+      console.error('❌ Migration V2 failed:', error);
+      throw error;
+    }
+  }
+
   /**
    * Force set database version (for testing)
    */

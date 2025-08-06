@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { ApiService } from '@/utils/api';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useNutritionStore } from '@/store/nutrition-store';
+import { userProfileService, wizardResultsService, userProgressService, dailyLogService, customMealService } from '@/db/services';
+import { useAuthStore } from '@/store/auth-store';
 
 const ConnectionTest: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<
@@ -205,6 +207,56 @@ const ConnectionTest: React.FC = () => {
     }
   };
 
+  const deleteAllUsers = async () => {
+    Alert.alert(
+      '⚠️ Delete All Users',
+      'This will permanently delete ALL user accounts and their wizard results. This action cannot be undone!\n\nAre you sure you want to continue?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('🗑️ Starting deletion of all user data...');
+              
+              // Delete all user-related data (in order to respect foreign key constraints)
+              await wizardResultsService.deleteAll();
+              console.log('✅ Deleted wizard results');
+              
+              await userProgressService.deleteAll();
+              console.log('✅ Deleted user progress');
+              
+              await dailyLogService.deleteAll();
+              console.log('✅ Deleted daily logs');
+              
+              await customMealService.deleteAll();
+              console.log('✅ Deleted custom meals');
+              
+              await userProfileService.deleteAll();
+              console.log('✅ Deleted user profiles');
+              
+              // Clear current user from auth store
+              const { logout } = useAuthStore.getState();
+              logout();
+              
+              Alert.alert(
+                '✅ Complete Success', 
+                'All users and their data have been permanently deleted:\n\n• User accounts\n• Wizard results\n• Progress tracking\n• Daily logs\n• Custom meals\n\nYou have been logged out.'
+              );
+            } catch (error) {
+              console.error('Error deleting users:', error);
+              Alert.alert('❌ Error', `Failed to delete users: ${error}`);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const getStatusColor = () => {
     switch (connectionStatus) {
       case 'connected':
@@ -275,6 +327,10 @@ const ConnectionTest: React.FC = () => {
 
       <TouchableOpacity style={styles.button} onPress={showWizardData}>
         <Text style={styles.buttonText}>Show My Wizard Results</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.button, styles.deleteButton]} onPress={deleteAllUsers}>
+        <Text style={styles.buttonText}>🗑️ Delete All Users</Text>
       </TouchableOpacity>
 
       {connectionStatus === 'connected' && (
@@ -356,6 +412,9 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  deleteButton: {
+    backgroundColor: '#F44336', // Red color for delete action
   },
   programsContainer: {
     backgroundColor: 'white',

@@ -57,6 +57,10 @@ export const userProfileService = {
   async getAll(): Promise<UserProfile[]> {
     return await db.select().from(userProfiles);
   },
+
+  async deleteAll(): Promise<void> {
+    await db.delete(userProfiles);
+  },
 };
 
 // Programs Operations
@@ -144,6 +148,10 @@ export const userProgressService = {
   async delete(id: string): Promise<void> {
     await db.delete(userProgress).where(eq(userProgress.id, id));
   },
+
+  async deleteAll(): Promise<void> {
+    await db.delete(userProgress);
+  },
 };
 
 // Daily Logs Operations
@@ -182,6 +190,10 @@ export const dailyLogService = {
   async getByUserId(userId: string): Promise<DailyLog[]> {
     return await db.select().from(dailyLogs).where(eq(dailyLogs.userId, userId));
   },
+
+  async deleteAll(): Promise<void> {
+    await db.delete(dailyLogs);
+  },
 };
 
 // Custom Meals Operations
@@ -216,6 +228,10 @@ export const customMealService = {
 
   async delete(id: string): Promise<void> {
     await db.delete(customMeals).where(eq(customMeals.id, id));
+  },
+
+  async deleteAll(): Promise<void> {
+    await db.delete(customMeals);
   },
 };
 
@@ -261,6 +277,10 @@ export const wizardResultsService = {
   async hasCompletedWizard(userId: string): Promise<boolean> {
     const result = await this.getByUserId(userId);
     return !!result;
+  },
+
+  async deleteAll(): Promise<void> {
+    await db.delete(userWizardResults);
   },
 };
 

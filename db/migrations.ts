@@ -94,6 +94,21 @@ export const initializeDatabase = async () => {
       CREATE TABLE IF NOT EXISTS user_wizard_results (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
+        
+        -- DENSE V1 9-Step Onboarding Fields
+        squat_kg REAL,
+        bench_kg REAL,
+        deadlift_kg REAL,
+        training_experience TEXT,
+        body_fat_level TEXT,
+        training_days_per_week INTEGER,
+        preferred_training_days TEXT,
+        muscle_priorities TEXT,
+        pump_work_preference TEXT,
+        recovery_profile TEXT,
+        program_duration_weeks INTEGER,
+        
+        -- Legacy fields (backward compatibility)
         primary_goal TEXT,
         target_weight REAL,
         timeframe TEXT,
@@ -106,7 +121,11 @@ export const initializeDatabase = async () => {
         weaknesses TEXT,
         injuries TEXT,
         focus_muscle TEXT,
+        
+        -- AI Program Generation Output
         suggested_programs TEXT,
+        generated_split TEXT,
+        
         completed_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         updated_at TEXT DEFAULT (CURRENT_TIMESTAMP)
       );

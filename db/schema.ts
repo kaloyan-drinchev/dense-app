@@ -1,12 +1,12 @@
 import { sql } from 'drizzle-orm';
-import { int, sqliteTable, text, real } from 'drizzle-orm/sqlite-core';
+import { integer, sqliteTable, text, real } from 'drizzle-orm/sqlite-core';
 
 // User Profile Table
 export const userProfiles = sqliteTable('user_profiles', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email'),
-  age: int('age'),
+  age: integer('age'),
   weight: real('weight'),
   height: real('height'),
   goal: text('goal'),
@@ -21,7 +21,7 @@ export const programs = sqliteTable('programs', {
   title: text('title').notNull(),
   subtitle: text('subtitle'),
   description: text('description'),
-  duration: int('duration'), // weeks
+  duration: integer('duration'), // weeks
   difficulty: text('difficulty'),
   type: text('type'),
   image: text('image'),
@@ -36,8 +36,8 @@ export const userProgress = sqliteTable('user_progress', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
   programId: text('program_id').notNull(),
-  currentWeek: int('current_week').default(1),
-  currentWorkout: int('current_workout').default(1),
+  currentWeek: integer('current_week').default(1),
+  currentWorkout: integer('current_workout').default(1),
   startDate: text('start_date'),
   completedWorkouts: text('completed_workouts'), // JSON array of workout IDs
   weeklyWeights: text('weekly_weights'), // JSON object
@@ -74,33 +74,55 @@ export const customMeals = sqliteTable('custom_meals', {
   syncedAt: text('synced_at'),
 });
 
-// User Onboarding/Wizard Results Table
+// User Onboarding/Wizard Results Table - DENSE V1 9-Step Onboarding
 export const userWizardResults = sqliteTable('user_wizard_results', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
   
-  // Fitness Goals
+  // Step 2: Current Strength Starting Point
+  squatKg: real('squat_kg'), // User's current squat weight in kg
+  benchKg: real('bench_kg'), // User's current bench press weight in kg
+  deadliftKg: real('deadlift_kg'), // User's current deadlift weight in kg
+  
+  // Step 3: Training Experience
+  trainingExperience: text('training_experience'), // 'new', '6_18_months', '2_plus_years'
+  
+  // Step 4: Body Fat Estimate
+  bodyFatLevel: text('body_fat_level'), // 'lean_10_14', 'athletic_15_18', 'average_18_22', 'high_22_plus'
+  
+  // Step 5: Weekly Schedule
+  trainingDaysPerWeek: integer('training_days_per_week'), // 3, 4, 5, or 6
+  preferredTrainingDays: text('preferred_training_days'), // JSON array: ['monday', 'tuesday', 'wednesday', ...]
+  
+  // Step 6: Muscle Group Prioritization (max 3)
+  musclePriorities: text('muscle_priorities'), // JSON array: ['chest', 'back', 'shoulders', 'arms', 'quads', 'hamstrings_glutes', 'calves', 'abs']
+  
+  // Step 7: Pump Work Preference
+  pumpWorkPreference: text('pump_work_preference'), // 'yes_love_burn', 'maybe_sometimes', 'no_minimal'
+  
+  // Step 8: Recovery Profile
+  recoveryProfile: text('recovery_profile'), // 'fast_recovery', 'need_more_rest', 'not_sure'
+  
+  // Step 9: Program Duration
+  programDurationWeeks: integer('program_duration_weeks'), // 4, 8, or 12
+  
+  // Legacy fields (keeping for backward compatibility)
   primaryGoal: text('primary_goal'), // 'lose_weight', 'gain_muscle', 'get_stronger', 'improve_endurance'
   targetWeight: real('target_weight'),
   timeframe: text('timeframe'), // '3_months', '6_months', '1_year'
-  
-  // Current Fitness Level
   fitnessLevel: text('fitness_level'), // 'beginner', 'intermediate', 'advanced'
   workoutFrequency: text('workout_frequency'), // '2_3_times', '4_5_times', '6_7_times'
   preferredWorkoutLength: text('preferred_workout_length'), // '30_min', '45_min', '60_min', '90_min'
-  
-  // Preferences
   preferredWorkoutTypes: text('preferred_workout_types'), // JSON array: ['strength', 'cardio', 'hiit', 'yoga']
   availableEquipment: text('available_equipment'), // JSON array: ['dumbbells', 'barbell', 'resistance_bands']
   workoutLocation: text('workout_location'), // 'home', 'gym', 'both'
-  
-  // Weaknesses/Focus Areas
   weaknesses: text('weaknesses'), // JSON array: ['upper_body', 'lower_body', 'core', 'cardio']
   injuries: text('injuries'), // JSON array: ['knee', 'back', 'shoulder', 'none']
   focusMuscle: text('focus_muscle'), // Primary muscle group focus: 'chest', 'back', 'shoulders'
   
-  // Program Suggestions (will be filled based on results)
+  // AI Program Generation Output
   suggestedPrograms: text('suggested_programs'), // JSON array of program IDs
+  generatedSplit: text('generated_split'), // JSON object: generated Push/Pull/Legs split based on responses
   
   completedAt: text('completed_at').default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),

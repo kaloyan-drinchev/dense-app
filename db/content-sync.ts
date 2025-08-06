@@ -1,6 +1,8 @@
 import { ApiService } from '@/utils/api';
 import { programService, syncStatusService } from './services';
 import { PROGRAMS } from '@/mocks/programs';
+import { Program as WorkoutProgram } from '@/types/workout';
+import { Program as DbProgram, NewProgram } from './schema';
 
 // Get API base URL from the same config as ApiService
 const getApiBaseUrl = () => {
@@ -26,7 +28,7 @@ export class ContentSyncService {
       console.log('🔄 Checking for new programs...');
       
       // Try to fetch programs from content server
-      let serverPrograms = [];
+      let serverPrograms: WorkoutProgram[] = [];
       try {
         // Use content-specific endpoint for new programs
         const response = await fetch(`${getApiBaseUrl()}/api/content/programs`);
@@ -46,7 +48,7 @@ export class ContentSyncService {
       const existingIds = new Set(localPrograms.map(p => p.id));
       
       // Find new programs (not in local database)
-      const newPrograms = serverPrograms.filter(program => 
+      const newPrograms: WorkoutProgram[] = serverPrograms.filter(program => 
         !existingIds.has(program.id)
       );
       
@@ -54,15 +56,16 @@ export class ContentSyncService {
         console.log(`🆕 Found ${newPrograms.length} new programs to add`);
         
         // Add new programs to local database
-        const programsToInsert = newPrograms.map(program => ({
-          title: program.title,
-          subtitle: program.subtitle,
+        const programsToInsert: NewProgram[] = newPrograms.map(program => ({
+          id: program.id,
+          title: program.name, // WorkoutProgram.name -> DbProgram.title
+          subtitle: `${program.duration} weeks • ${program.focusArea}`, // Generate subtitle
           description: program.description,
           duration: program.duration,
-          difficulty: program.difficulty,
+          difficulty: 'intermediate', // Default difficulty since WorkoutProgram doesn't have this
           type: program.type,
-          image: program.image,
-          data: JSON.stringify(program),
+          image: program.imageUrl, // WorkoutProgram.imageUrl -> DbProgram.image
+          data: JSON.stringify(program), // Store full workout program as JSON
         }));
         
         await programService.bulkInsert(programsToInsert);

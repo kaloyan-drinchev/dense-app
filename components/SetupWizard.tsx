@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Animated,
 } from 'react-native';
 import { colors } from '@/constants/colors';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
@@ -15,6 +16,7 @@ import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { wizardResultsService, userProfileService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
+import { ProgramGenerator, type WizardResponses } from '@/utils/program-generator';
 
 interface AuthContentProps {
   onComplete: () => void;
@@ -317,15 +319,34 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
   const [currentStep, setCurrentStep] = useState(0);
   const [validationError, setValidationError] = useState('');
   const [showAuthScreen, setShowAuthScreen] = useState(false);
+  const [isGeneratingProgram, setIsGeneratingProgram] = useState(false);
+  const [generationStep, setGenerationStep] = useState('');
+  const [generationProgress, setGenerationProgress] = useState(0);
+
+  const [showCheckProgramButton, setShowCheckProgramButton] = useState(false);
+  const [generatedProgramData, setGeneratedProgramData] = useState<any>(null);
+  const [isNavigatingToProgram, setIsNavigatingToProgram] = useState(false);
+  const [showProgramView, setShowProgramView] = useState(false);
   const [preferences, setPreferences] = useState({
-    primaryGoal: '',
-    focusMuscle: '',
-    trainingTime: '',
-    // Profile details
-    age: '',
-    weight: '',
-    height: '',
-    fitnessLevel: '',
+    // Step 2: Current Strength
+    squatKg: '',
+    benchKg: '',
+    deadliftKg: '',
+    // Step 3: Training Experience
+    trainingExperience: '',
+    // Step 4: Body Fat
+    bodyFatLevel: '',
+    // Step 5: Weekly Schedule
+    trainingDaysPerWeek: '',
+    preferredTrainingDays: [] as string[],
+    // Step 6: Muscle Priorities (max 3)
+    musclePriorities: [] as string[],
+    // Step 7: Pump Work
+    pumpWorkPreference: '',
+    // Step 8: Recovery
+    recoveryProfile: '',
+    // Step 9: Duration
+    programDurationWeeks: '',
   });
 
   // Reset wizard when it becomes visible
@@ -335,14 +356,25 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
       setValidationError('');
       setShowAuthScreen(false);
       setPreferences({
-        primaryGoal: '',
-        focusMuscle: '',
-        trainingTime: '',
-        // Profile details
-        age: '',
-        weight: '',
-        height: '',
-        fitnessLevel: '',
+        // Step 2: Current Strength
+        squatKg: '',
+        benchKg: '',
+        deadliftKg: '',
+        // Step 3: Training Experience
+        trainingExperience: '',
+        // Step 4: Body Fat
+        bodyFatLevel: '',
+        // Step 5: Weekly Schedule
+        trainingDaysPerWeek: '',
+        preferredTrainingDays: [],
+        // Step 6: Muscle Priorities (max 3)
+        musclePriorities: [],
+        // Step 7: Pump Work
+        pumpWorkPreference: '',
+        // Step 8: Recovery
+        recoveryProfile: '',
+        // Step 9: Duration
+        programDurationWeeks: '',
       });
     }
   }, [visible]);
@@ -350,85 +382,195 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
   const steps: WizardStep[] = [
     {
       id: 'welcome',
-      title: 'Welcome to DENSE! 💪',
-      subtitle: 'Let\'s find your perfect program',
+      title: 'Welcome to DENSE',
+      subtitle: 'This is version 1 of our app — focused ONLY on one thing:\nGetting you stronger and leaner. Fast.\n\nAnswer 8 quick questions and we\'ll build your fully custom training program.',
       icon: 'target',
       color: colors.primary,
     },
     {
-      id: 'fitness-goals',
-      title: 'What are your fitness goals?',
-      subtitle: 'Choose your primary objective',
-      icon: 'award',
+      id: 'current-strength',
+      title: 'Where are you starting from?',
+      subtitle: 'Don\'t worry if you don\'t know your exact numbers — just estimate or leave blank.',
+      icon: 'trending-up',
       color: colors.secondary,
     },
     {
-      id: 'muscle-focus',
-      title: 'Which muscle group to focus on?',
-      subtitle: 'Select your main area of development',
-      icon: 'zap',
+      id: 'training-experience',
+      title: 'How long have you been lifting?',
+      subtitle: 'This helps us set the right intensity',
+      icon: 'clock',
       color: colors.primary,
     },
     {
-      id: 'training-time',
-      title: 'How much time can you train?',
-      subtitle: 'Choose your preferred workout duration',
-      icon: 'clock',
+      id: 'body-fat',
+      title: 'What\'s your current body fat level?',
+      subtitle: 'Optional visual reference to help estimate',
+      icon: 'user',
       color: colors.secondary,
     },
     {
-      id: 'profile-details',
-      title: 'Complete your profile',
-      subtitle: 'Help us personalize your experience',
-      icon: 'user',
+      id: 'weekly-schedule',
+      title: 'How many days per week can you train?',
+      subtitle: 'We\'ll design your split based on your availability',
+      icon: 'calendar',
+      color: colors.primary,
+    },
+    {
+      id: 'muscle-priorities',
+      title: 'Which muscles do you want to focus on?',
+      subtitle: 'Choose up to 3 weak points. We\'ll give them extra volume and pump sets.',
+      icon: 'zap',
+      color: colors.secondary,
+    },
+    {
+      id: 'pump-work',
+      title: 'Do you want extra pump work at the end of your sessions?',
+      subtitle: 'Add finishing moves for muscle growth',
+      icon: 'activity',
+      color: colors.primary,
+    },
+    {
+      id: 'recovery-profile',
+      title: 'Do you recover quickly between intense workouts?',
+      subtitle: 'This affects session spacing and volume',
+      icon: 'refresh-cw',
+      color: colors.secondary,
+    },
+    {
+      id: 'program-duration',
+      title: 'How long do you want to follow this plan?',
+      subtitle: 'We\'ll pace your progression accordingly',
+      icon: 'target',
       color: colors.primary,
     },
     {
       id: 'complete',
-      title: 'Perfect Match Found! 🎯',
-      subtitle: 'We\'ve found the ideal program for you',
-      icon: 'check-circle',
-      color: colors.success,
+      title: 'You\'re Ready! 💪',
+      subtitle: 'Time to generate the perfect program tailored just for you',
+      icon: 'zap',
+      color: colors.primary,
     },
   ];
 
-  const goals = ['Build Muscle', 'Get Stronger', 'Lose Weight', 'General Fitness'];
-  const muscleGroups = ['Chest', 'Back', 'Shoulders'];
-  const trainingTimes = ['30-45 minutes', '45-60 minutes', '60-90 minutes'];
-  const fitnessLevels = ['Beginner', 'Intermediate', 'Advanced'];
+  // Step 3: Training Experience Options
+  const trainingExperienceOptions = [
+    { id: 'new', label: 'I\'m new (less than 6 months)' },
+    { id: '6_18_months', label: 'I\'ve been consistent for 6–18 months' },
+    { id: '2_plus_years', label: 'I\'ve trained for 2+ years and track progress seriously' },
+  ];
 
+  // Step 4: Body Fat Options
+  const bodyFatOptions = [
+    { id: 'lean_10_14', label: 'Lean (10–14%)' },
+    { id: 'athletic_15_18', label: 'Athletic (15–18%)' },
+    { id: 'average_18_22', label: 'Average (18–22%)' },
+    { id: 'high_22_plus', label: 'High (22%+)' },
+  ];
 
+  // Step 5: Training Days Options
+  const trainingDaysOptions = [
+    { id: '3', label: '3 days per week' },
+    { id: '4', label: '4 days per week' },
+    { id: '5', label: '5 days per week' },
+    { id: '6', label: '6 days per week' },
+  ];
+  const weekDays = [
+    { id: 'monday', label: 'Mon' },
+    { id: 'tuesday', label: 'Tue' },
+    { id: 'wednesday', label: 'Wed' },
+    { id: 'thursday', label: 'Thu' },
+    { id: 'friday', label: 'Fri' },
+    { id: 'saturday', label: 'Sat' },
+    { id: 'sunday', label: 'Sun' },
+  ];
+
+  // Step 6: Muscle Priorities Options
+  const musclePriorityOptions = [
+    { id: 'chest', label: 'Chest' },
+    { id: 'back', label: 'Back' },
+    { id: 'shoulders', label: 'Shoulders' },
+    { id: 'arms', label: 'Arms' },
+    { id: 'quads', label: 'Quads' },
+    { id: 'hamstrings_glutes', label: 'Hamstrings & Glutes' },
+    { id: 'calves', label: 'Calves' },
+    { id: 'abs', label: 'Abs' },
+  ];
+
+  // Step 7: Pump Work Options
+  const pumpWorkOptions = [
+    { id: 'yes_love_burn', label: 'Yes — I love the burn' },
+    { id: 'maybe_sometimes', label: 'Maybe sometimes' },
+    { id: 'no_minimal', label: 'No thanks, keep it minimal' },
+  ];
+
+  // Step 8: Recovery Options
+  const recoveryOptions = [
+    { id: 'fast_recovery', label: 'Yes, I recover fast' },
+    { id: 'need_more_rest', label: 'Not really — I need more rest' },
+    { id: 'not_sure', label: 'Not sure yet' },
+  ];
+
+  // Step 9: Duration Options
+  const durationOptions = [
+    { id: '4', label: '4 weeks' },
+    { id: '8', label: '8 weeks' },
+    { id: '12', label: '12 weeks' },
+  ];
 
   const validateCurrentStep = () => {
     const step = steps[currentStep];
     setValidationError('');
 
     switch (step.id) {
-      case 'fitness-goals':
-        if (!preferences.primaryGoal) {
-          setValidationError('Please select your primary fitness goal');
+      case 'current-strength':
+        // Optional fields - no validation needed
+        return true;
+      case 'training-experience':
+        if (!preferences.trainingExperience) {
+          setValidationError('Please select your training experience');
           return false;
         }
         break;
-      case 'muscle-focus':
-        if (!preferences.focusMuscle) {
-          setValidationError('Please select your muscle group focus');
+      case 'body-fat':
+        if (!preferences.bodyFatLevel) {
+          setValidationError('Please select your body fat level');
           return false;
         }
         break;
-      case 'training-time':
-        if (!preferences.trainingTime) {
-          setValidationError('Please select your preferred training duration');
+      case 'weekly-schedule':
+        if (!preferences.trainingDaysPerWeek) {
+          setValidationError('Please select how many days per week you can train');
+          return false;
+        }
+        // Validate user selected correct number of preferred days
+        const selectedDaysCount = preferences.preferredTrainingDays.length;
+        const requiredDaysCount = parseInt(preferences.trainingDaysPerWeek);
+        if (selectedDaysCount !== requiredDaysCount) {
+          setValidationError(`Please select exactly ${requiredDaysCount} days to match your training schedule`);
           return false;
         }
         break;
-      case 'profile-details':
-        if (!preferences.age || !preferences.weight || !preferences.height || !preferences.fitnessLevel) {
-          setValidationError('Please fill in all profile details');
+      case 'muscle-priorities':
+        if (preferences.musclePriorities.length === 0) {
+          setValidationError('Please select at least one muscle group to focus on');
           return false;
         }
-        if (parseInt(preferences.age) < 16 || parseInt(preferences.age) > 80) {
-          setValidationError('Please enter a valid age (16-80)');
+        break;
+      case 'pump-work':
+        if (!preferences.pumpWorkPreference) {
+          setValidationError('Please select your pump work preference');
+          return false;
+        }
+        break;
+      case 'recovery-profile':
+        if (!preferences.recoveryProfile) {
+          setValidationError('Please select your recovery profile');
+          return false;
+        }
+        break;
+      case 'program-duration':
+        if (!preferences.programDurationWeeks) {
+          setValidationError('Please select your program duration');
           return false;
         }
         break;
@@ -472,10 +614,37 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
     }
   };
 
+  const simulateAIGeneration = async (): Promise<void> => {
+    const steps = [
+      { text: 'Initializing AI engine...', emoji: '🤖', duration: 1500 },
+      { text: 'Processing experience data...', emoji: '📈', duration: 1600 },
+      { text: 'Analyzing strength baseline...', emoji: '🏋️‍♂️', duration: 1400 },
+      { text: 'Calculating training split...', emoji: '📊', duration: 1700 },
+      { text: 'Selecting exercises...', emoji: '🎯', duration: 1500 },
+      { text: 'Setting volume & intensity...', emoji: '⚡', duration: 1600 },
+      { text: 'Adding pump work...', emoji: '🔥', duration: 1400 },
+      { text: 'Optimizing recovery...', emoji: '🔄', duration: 1500 },
+      { text: 'Finalizing program...', emoji: '✨', duration: 1300 },
+    ];
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const progress = ((i + 1) / steps.length) * 100;
+      
+      setGenerationStep(`${step.emoji} ${step.text}`);
+      setGenerationProgress(progress);
+      await new Promise(resolve => setTimeout(resolve, step.duration));
+    }
+  };
+
   const handleComplete = async () => {
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
+    
+    // Start AI generation loading
+    setIsGeneratingProgram(true);
+    setGenerationProgress(0);
     
     try {
       // Get current user
@@ -483,85 +652,86 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
       if (!user) {
         console.error('No user found for wizard completion');
         setShowAuthScreen(true);
+        setIsGeneratingProgram(false);
         return;
       }
 
-      // Get matched program
-      const matchedProgram = getMatchedProgram();
+      // 🧠 Generate custom program using AI logic with beautiful loading
+      const wizardResponses: WizardResponses = {
+        squatKg: preferences.squatKg ? parseFloat(preferences.squatKg) : undefined,
+        benchKg: preferences.benchKg ? parseFloat(preferences.benchKg) : undefined,
+        deadliftKg: preferences.deadliftKg ? parseFloat(preferences.deadliftKg) : undefined,
+        trainingExperience: preferences.trainingExperience as any,
+        bodyFatLevel: preferences.bodyFatLevel as any,
+        trainingDaysPerWeek: parseInt(preferences.trainingDaysPerWeek),
+        preferredTrainingDays: preferences.preferredTrainingDays,
+        musclePriorities: preferences.musclePriorities,
+        pumpWorkPreference: preferences.pumpWorkPreference as any,
+        recoveryProfile: preferences.recoveryProfile as any,
+        programDurationWeeks: parseInt(preferences.programDurationWeeks),
+      };
+
+      // Simulate AI generation process
+      await simulateAIGeneration();
       
-      // Save wizard results to database
+      console.log('🧠 Generating AI program with responses:', wizardResponses);
+      const generatedProgram = ProgramGenerator.generateProgram(wizardResponses);
+      console.log('✅ AI Generated Program:', generatedProgram);
+
+      // Save wizard results to database with ALL new fields + generated program
       await wizardResultsService.create({
         userId: user.email,
-        primaryGoal: preferences.primaryGoal.toLowerCase().replace(' ', '_'),
-        fitnessLevel: preferences.fitnessLevel.toLowerCase(),
-        workoutFrequency: '5_times', // Default based on training programs
-        preferredWorkoutLength: preferences.trainingTime.replace('-', '_').replace(' ', '_'),
-        workoutLocation: 'gym', // Default for our muscle-focused programs
-        focusMuscle: preferences.focusMuscle.toLowerCase(),
-        suggestedPrograms: JSON.stringify([matchedProgram.id]),
+        // DENSE V1 9-Step Data
+        squatKg: preferences.squatKg ? parseFloat(preferences.squatKg) : null,
+        benchKg: preferences.benchKg ? parseFloat(preferences.benchKg) : null,
+        deadliftKg: preferences.deadliftKg ? parseFloat(preferences.deadliftKg) : null,
+        trainingExperience: preferences.trainingExperience,
+        bodyFatLevel: preferences.bodyFatLevel,
+        trainingDaysPerWeek: parseInt(preferences.trainingDaysPerWeek),
+        preferredTrainingDays: JSON.stringify(preferences.preferredTrainingDays),
+        musclePriorities: JSON.stringify(preferences.musclePriorities),
+        pumpWorkPreference: preferences.pumpWorkPreference,
+        recoveryProfile: preferences.recoveryProfile,
+        programDurationWeeks: parseInt(preferences.programDurationWeeks),
+        // AI Generated Program
+        suggestedPrograms: JSON.stringify([generatedProgram.programName]),
+        generatedSplit: JSON.stringify(generatedProgram),
       });
 
-      // Update user profile with new details
-      await userProfileService.update(user.email, {
-        age: parseInt(preferences.age),
-        weight: parseFloat(preferences.weight),
-        height: parseFloat(preferences.height),
-        goal: preferences.primaryGoal,
+      console.log('✅ DENSE V1 Wizard completed and saved:', {
+        experience: preferences.trainingExperience,
+        bodyFat: preferences.bodyFatLevel,
+        days: preferences.trainingDaysPerWeek,
+        priorities: preferences.musclePriorities,
+        duration: preferences.programDurationWeeks,
+        generatedProgram: generatedProgram.programName,
+        totalWorkouts: generatedProgram.weeklyStructure.length,
       });
 
-      // Mark wizard as completed
-      setWizardCompleted();
+      // Show final success messages
+      setGenerationStep('🎉 Program Generated Successfully!');
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      console.log('✅ Wizard completed and saved:', {
-        goal: preferences.primaryGoal,
-        muscle: preferences.focusMuscle,
-        time: preferences.trainingTime,
-        program: matchedProgram.name,
-      });
+      setGenerationStep('🚀 Your custom program is ready to transform your physique!');
+      await new Promise(resolve => setTimeout(resolve, 2500));
+      
+      // Store the generated program data
+      setGeneratedProgramData(generatedProgram);
+      
+      // Stop loading and go directly to check program button
+      setIsGeneratingProgram(false);
+      setShowCheckProgramButton(true);
+      
+      console.log('🚀 Generated program:', generatedProgram.programName);
 
     } catch (error) {
       console.error('❌ Failed to save wizard results:', error);
+      setIsGeneratingProgram(false);
+      setGenerationStep('❌ Error generating program');
     }
-    
-    setShowAuthScreen(true);
   };
 
-  // Program matching logic
-  const getMatchedProgram = () => {
-    const { primaryGoal, focusMuscle, trainingTime } = preferences;
-    
-    // Match muscle focus to program
-    let programName = '';
-    let programId = '';
-    
-    switch (focusMuscle.toLowerCase()) {
-      case 'chest':
-        programName = 'Chest Domination';
-        programId = 'chest-focus-program';
-        break;
-      case 'back':
-        programName = 'Back Builder Elite';
-        programId = 'back-focus-program';
-        break;
-      case 'shoulders':
-        programName = 'Shoulder Sculptor';
-        programId = 'shoulders-focus-program';
-        break;
-      default:
-        programName = 'Chest Domination';
-        programId = 'chest-focus-program';
-    }
-    
-    return {
-      id: programId,
-      name: programName,
-      description: `Perfect for your ${primaryGoal.toLowerCase()} goals with ${focusMuscle.toLowerCase()} focus`,
-      duration: '12 weeks',
-      focusArea: focusMuscle.toLowerCase(),
-      trainingTime: trainingTime,
-      goal: primaryGoal,
-    };
-  };
+
 
   const renderStepContent = () => {
     const step = steps[currentStep];
@@ -590,222 +760,373 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
           </View>
         );
 
-      case 'fitness-goals':
+      case 'current-strength':
         return (
-          <View style={styles.optionsContainer}>
-            {goals.map((goal) => (
-              <TouchableOpacity
-                key={goal}
-                style={[
-                  styles.optionButton,
-                  preferences.primaryGoal === goal && styles.selectedOption,
-                ]}
-                onPress={() => {
-                  setValidationError('');
-                  setPreferences({ ...preferences, primaryGoal: goal });
-                }}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    preferences.primaryGoal === goal && styles.selectedOptionText,
-                  ]}
-                >
-                  {goal}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        );
-
-      case 'muscle-focus':
-        return (
-          <View style={styles.optionsContainer}>
-            {muscleGroups.map((muscle) => (
-              <TouchableOpacity
-                key={muscle}
-                style={[
-                  styles.optionButton,
-                  preferences.focusMuscle === muscle && styles.selectedOption,
-                ]}
-                onPress={() => {
-                  setValidationError('');
-                  setPreferences({ ...preferences, focusMuscle: muscle });
-                }}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    preferences.focusMuscle === muscle && styles.selectedOptionText,
-                  ]}
-                >
-                  {muscle}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        );
-
-      case 'training-time':
-        return (
-          <View style={styles.optionsContainer}>
-            {trainingTimes.map((time) => (
-              <TouchableOpacity
-                key={time}
-                style={[
-                  styles.optionButton,
-                  preferences.trainingTime === time && styles.selectedOption,
-                ]}
-                onPress={() => {
-                  setValidationError('');
-                  setPreferences({ ...preferences, trainingTime: time });
-                }}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    preferences.trainingTime === time && styles.selectedOptionText,
-                  ]}
-                >
-                  {time}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        );
-
-      case 'profile-details':
-        return (
-          <View style={styles.profileContainer}>
+          <View style={styles.inputContainer}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Age</Text>
+              <Text style={styles.inputLabel}>Squat (kg)</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="Enter your age"
+                placeholder="80"
                 placeholderTextColor={colors.lightGray}
-                value={preferences.age}
+                value={preferences.squatKg}
                 onChangeText={(value) => {
                   setValidationError('');
-                  setPreferences({ ...preferences, age: value });
+                  setPreferences({ ...preferences, squatKg: value });
                 }}
                 keyboardType="numeric"
-                maxLength={2}
               />
             </View>
-
-            <View style={styles.inputRow}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-                <Text style={styles.inputLabel}>Weight (kg)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="70"
-                  placeholderTextColor={colors.lightGray}
-                  value={preferences.weight}
-                  onChangeText={(value) => {
-                    setValidationError('');
-                    setPreferences({ ...preferences, weight: value });
-                  }}
-                  keyboardType="numeric"
-                  maxLength={3}
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 10 }]}>
-                <Text style={styles.inputLabel}>Height (cm)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="175"
-                  placeholderTextColor={colors.lightGray}
-                  value={preferences.height}
-                  onChangeText={(value) => {
-                    setValidationError('');
-                    setPreferences({ ...preferences, height: value });
-                  }}
-                  keyboardType="numeric"
-                  maxLength={3}
-                />
-              </View>
-            </View>
-
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Fitness Level</Text>
-              <View style={styles.optionsContainer}>
-                {fitnessLevels.map((level) => (
-                  <TouchableOpacity
-                    key={level}
-                    style={[
-                      styles.optionButton,
-                      preferences.fitnessLevel === level && styles.selectedOption,
-                    ]}
-                    onPress={() => {
-                      setValidationError('');
-                      setPreferences({ ...preferences, fitnessLevel: level });
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        preferences.fitnessLevel === level && styles.selectedOptionText,
-                      ]}
-                    >
-                      {level}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <Text style={styles.inputLabel}>Bench Press (kg)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="60"
+                placeholderTextColor={colors.lightGray}
+                value={preferences.benchKg}
+                onChangeText={(value) => {
+                  setValidationError('');
+                  setPreferences({ ...preferences, benchKg: value });
+                }}
+                keyboardType="numeric"
+              />
             </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Deadlift (kg)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="100"
+                placeholderTextColor={colors.lightGray}
+                value={preferences.deadliftKg}
+                onChangeText={(value) => {
+                  setValidationError('');
+                  setPreferences({ ...preferences, deadliftKg: value });
+                }}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+        );
+
+      case 'training-experience':
+        return (
+          <View style={styles.optionsContainer}>
+            {trainingExperienceOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.optionButton,
+                  preferences.trainingExperience === option.id && styles.selectedOption,
+                ]}
+                onPress={() => {
+                  setValidationError('');
+                  setPreferences({ ...preferences, trainingExperience: option.id });
+                }}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    preferences.trainingExperience === option.id && styles.selectedOptionText,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+
+      case 'body-fat':
+        return (
+          <View style={styles.optionsContainer}>
+            {bodyFatOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.optionButton,
+                  preferences.bodyFatLevel === option.id && styles.selectedOption,
+                ]}
+                onPress={() => {
+                  setValidationError('');
+                  setPreferences({ ...preferences, bodyFatLevel: option.id });
+                }}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    preferences.bodyFatLevel === option.id && styles.selectedOptionText,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+
+      case 'weekly-schedule':
+        return (
+          <View style={styles.scheduleContainer}>
+            {/* Days per week selection */}
+            <View style={styles.optionsContainer}>
+              {trainingDaysOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.optionButton,
+                    preferences.trainingDaysPerWeek === option.id && styles.selectedOption,
+                  ]}
+                  onPress={() => {
+                    setValidationError('');
+                    setPreferences({ 
+                      ...preferences, 
+                      trainingDaysPerWeek: option.id,
+                      preferredTrainingDays: [] // Reset selected days when changing number
+                    });
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      preferences.trainingDaysPerWeek === option.id && styles.selectedOptionText,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Day selection */}
+            {preferences.trainingDaysPerWeek && (
+              <View style={styles.daySelectionContainer}>
+                <Text style={styles.daySelectionLabel}>Select your preferred days:</Text>
+                <View style={styles.daysGrid}>
+                  {weekDays.map((day) => (
+                    <TouchableOpacity
+                      key={day.id}
+                      style={[
+                        styles.dayButton,
+                        preferences.preferredTrainingDays.includes(day.id) && styles.selectedDayButton,
+                      ]}
+                      onPress={() => {
+                        setValidationError('');
+                        const currentDays = preferences.preferredTrainingDays;
+                        const maxDays = parseInt(preferences.trainingDaysPerWeek);
+                        
+                        if (currentDays.includes(day.id)) {
+                          // Remove day
+                          setPreferences({
+                            ...preferences,
+                            preferredTrainingDays: currentDays.filter(d => d !== day.id)
+                          });
+                        } else if (currentDays.length < maxDays) {
+                          // Add day
+                          setPreferences({
+                            ...preferences,
+                            preferredTrainingDays: [...currentDays, day.id]
+                          });
+                        }
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dayButtonText,
+                          preferences.preferredTrainingDays.includes(day.id) && styles.selectedDayButtonText,
+                        ]}
+                      >
+                        {day.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        );
+
+      case 'muscle-priorities':
+        return (
+          <View style={styles.optionsContainer}>
+            {musclePriorityOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.optionButton,
+                  preferences.musclePriorities.includes(option.id) && styles.selectedOption,
+                ]}
+                onPress={() => {
+                  setValidationError('');
+                  const currentPriorities = preferences.musclePriorities;
+                  
+                  if (currentPriorities.includes(option.id)) {
+                    // Remove priority
+                    setPreferences({
+                      ...preferences,
+                      musclePriorities: currentPriorities.filter(p => p !== option.id)
+                    });
+                  } else if (currentPriorities.length < 3) {
+                    // Add priority (max 3)
+                    setPreferences({
+                      ...preferences,
+                      musclePriorities: [...currentPriorities, option.id]
+                    });
+                  }
+                }}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    preferences.musclePriorities.includes(option.id) && styles.selectedOptionText,
+                  ]}
+                >
+                  {option.label} {preferences.musclePriorities.includes(option.id) ? '✓' : ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <Text style={styles.helperText}>
+              Selected: {preferences.musclePriorities.length}/3
+            </Text>
+          </View>
+        );
+
+      case 'pump-work':
+        return (
+          <View style={styles.optionsContainer}>
+            {pumpWorkOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.optionButton,
+                  preferences.pumpWorkPreference === option.id && styles.selectedOption,
+                ]}
+                onPress={() => {
+                  setValidationError('');
+                  setPreferences({ ...preferences, pumpWorkPreference: option.id });
+                }}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    preferences.pumpWorkPreference === option.id && styles.selectedOptionText,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+
+      case 'recovery-profile':
+        return (
+          <View style={styles.optionsContainer}>
+            {recoveryOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.optionButton,
+                  preferences.recoveryProfile === option.id && styles.selectedOption,
+                ]}
+                onPress={() => {
+                  setValidationError('');
+                  setPreferences({ ...preferences, recoveryProfile: option.id });
+                }}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    preferences.recoveryProfile === option.id && styles.selectedOptionText,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+
+      case 'program-duration':
+        return (
+          <View style={styles.optionsContainer}>
+            {durationOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.optionButton,
+                  preferences.programDurationWeeks === option.id && styles.selectedOption,
+                ]}
+                onPress={() => {
+                  setValidationError('');
+                  setPreferences({ ...preferences, programDurationWeeks: option.id });
+                }}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    preferences.programDurationWeeks === option.id && styles.selectedOptionText,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         );
 
       case 'complete':
-        const matchedProgram = getMatchedProgram();
         return (
           <View style={styles.completeContent}>
-            <View style={styles.congratulationsContainer}>
-              <Text style={styles.congratulationsTitle}>🎯 Perfect Match!</Text>
-              <Text style={styles.congratulationsSubtitle}>
-                We found the ideal program for you
+            <View style={styles.readyContainer}>
+              <Text style={styles.readyTitle}>🎯 All Set!</Text>
+              <Text style={styles.readyMessage}>
+                You've answered all the questions we need to build your perfect training program.
               </Text>
             </View>
             
-            <View style={styles.programCard}>
-              <View style={styles.programHeader}>
-                <Text style={styles.programName}>{matchedProgram.name}</Text>
-                <Text style={styles.programDuration}>{matchedProgram.duration}</Text>
-              </View>
-              <Text style={styles.programDescription}>{matchedProgram.description}</Text>
+            <View style={styles.completeSummaryCard}>
+              <Text style={styles.completeSummaryTitle}>Your Profile Summary:</Text>
               
-              <View style={styles.programDetails}>
-                <View style={styles.programDetailItem}>
-                  <Icon name="target" size={16} color={colors.primary} />
-                  <Text style={styles.programDetailText}>Goal: {matchedProgram.goal}</Text>
-                </View>
-                <View style={styles.programDetailItem}>
-                  <Icon name="zap" size={16} color={colors.secondary} />
-                  <Text style={styles.programDetailText}>Focus: {matchedProgram.focusArea}</Text>
-                </View>
-                <View style={styles.programDetailItem}>
-                  <Icon name="clock" size={16} color={colors.success} />
-                  <Text style={styles.programDetailText}>Time: {matchedProgram.trainingTime}</Text>
-                </View>
+              <View style={styles.completeSummaryItem}>
+                <Text style={styles.summaryLabel}>Training Experience:</Text>
+                <Text style={styles.summaryValue}>
+                  {preferences.trainingExperience === 'new' ? 'Beginner' : 
+                   preferences.trainingExperience === '6_18_months' ? 'Intermediate' : 'Advanced'}
+                </Text>
               </View>
+              
+              <View style={styles.completeSummaryItem}>
+                <Text style={styles.summaryLabel}>Training Days:</Text>
+                <Text style={styles.summaryValue}>{preferences.trainingDaysPerWeek} days per week</Text>
+              </View>
+              
+              {preferences.musclePriorities.length > 0 && (
+                <View style={styles.completeSummaryItem}>
+                  <Text style={styles.summaryLabel}>Focus Areas:</Text>
+                  <Text style={styles.summaryValue}>
+                    {preferences.musclePriorities.map(priority => 
+                      musclePriorityOptions.find(opt => opt.id === priority)?.label
+                    ).join(', ')}
+                  </Text>
+                </View>
+              )}
+              
+              <View style={styles.completeSummaryItem}>
+                <Text style={styles.summaryLabel}>Program Duration:</Text>
+                <Text style={styles.summaryValue}>{preferences.programDurationWeeks} weeks</Text>
+              </View>
+            </View>
+            
+            <View style={styles.finalMessage}>
+              <Text style={styles.finalMessageText}>
+                🤖 Our AI will now analyze your answers and create a fully customized Push/Pull/Legs program designed specifically for your goals, experience level, and preferences.
+              </Text>
             </View>
             
             <View style={styles.programActions}>
               <TouchableOpacity style={styles.getStartedButton} onPress={handleComplete}>
-                <Text style={styles.getStartedButtonText}>Save & Continue</Text>
+                <Text style={styles.getStartedButtonText}>Generate My Program 💪</Text>
                 <Icon name="arrow-right" size={20} color={colors.white} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.seeProgramButton} 
-                onPress={() => {
-                  const matchedProgram = getMatchedProgram();
-                  router.push(`/program/${matchedProgram.id}`);
-                }}
-              >
-                <Text style={styles.seeProgramButtonText}>See the Program</Text>
-                <Icon name="eye" size={20} color={colors.primary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -815,6 +1136,170 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
         return null;
     }
   };
+
+  // Show AI generation loading screen
+  if (isGeneratingProgram) {
+    return (
+      <LinearGradient
+        colors={[colors.dark, colors.darkGray]}
+        style={styles.container}
+      >
+        <View style={styles.loadingContainer}>
+          <View style={styles.loadingHeader}>
+            <Text style={styles.loadingTitle}>🧠 AI Generating Your Program</Text>
+            <Text style={styles.loadingSubtitle}>
+              Creating your personalized Push/Pull/Legs routine...
+            </Text>
+          </View>
+          
+          <View style={styles.loadingContent}>
+            <View style={styles.loadingAnimation}>
+              <Text style={styles.loadingEmoji}>🤖</Text>
+              <View style={styles.loadingDots}>
+                <View style={[styles.loadingDot, styles.loadingDot1]} />
+                <View style={[styles.loadingDot, styles.loadingDot2]} />
+                <View style={[styles.loadingDot, styles.loadingDot3]} />
+              </View>
+            </View>
+            
+            <Text style={styles.loadingStep}>{generationStep}</Text>
+            
+            <View style={styles.loadingProgress}>
+              <View style={[styles.loadingProgressBar, { width: `${generationProgress}%` }]} />
+            </View>
+            
+            <View style={styles.loadingStats}>
+              <View style={styles.loadingStat}>
+                <Text style={styles.loadingStatNumber}>{preferences.trainingDaysPerWeek}</Text>
+                <Text style={styles.loadingStatLabel}>Days/Week</Text>
+              </View>
+              <View style={styles.loadingStat}>
+                <Text style={styles.loadingStatNumber}>{preferences.musclePriorities.length}</Text>
+                <Text style={styles.loadingStatLabel}>Focus Areas</Text>
+              </View>
+              <View style={styles.loadingStat}>
+                <Text style={styles.loadingStatNumber}>{preferences.programDurationWeeks}</Text>
+                <Text style={styles.loadingStatLabel}>Weeks</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </LinearGradient>
+    );
+  }
+
+
+
+  // Show program view within wizard
+  if (showProgramView && generatedProgramData) {
+    return (
+      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Your Program</Text>
+        </View>
+        
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.inlineProgram}>
+            <Text style={styles.inlineProgramName}>{generatedProgramData.programName}</Text>
+            <Text style={styles.inlineProgramDescription}>{generatedProgramData.overview}</Text>
+            
+            <View style={styles.programStats}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{generatedProgramData.totalWeeks}</Text>
+                <Text style={styles.statLabel}>Weeks</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{generatedProgramData.weeklyStructure.length}</Text>
+                <Text style={styles.statLabel}>Days/Week</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{generatedProgramData.weeklyStructure.reduce((total: number, day: any) => total + day.exercises.length, 0)}</Text>
+                <Text style={styles.statLabel}>Exercises</Text>
+              </View>
+            </View>
+          </View>
+
+          {generatedProgramData.weeklyStructure.map((day: any, index: number) => (
+            <View key={index} style={styles.workoutCard}>
+              <Text style={styles.workoutName}>{day.name}</Text>
+              <Text style={styles.workoutDuration}>{day.estimatedDuration} min</Text>
+              
+              {day.exercises.map((exercise: any, exerciseIndex: number) => (
+                <View key={exerciseIndex} style={styles.exerciseItem}>
+                  <Text style={styles.exerciseName}>{exercise.name}</Text>
+                  <Text style={styles.exerciseDetails}>
+                    {exercise.sets} sets × {exercise.reps} reps
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ))}
+          
+          <TouchableOpacity 
+            style={styles.finishButton}
+            onPress={() => {
+              const { setWizardCompleted } = useAuthStore.getState();
+              setWizardCompleted();
+            }}
+          >
+            <Text style={styles.finishButtonText}>Finish Setup</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </LinearGradient>
+    );
+  }
+
+  // Hide wizard when navigating to program view
+  if (isNavigatingToProgram) {
+    return null;
+  }
+
+  // Show check program button
+  if (showCheckProgramButton) {
+    return (
+      <LinearGradient
+        colors={[colors.dark, colors.darkGray]}
+        style={styles.container}
+      >
+        <View style={styles.checkProgramContainer}>
+          <View style={styles.programReadyCard}>
+            <Text style={styles.programReadyEmoji}>💪</Text>
+            <Text style={styles.programReadyTitle}>Your Program is Ready!</Text>
+            <Text style={styles.programReadySubtitle}>
+              {generatedProgramData?.programName || 'Custom Push/Pull/Legs Program'}
+            </Text>
+            <Text style={styles.programReadyDescription}>
+              Designed specifically for your goals, experience level, and muscle priorities.
+            </Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.checkProgramButton}
+            onPress={() => {
+              console.log('🚀 Showing program view within wizard');
+              setShowCheckProgramButton(false);
+              setShowProgramView(true);
+            }}
+          >
+            <Text style={styles.checkProgramButtonText}>Check Your Program</Text>
+            <Icon name="arrow-right" size={20} color={colors.white} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.viewLaterButton}
+            onPress={() => {
+              // Mark wizard as completed and close wizard
+              const { setWizardCompleted } = useAuthStore.getState();
+              setWizardCompleted();
+              setShowCheckProgramButton(false);
+            }}
+          >
+            <Text style={styles.viewLaterButtonText}>View Later in Programs Tab</Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient
@@ -902,10 +1387,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({
         {steps[currentStep].id !== 'complete' && !showAuthScreen && (
           <View style={styles.navigationContainer}>
             {currentStep === 0 ? (
-              // First step: Next button on bottom right
+              // First step: Start Setup button on bottom right
               <View style={styles.firstStepNavigation}>
                 <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-                  <Text style={styles.nextButtonText}>Next</Text>
+                  <Text style={styles.nextButtonText}>Start Setup</Text>
                   <Icon name="chevron-right" size={20} color={colors.white} />
                 </TouchableOpacity>
               </View>
@@ -1491,6 +1976,457 @@ const styles = StyleSheet.create({
   seeProgramButtonText: {
     fontSize: 18,
     color: colors.primary,
+    fontWeight: 'bold',
+  },
+  // Workout Preview Styles
+  workoutPreview: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    gap: 8,
+  },
+  workoutPreviewTitle: {
+    fontSize: 16,
+    color: colors.white,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  workoutPreviewText: {
+    fontSize: 14,
+    color: colors.lightGray,
+    lineHeight: 20,
+  },
+  // AI Loading Screen Styles
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingHeader: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  loadingTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  loadingSubtitle: {
+    fontSize: 16,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  loadingAnimation: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  loadingEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  loadingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+  },
+  loadingDot1: {
+    animationDelay: '0s',
+  },
+  loadingDot2: {
+    animationDelay: '0.2s',
+  },
+  loadingDot3: {
+    animationDelay: '0.4s',
+  },
+  loadingStep: {
+    fontSize: 18,
+    color: colors.white,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 24,
+    minHeight: 50,
+  },
+  loadingProgress: {
+    width: '100%',
+    height: 4,
+    backgroundColor: colors.darkGray,
+    borderRadius: 2,
+    marginBottom: 32,
+    overflow: 'hidden',
+  },
+  loadingProgressBar: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 2,
+  },
+  loadingStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingHorizontal: 24,
+  },
+  loadingStat: {
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    minWidth: 80,
+  },
+  loadingStatNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  loadingStatLabel: {
+    fontSize: 12,
+    color: colors.lightGray,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  // Input Container Styles
+  inputContainer: {
+    gap: 20,
+    paddingBottom: 20,
+  },
+  // Schedule Container Styles
+  scheduleContainer: {
+    gap: 24,
+  },
+  daySelectionContainer: {
+    gap: 16,
+  },
+  daySelectionLabel: {
+    fontSize: 16,
+    color: colors.white,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  dayButton: {
+    backgroundColor: colors.darkGray,
+    borderWidth: 2,
+    borderColor: colors.mediumGray,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  selectedDayButton: {
+    backgroundColor: colors.primary + '20',
+    borderColor: colors.primary,
+  },
+  dayButtonText: {
+    fontSize: 14,
+    color: colors.lightGray,
+    fontWeight: '500',
+  },
+  selectedDayButtonText: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  // Helper Text
+  helperText: {
+    fontSize: 14,
+    color: colors.lightGray,
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
+  },
+  // Complete Step Styles
+  readyContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  readyTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  readyMessage: {
+    fontSize: 16,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  completeSummaryCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+  },
+  completeSummaryTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.white,
+    marginBottom: 16,
+  },
+  completeSummaryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 16,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: colors.lightGray,
+    flex: 1,
+  },
+  summaryValue: {
+    fontSize: 14,
+    color: colors.white,
+    fontWeight: '500',
+    flex: 2,
+    textAlign: 'right',
+  },
+  finalMessage: {
+    backgroundColor: colors.primary + '15',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 32,
+  },
+  finalMessageText: {
+    fontSize: 15,
+    color: colors.white,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  // Success Animation Styles
+  successContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  successAnimation: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  successEmoji: {
+    fontSize: 80,
+    marginBottom: 20,
+    textAlign: 'center',
+    textShadowColor: colors.primary,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  successTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  successSubtitle: {
+    fontSize: 18,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 26,
+  },
+  successStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  successStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  successStatNumber: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  successStatLabel: {
+    fontSize: 14,
+    color: colors.lightGray,
+    textAlign: 'center',
+  },
+  // Check Program Styles
+  checkProgramContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  programReadyCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    marginBottom: 40,
+    width: '100%',
+  },
+  programReadyEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  programReadyTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  programReadySubtitle: {
+    fontSize: 20,
+    color: colors.primary,
+    textAlign: 'center',
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  programReadyDescription: {
+    fontSize: 16,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  checkProgramButton: {
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    gap: 12,
+    width: '100%',
+    marginBottom: 16,
+  },
+  checkProgramButtonText: {
+    fontSize: 18,
+    color: colors.white,
+    fontWeight: 'bold',
+  },
+  viewLaterButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.mediumGray,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    width: '100%',
+  },
+  viewLaterButtonText: {
+    fontSize: 16,
+    color: colors.lightGray,
+    fontWeight: '500',
+  },
+  // Program View Styles
+  backText: {
+    fontSize: 16,
+    color: colors.white,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    flex: 1,
+  },
+  inlineProgram: {
+    paddingVertical: 20,
+  },
+  inlineProgramName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  inlineProgramDescription: {
+    fontSize: 14,
+    color: colors.lightGray,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  programStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    paddingVertical: 16,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.lightGray,
+  },
+  workoutCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  workoutName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.white,
+    marginBottom: 4,
+  },
+  workoutDuration: {
+    fontSize: 14,
+    color: colors.lightGray,
+    marginBottom: 12,
+  },
+  exerciseItem: {
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.mediumGray,
+  },
+  exerciseName: {
+    fontSize: 14,
+    color: colors.white,
+    fontWeight: '500',
+  },
+  exerciseDetails: {
+    fontSize: 12,
+    color: colors.primary,
+  },
+  finishButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  finishButtonText: {
+    fontSize: 16,
+    color: colors.white,
     fontWeight: 'bold',
   },
 });
