@@ -98,6 +98,15 @@ function AppNavigator() {
   const [showAuth, setShowAuth] = useState(!isAuthenticated);
   const [showWizard, setShowWizard] = useState(false);
 
+  // DEBUG: Log navigation state
+  console.log('🧭 AppNavigator state:', {
+    isAuthenticated,
+    hasCompletedWizard,
+    showAuth,
+    showWizard,
+    willShow: showAuth ? 'AUTH' : showWizard ? 'WIZARD' : 'MAIN_APP'
+  });
+
   // Update showAuth when authentication state changes
   useEffect(() => {
     setShowAuth(!isAuthenticated);
@@ -179,6 +188,12 @@ function RootLayoutNav() {
         options={{ 
           title: "Exercise",
           animation: 'slide_from_right',
+        }} 
+      />
+      <Stack.Screen 
+        name="single-program-view" 
+        options={{ 
+          headerShown: false,
         }} 
       />
       <Stack.Screen 

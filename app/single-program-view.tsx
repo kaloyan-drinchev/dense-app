@@ -51,12 +51,6 @@ const SingleProgramView = () => {
     return (
       <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Icon name="arrow-back" size={24} color={colors.white} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Your Program</Text>
-          </View>
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>🔄 Loading your program...</Text>
             <Text style={styles.loadingSubtext}>Getting your custom workout ready</Text>
@@ -99,8 +93,8 @@ const SingleProgramView = () => {
                 <Text style={styles.statLabel}>Days/Week</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{generatedProgram.weeklyStructure.reduce((total: number, day: any) => total + day.workouts.length, 0)}</Text>
-                <Text style={styles.statLabel}>Workouts</Text>
+                <Text style={styles.statNumber}>{generatedProgram.weeklyStructure.reduce((total: number, day: any) => total + (day.exercises?.length || 0), 0)}</Text>
+                <Text style={styles.statLabel}>Exercises</Text>
               </View>
             </View>
           </View>
@@ -137,29 +131,29 @@ const SingleProgramView = () => {
             {generatedProgram.weeklyStructure.map((day: any, index: number) => (
               <View key={index} style={styles.workoutCard}>
                 <View style={styles.workoutHeader}>
-                  <Text style={styles.workoutDay}>{day.day}</Text>
+                  <Text style={styles.workoutDay}>Day {index + 1}</Text>
                   <Text style={styles.workoutName}>{day.name}</Text>
                   <Text style={styles.workoutDuration}>{day.estimatedDuration} min</Text>
                 </View>
                 
-                {day.workouts.map((workout: any, workoutIndex: number) => (
-                  <View key={workoutIndex} style={styles.muscleGroupSection}>
-                    <Text style={styles.muscleGroupTitle}>{workout.muscleGroup}</Text>
-                    {workout.exercises.map((exercise: any, exerciseIndex: number) => (
-                      <View key={exerciseIndex} style={styles.exerciseItem}>
-                        <View style={styles.exerciseInfo}>
-                          <Text style={styles.exerciseName}>{exercise.name}</Text>
-                          <Text style={styles.exerciseDetails}>
-                            {exercise.sets} sets × {exercise.reps} reps
-                          </Text>
-                          {exercise.notes && (
-                            <Text style={styles.exerciseNotes}>{exercise.notes}</Text>
-                          )}
-                        </View>
+                <View style={styles.muscleGroupSection}>
+                  <Text style={styles.muscleGroupTitle}>{day.type.toUpperCase()}</Text>
+                  {day.exercises?.map((exercise: any, exerciseIndex: number) => (
+                    <View key={exerciseIndex} style={styles.exerciseItem}>
+                      <View style={styles.exerciseInfo}>
+                        <Text style={styles.exerciseName}>{exercise.name}</Text>
+                        <Text style={styles.exerciseDetails}>
+                          {exercise.sets} sets × {exercise.reps} reps
+                        </Text>
+                        {exercise.notes && (
+                          <Text style={styles.exerciseNotes}>{exercise.notes}</Text>
+                        )}
                       </View>
-                    ))}
-                  </View>
-                ))}
+                    </View>
+                  )) || (
+                    <Text style={styles.exerciseNotes}>No exercises for this day</Text>
+                  )}
+                </View>
               </View>
             ))}
           </View>

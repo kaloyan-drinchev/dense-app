@@ -205,11 +205,13 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
       // Store the generated program data
       setGeneratedProgramData(generatedProgram);
       
-      // Stop loading and go directly to check program button
-      setIsGeneratingProgram(false);
-      setShowCheckProgramButton(true);
-      
+      // Mark wizard as completed and close the wizard
+      setWizardCompleted();
       console.log('🚀 Generated program:', generatedProgram.programName);
+      console.log('✅ Wizard marked as completed, closing wizard');
+      
+      // Close the wizard immediately
+      onClose();
 
     } catch (error) {
       console.error('❌ Failed to save wizard results:', error);

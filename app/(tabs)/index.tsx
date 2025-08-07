@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,6 +10,8 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '@/store/workout-store';
+import { useAuthStore } from '@/store/auth-store';
+import { wizardResultsService, userProgressService } from '@/db/services';
 import { colors } from '@/constants/colors';
 import { formatDate } from '@/utils/helpers';
 import {
@@ -21,9 +23,114 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const { userProfile, userProgress, activeProgram, programs } =
     useWorkoutStore();
+  
+  // State for generated program data
+  const [generatedProgram, setGeneratedProgram] = useState<any>(null);
+  const [loadingProgram, setLoadingProgram] = useState(true);
+  
+  // State for user progress tracking
+  const [userProgressData, setUserProgressData] = useState<any>(null);
+  const [loadingProgress, setLoadingProgress] = useState(true);
 
+  // Load user's generated program and progress
+  useEffect(() => {
+    loadGeneratedProgram();
+    loadUserProgress();
+  }, [user]);
+
+  const loadGeneratedProgram = async () => {
+    console.log('🔍 loadGeneratedProgram called, user:', user?.email);
+    
+    if (!user?.email) {
+      console.log('❌ No user email found');
+      setLoadingProgram(false);
+      return;
+    }
+
+    try {
+      console.log('🔄 Fetching wizard results for user:', user.email);
+      const wizardResults = await wizardResultsService.getByUserId(user.email);
+      console.log('📊 Wizard results:', wizardResults);
+      
+      if (wizardResults?.generatedSplit) {
+        const program = JSON.parse(wizardResults.generatedSplit);
+        
+        // Create a better program title based on muscle priorities
+        if (wizardResults.musclePriorities) {
+          const priorities = JSON.parse(wizardResults.musclePriorities);
+          const priorityText = priorities.slice(0, 2).join(' & ').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+          program.displayTitle = `${priorityText} Focus`;
+        }
+        
+        setGeneratedProgram(program);
+        console.log('✅ Loaded generated program:', program.programName);
+        console.log('🎯 Display title:', program.displayTitle);
+        console.log('🤖 Program details:', {
+          name: program.programName,
+          weeks: program.totalWeeks,
+          workouts: program.weeklyStructure?.length
+        });
+      } else {
+        console.log('⚠️ No generated program found in wizard results');
+      }
+    } catch (error) {
+      console.error('❌ Failed to load generated program:', error);
+    } finally {
+      setLoadingProgram(false);
+      console.log('🏁 loadGeneratedProgram completed');
+    }
+  };
+
+  const loadUserProgress = async () => {
+    if (!user?.email) {
+      setLoadingProgress(false);
+      return;
+    }
+
+    try {
+      const progress = await userProgressService.getByUserId(user.email);
+      
+      if (progress) {
+        setUserProgressData(progress);
+        console.log('✅ User progress loaded:', {
+          week: progress.currentWeek,
+          workout: progress.currentWorkout,
+          programId: progress.programId
+        });
+      } else {
+        console.log('⚠️ No user progress found - will create default');
+        // Create default progress starting at week 1, day 1
+        const defaultProgress = await userProgressService.create({
+          userId: user.email,
+          programId: 'ai-generated-program',
+          currentWeek: 1,
+          currentWorkout: 1,
+          startDate: new Date().toISOString(),
+          completedWorkouts: '[]',
+          weeklyWeights: '{}'
+        });
+        setUserProgressData(defaultProgress);
+        console.log('✅ Created default progress:', defaultProgress);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load user progress:', error);
+    } finally {
+      setLoadingProgress(false);
+    }
+  };
+
+  // Get today's workout based on current progress
+  const getTodaysWorkout = () => {
+    if (!generatedProgram || !userProgressData) return null;
+    
+    const currentWorkoutIndex = userProgressData.currentWorkout - 1;
+    const workout = generatedProgram.weeklyStructure?.[currentWorkoutIndex];
+    
+    return workout || null;
+  };
 
   const handleEditProfile = () => {
     router.push('/profile');
@@ -52,187 +159,100 @@ export default function HomeScreen() {
 
   const nextWorkout = getNextWorkout();
 
+  // Debug logging
+  console.log('🏠 Home render - State:', {
+    userEmail: user?.email,
+    hasGeneratedProgram: !!generatedProgram,
+    generatedProgramName: generatedProgram?.programName,
+    hasActiveProgram: !!activeProgram,
+    activeProgramName: activeProgram?.name,
+    loadingProgram
+  });
+
   return (
     <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
       >
-        <View style={styles.header}>
+                <View style={styles.header}>
           <Text style={styles.greeting}>
-            Hey, {userProfile?.name || 'there'}!
+            Hey, {user?.name || 'there'}!
           </Text>
           <Text style={styles.date}>
             {formatDate(new Date().toISOString())}
           </Text>
         </View>
 
-        {activeProgram && userProgress ? (
-          <>
-            <View style={styles.activeProgram}>
-              <LinearGradient
-                colors={[
-                  activeProgram.type === 'bulking'
-                    ? 'rgba(58, 81, 153, 0.8)'
-                    : 'rgba(44, 120, 115, 0.8)',
-                  'rgba(26, 26, 46, 0.9)',
-                ]}
-                style={styles.programGradient}
+        {/* Progress Tracking Banner */}
+        {userProgressData && generatedProgram && (
+          <View style={styles.progressBanner}>
+            <LinearGradient
+              colors={['rgba(76, 175, 80, 0.8)', 'rgba(56, 142, 60, 0.9)']}
+              style={styles.bannerGradient}
+            >
+              <View style={styles.bannerContent}>
+                <Text style={styles.bannerTitle}>{generatedProgram.displayTitle || generatedProgram.programName}</Text>
+                <Text style={styles.bannerWeek}>Week {userProgressData.currentWeek}</Text>
+                <Text style={styles.bannerWorkout}>Workout {userProgressData.currentWorkout}</Text>
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.bannerButton}
+                onPress={() => router.push('/single-program-view')}
               >
-                <View style={styles.programHeader}>
-                  <Text style={styles.programTitle}>{activeProgram.name}</Text>
-                  <View style={styles.programBadge}>
-                    <Text style={styles.programBadgeText}>
-                      {activeProgram.type.toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
+                <Text style={styles.bannerButtonText}>View Program</Text>
+                <Icon name="arrow-right" size={16} color={colors.white} />
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        )}
 
-                <View style={styles.programProgress}>
-                  <Text style={styles.progressText}>
-                    Week {userProgress.currentWeek} of {activeProgram.duration}
-                  </Text>
-                  <View style={styles.progressBarContainer}>
-                    <View
-                      style={[
-                        styles.progressBar,
-                        {
-                          width: `${
-                            (userProgress.currentWeek /
-                              activeProgram.duration) *
-                            100
-                          }%`,
-                          backgroundColor:
-                            activeProgram.type === 'bulking'
-                              ? colors.primary
-                              : '#2C7873',
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.continueButton}
-                  onPress={handleContinueWorkout}
+        {/* Today's Workout Preview */}
+        {generatedProgram && userProgressData && (
+          <View style={styles.todaysWorkout}>
+            <Text style={styles.sectionTitle}>Today's Workout</Text>
+            {getTodaysWorkout() ? (
+              <View style={styles.workoutCard}>
+                <LinearGradient
+                  colors={['rgba(58, 81, 153, 0.8)', 'rgba(45, 65, 120, 0.9)']}
+                  style={styles.workoutGradient}
                 >
-                  <Text style={styles.continueButtonText}>
-                    Continue Program
-                  </Text>
-                  <Icon name="arrow-right" size={16} color={colors.white} />
-                </TouchableOpacity>
-              </LinearGradient>
-            </View>
-
-            {nextWorkout && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Next Workout</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.nextWorkout}
-                  onPress={() =>
-                    router.push(`/program/workout/${nextWorkout.id}`)
-                  }
-                >
-                  <View style={styles.workoutIcon}>
-                    <MaterialIcon
-                      name="fitness-center"
-                      size={24}
-                      color={colors.white}
-                    />
+                  <View style={styles.workoutHeader}>
+                    <Text style={styles.workoutName}>{getTodaysWorkout()?.name}</Text>
+                    <Text style={styles.workoutDuration}>{getTodaysWorkout()?.estimatedDuration} min</Text>
                   </View>
-
-                  <View style={styles.workoutInfo}>
-                    <Text style={styles.workoutName}>{nextWorkout.name}</Text>
-                    <Text style={styles.workoutFocus}>
-                      {nextWorkout.focusArea}
-                    </Text>
-                    <View style={styles.workoutMeta}>
-                      <Text style={styles.workoutMetaText}>
-                        {nextWorkout.exercises.length} exercises
+                  
+                  <View style={styles.exercisePreview}>
+                    <Text style={styles.exercisePreviewTitle}>Key Exercises:</Text>
+                    {getTodaysWorkout()?.exercises?.slice(0, 3).map((exercise: any, index: number) => (
+                      <Text key={index} style={styles.exercisePreviewItem}>
+                        • {exercise.name} - {exercise.sets} sets × {exercise.reps} reps
                       </Text>
-                      {nextWorkout.cardio && (
-                        <Text style={styles.workoutMetaText}>
-                          + {nextWorkout.cardio.duration} min cardio
-                        </Text>
-                      )}
-                    </View>
+                    ))}
+                    {getTodaysWorkout()?.exercises?.length > 3 && (
+                      <Text style={styles.exercisePreviewMore}>
+                        +{getTodaysWorkout()?.exercises?.length - 3} more exercises
+                      </Text>
+                    )}
                   </View>
-
-                  <Icon name="arrow-right" size={20} color={colors.lightGray} />
-                </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.startWorkoutButton}
+                    onPress={() => router.push('/workout-session')}
+                  >
+                    <Text style={styles.startWorkoutText}>Start Workout</Text>
+                    <Icon name="play" size={18} color={colors.white} />
+                  </TouchableOpacity>
+                </LinearGradient>
+              </View>
+            ) : (
+              <View style={styles.noWorkoutCard}>
+                <Icon name="check-circle" size={48} color={colors.primary} />
+                <Text style={styles.noWorkoutTitle}>Great job!</Text>
+                <Text style={styles.noWorkoutText}>You've completed all workouts for today</Text>
               </View>
             )}
-
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Your Stats</Text>
-              </View>
-
-              <View style={styles.statsContainer}>
-                <View style={styles.statCard}>
-                  <View style={styles.statIconContainer}>
-                    <Icon name="calendar" size={20} color={colors.primary} />
-                  </View>
-                  <Text style={styles.statValue}>
-                    {userProgress.completedWorkouts.length}
-                  </Text>
-                  <Text style={styles.statLabel}>Workouts</Text>
-                </View>
-
-                <View style={styles.statCard}>
-                  <View style={styles.statIconContainer}>
-                    <MaterialIcon
-                      name="emoji-events"
-                      size={20}
-                      color={colors.secondary}
-                    />
-                  </View>
-                  <Text style={styles.statValue}>
-                    {userProgress.currentWeek}
-                  </Text>
-                  <Text style={styles.statLabel}>Week</Text>
-                </View>
-
-                <View style={styles.statCard}>
-                  <View style={styles.statIconContainer}>
-                    <WeightIcon size={20} color={colors.success} />
-                  </View>
-                  <Text style={styles.statValue}>
-                    {userProgress.weightLog.length > 0
-                      ? userProgress.weightLog[
-                          userProgress.weightLog.length - 1
-                        ].weight
-                      : userProfile?.weight || 0}
-                  </Text>
-                  <Text style={styles.statLabel}>Weight (kg)</Text>
-                </View>
-              </View>
-            </View>
-          </>
-        ) : (
-          <View style={styles.noProgramContainer}>
-            <Image
-              source={{
-                uri: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?q=80&w=2787&auto=format&fit=crop',
-              }}
-              style={styles.noProgramImage}
-            />
-            <Text style={styles.noProgramTitle}>Ready to get started?</Text>
-            <Text style={styles.noProgramText}>
-              Choose a 12-week program to begin your fitness journey
-            </Text>
-            <TouchableOpacity
-              style={styles.chooseProgramButton}
-              onPress={handleProgramSelect}
-            >
-              <Text style={styles.chooseProgramButtonText}>
-                Choose a Program
-              </Text>
-              <Icon name="arrow-right" size={16} color={colors.white} />
-            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -269,7 +289,6 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 24,
   },
-
   greeting: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -280,187 +299,142 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.lightGray,
   },
-  activeProgram: {
-    height: 180,
+  // Progress Banner Styles
+  progressBanner: {
+    height: 120,
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 24,
-    backgroundColor: colors.darkGray,
   },
-  programGradient: {
+  bannerGradient: {
     flex: 1,
-    padding: 16,
-    justifyContent: 'space-between',
-  },
-  programHeader: {
+    padding: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  programTitle: {
+  bannerContent: {
+    flex: 1,
+  },
+  bannerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
+    marginBottom: 8,
+  },
+  bannerWeek: {
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.white,
+    marginBottom: 4,
   },
-  programBadge: {
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  programBadgeText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+  bannerWorkout: {
+    fontSize: 18,
+    fontWeight: '500',
     color: colors.white,
+    opacity: 0.9,
   },
-  programProgress: {
-    marginBottom: 8,
-  },
-  progressText: {
-    fontSize: 14,
-    color: colors.white,
-    marginBottom: 8,
-  },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  continueButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  bannerButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 8,
     paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
-  continueButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  bannerButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.white,
   },
-  section: {
+  // Today's Workout Styles
+  todaysWorkout: {
     marginBottom: 24,
-  },
-  sectionHeader: {
-    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: colors.white,
+    marginBottom: 16,
   },
-  nextWorkout: {
+  workoutCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  workoutGradient: {
+    padding: 20,
+  },
+  workoutHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    padding: 16,
-  },
-  workoutIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  workoutInfo: {
-    flex: 1,
+    marginBottom: 16,
   },
   workoutName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.white,
-    marginBottom: 4,
-  },
-  workoutFocus: {
-    fontSize: 14,
-    color: colors.lighterGray,
-    marginBottom: 8,
-  },
-  workoutMeta: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  workoutMetaText: {
-    fontSize: 12,
-    color: colors.lightGray,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statCard: {
     flex: 1,
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginHorizontal: 4,
   },
-  statIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  workoutDuration: {
+    fontSize: 14,
+    color: colors.white,
+    opacity: 0.8,
+  },
+  exercisePreview: {
+    marginBottom: 20,
+  },
+  exercisePreviewTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.white,
     marginBottom: 8,
+    opacity: 0.9,
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  exercisePreviewItem: {
+    fontSize: 14,
     color: colors.white,
     marginBottom: 4,
+    opacity: 0.8,
   },
-  statLabel: {
-    fontSize: 12,
-    color: colors.lightGray,
-  },
-  noProgramContainer: {
-    alignItems: 'center',
-    padding: 16,
-  },
-  noProgramImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 16,
-    marginBottom: 24,
-  },
-  noProgramTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  exercisePreviewMore: {
+    fontSize: 14,
     color: colors.white,
-    marginBottom: 8,
-    textAlign: 'center',
+    fontStyle: 'italic',
+    opacity: 0.7,
+    marginTop: 4,
   },
-  noProgramText: {
-    fontSize: 16,
-    color: colors.lighterGray,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  chooseProgramButton: {
+  startWorkoutButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    paddingVertical: 16,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    alignItems: 'center',
     gap: 8,
   },
-  chooseProgramButtonText: {
+  startWorkoutText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.white,
+  },
+  noWorkoutCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  noWorkoutTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  noWorkoutText: {
+    fontSize: 14,
+    color: colors.lightGray,
+    textAlign: 'center',
   },
 });

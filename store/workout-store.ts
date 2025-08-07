@@ -45,7 +45,7 @@ interface WorkoutState {
 export const useWorkoutStore = create<WorkoutState>()(
   persist(
     (set, get) => ({
-      programs: PROGRAMS, // Fallback to local programs
+      programs: [], // No mock programs - only generated programs
       activeProgram: null,
       userProgress: null,
       userProfile: null,
