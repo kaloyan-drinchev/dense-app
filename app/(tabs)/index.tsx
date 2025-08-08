@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -19,6 +19,7 @@ import {
   MaterialIcons as MaterialIcon,
 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 
 
 export default function HomeScreen() {
@@ -40,6 +41,13 @@ export default function HomeScreen() {
     loadGeneratedProgram();
     loadUserProgress();
   }, [user]);
+
+  // Refresh progress when returning to Home to avoid stale day/workout
+  useFocusEffect(
+    useCallback(() => {
+      loadUserProgress();
+    }, [user?.email])
+  );
 
   const loadGeneratedProgram = async () => {
     console.log('🔍 loadGeneratedProgram called, user:', user?.email);
@@ -127,7 +135,10 @@ export default function HomeScreen() {
     if (!generatedProgram || !userProgressData) return null;
     
     const currentWorkoutIndex = userProgressData.currentWorkout - 1;
-    const workout = generatedProgram.weeklyStructure?.[currentWorkoutIndex];
+    // Clamp index to available workouts range
+    const total = generatedProgram.weeklyStructure?.length || 0;
+    const safeIndex = Math.max(0, Math.min(currentWorkoutIndex, Math.max(0, total - 1)));
+    const workout = generatedProgram.weeklyStructure?.[safeIndex];
     
     return workout || null;
   };
@@ -211,7 +222,12 @@ export default function HomeScreen() {
         {/* Today's Workout Preview */}
         {generatedProgram && userProgressData && (
           <View style={styles.todaysWorkout}>
-            <Text style={styles.sectionTitle}>Today's Workout</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Today's Workout</Text>
+              <TouchableOpacity onPress={() => router.push('/finished-workouts')}>
+                <Text style={styles.linkText}>Finished Workouts</Text>
+              </TouchableOpacity>
+            </View>
             {getTodaysWorkout() ? (
               <View style={styles.workoutCard}>
                 <LinearGradient
@@ -251,6 +267,13 @@ export default function HomeScreen() {
                 <Icon name="check-circle" size={48} color={colors.primary} />
                 <Text style={styles.noWorkoutTitle}>Great job!</Text>
                 <Text style={styles.noWorkoutText}>You've completed all workouts for today</Text>
+                <TouchableOpacity 
+                  style={[styles.bannerButton, { marginTop: 12 }]}
+                  onPress={() => router.push('/finished-workouts')}
+                >
+                  <Text style={styles.bannerButtonText}>View Finished Workouts</Text>
+                  <Icon name="arrow-right" size={16} color={colors.white} />
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -351,6 +374,16 @@ const styles = StyleSheet.create({
   // Today's Workout Styles
   todaysWorkout: {
     marginBottom: 24,
+  },
+  sectionHeaderRow: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  linkText: {
+    color: colors.primary,
+    fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 20,

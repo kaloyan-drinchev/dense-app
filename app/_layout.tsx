@@ -197,6 +197,20 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="finished-workouts" 
+        options={{ 
+          headerShown: false,
+          animation: 'slide_from_right',
+        }} 
+      />
+      <Stack.Screen 
+        name="finished-workouts-detail" 
+        options={{ 
+          headerShown: false,
+          animation: 'slide_from_right',
+        }} 
+      />
+      <Stack.Screen 
         name="workout-exercise-tracker" 
         options={{ 
           headerShown: false,

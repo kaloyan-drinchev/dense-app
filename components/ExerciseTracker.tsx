@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   StyleSheet,
@@ -19,13 +20,21 @@ interface ExerciseTrackerProps {
   exercise: Exercise;
   exerciseKey: string;
   registerSave?: (fn: () => Promise<void>) => void;
+  readOnly?: boolean;
+  presetSession?: {
+    unit: 'kg' | 'lb';
+    sets: Array<{ setNumber: number; weightKg: number; reps: number; isCompleted: boolean }>;
+  };
 }
 
 export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   exercise,
   exerciseKey,
   registerSave,
+  readOnly = false,
+  presetSession,
 }) => {
+  const router = useRouter();
   const MAX_SETS = 8;
   const MIN_SETS = 1;
   const { updateExerciseSet } = useWorkoutStore();
@@ -61,34 +70,35 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
 
   useEffect(() => {
     const loadPrev = async () => {
+      if (presetSession) {
+        const limitedSets = presetSession.sets.slice(0, MAX_SETS);
+        const hydrated: ExerciseSet[] = (limitedSets.length > 0
+          ? limitedSets
+          : Array.from({ length: MIN_SETS }, () => ({ reps: 0, weightKg: 0, isCompleted: false }))
+        ).map((s) => ({ id: generateId(), reps: s.reps, weight: s.weightKg, isCompleted: !!s.isCompleted }));
+        setUnit(presetSession.unit || 'kg');
+        setSets(hydrated);
+        setPrevSessionSets(presetSession.sets);
+        return;
+      }
       if (!user?.email || !exerciseKey) return;
       try {
         const last = await userProgressService.getLastExerciseSession(user.email, exerciseKey);
         if (last?.sets) {
           setPrevSessionSets(last.sets);
-          // Prefill current sets from last session for immediate continuity
           setUnit(last.unit || 'kg');
           const limitedSets = last.sets.slice(0, MAX_SETS);
           const hydrated: ExerciseSet[] = (limitedSets.length > 0
             ? limitedSets
             : Array.from({ length: MIN_SETS }, () => ({ reps: 0, weightKg: 0, isCompleted: false }))
-          ).map((s) => ({
-            id: generateId(),
-            reps: s.reps,
-            weight: s.weightKg,
-            isCompleted: !!s.isCompleted,
-          }));
+          ).map((s) => ({ id: generateId(), reps: s.reps, weight: s.weightKg, isCompleted: !!s.isCompleted }));
           setSets(hydrated);
-        } else {
-          
         }
-      } catch (e) {
-        
-      }
+      } catch (e) {}
     };
     loadPrev();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email, exerciseKey]);
+  }, [user?.email, exerciseKey, presetSession?.unit, JSON.stringify(presetSession?.sets)]);
 
   // Expose immediate save to parent (e.g., on back press)
   useEffect(() => {
@@ -99,9 +109,11 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
-      await handleSaveSession();
+      if (!readOnly) {
+        await handleSaveSession();
+      }
     });
-  }, [registerSave, unit, sets]);
+  }, [registerSave, unit, sets, readOnly]);
 
   // Flush save when screen loses focus (navigate back)
   useFocusEffect(
@@ -135,6 +147,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleSetComplete = (setId: string, isCompleted: boolean) => {
+    if (readOnly) return;
     const index = sets.findIndex((s) => s.id === setId);
     const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
     const target = index >= 0 ? sets[index] : null;
@@ -150,6 +163,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleWeightChange = (setId: string, weight: string) => {
+    if (readOnly) return;
     const index = sets.findIndex((s) => s.id === setId);
     const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
     if (!isEditable) return;
@@ -174,6 +188,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleRepsChange = (setId: string, reps: string) => {
+    if (readOnly) return;
     const index = sets.findIndex((s) => s.id === setId);
     const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
     if (!isEditable) return;
@@ -213,6 +228,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleAddSet = () => {
+    if (readOnly) return;
     setSets((prev) => {
       if (prev.length >= MAX_SETS) return prev;
       const next = [
@@ -226,6 +242,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleRemoveSet = (setId?: string) => {
+    if (readOnly) return;
     setSets((prev) => {
       if (prev.length <= MIN_SETS) return prev;
       let next: ExerciseSet[];
@@ -244,6 +261,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleSaveSession = async () => {
+    if (readOnly) return;
     if (!user?.email) return;
     if (isSavingRef.current) {
       pendingSaveRef.current = true;
@@ -294,12 +312,16 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleCompleteExercise = async () => {
+    if (readOnly) return;
     // Only allow completion when all sets are already marked done
     if (!sets.every((s) => s.isCompleted)) return;
     await handleSaveSession();
+    // Navigate back to Today's Workout
+    router.replace('/workout-session');
   };
 
   const handleClearAll = async () => {
+    if (readOnly) return;
     setSets((prev) => prev.map((s) => ({ ...s, reps: 0, weight: 0, isCompleted: false })));
     hasUserEditedRef.current = true;
     if (debounceRef.current) {
@@ -315,6 +337,11 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         <Text style={styles.title}>{exercise.name}</Text>
         <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
       </View>
+      {readOnly && (
+        <View style={styles.readOnlyBanner}>
+          <Text style={styles.readOnlyText}>Finished workout • Read-only</Text>
+        </View>
+      )}
       <View style={styles.unitToggleRow}>
         <View style={styles.unitToggle}>
           <TouchableOpacity
@@ -365,7 +392,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                   keyboardType="numeric"
                   placeholderTextColor={colors.lightGray}
                   placeholder="0"
-                  editable={editable}
+                  editable={editable && !readOnly}
                 />
 
                 <TouchableOpacity
@@ -395,7 +422,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                   keyboardType="numeric"
                   placeholderTextColor={colors.lightGray}
                   placeholder="0"
-                  editable={editable}
+                  editable={editable && !readOnly}
                 />
 
                 <TouchableOpacity
@@ -416,7 +443,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                 (!readyToComplete) && styles.disabledButton,
               ]}
               onPress={() => handleSetComplete(set.id, !set.isCompleted)}
-              disabled={!readyToComplete}
+              disabled={!readyToComplete || readOnly}
             >
               {set.isCompleted ? (
                 <Icon name="check" size={20} color={colors.white} />
@@ -426,43 +453,49 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         );
       })}
 
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-          style={[styles.secondaryButton, sets.length >= MAX_SETS && styles.disabledButton]}
-          onPress={handleAddSet}
-          disabled={sets.length >= MAX_SETS}
-        >
-          <Icon name="plus" size={16} color={colors.white} />
-          <Text style={styles.secondaryButtonText}>Add set</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.secondaryButton, sets.length <= MIN_SETS && styles.disabledButton]}
-          onPress={() => handleRemoveSet()}
-          disabled={sets.length <= MIN_SETS}
-        >
-          <Icon name="minus" size={16} color={colors.white} />
-          <Text style={styles.secondaryButtonText}>Remove last</Text>
-        </TouchableOpacity>
-      </View>
+      {!readOnly && (
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.secondaryButton, sets.length >= MAX_SETS && styles.disabledButton]}
+            onPress={handleAddSet}
+            disabled={sets.length >= MAX_SETS}
+          >
+            <Icon name="plus" size={16} color={colors.white} />
+            <Text style={styles.secondaryButtonText}>Add set</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.secondaryButton, sets.length <= MIN_SETS && styles.disabledButton]}
+            onPress={() => handleRemoveSet()}
+            disabled={sets.length <= MIN_SETS}
+          >
+            <Icon name="minus" size={16} color={colors.white} />
+            <Text style={styles.secondaryButtonText}>Remove last</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-          style={[
-            styles.completeButton,
-            !(sets.length > 0 && sets.every((s) => s.isCompleted)) && styles.disabledButton,
-          ]}
-          onPress={handleCompleteExercise}
-          disabled={!(sets.length > 0 && sets.every((s) => s.isCompleted))}
-        >
-          <Text style={styles.completeButtonText}>Complete Exercise</Text>
-        </TouchableOpacity>
-      </View>
+      {!readOnly && (
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[
+              styles.completeButton,
+              !(sets.length > 0 && sets.every((s) => s.isCompleted)) && styles.disabledButton,
+            ]}
+            onPress={handleCompleteExercise}
+            disabled={!(sets.length > 0 && sets.every((s) => s.isCompleted))}
+          >
+            <Text style={styles.completeButtonText}>Complete Exercise</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-      <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.clearButton} onPress={handleClearAll}>
-          <Text style={styles.clearButtonText}>Clear All (Today)</Text>
-        </TouchableOpacity>
-      </View>
+      {!readOnly && (
+        <View style={styles.actionsRow}>
+          <TouchableOpacity style={styles.clearButton} onPress={handleClearAll}>
+            <Text style={styles.clearButtonText}>Clear All (Today)</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {exercise.notes && (
         <View style={styles.notesContainer}>
@@ -674,5 +707,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.lighterGray,
     lineHeight: 20,
+  },
+  readOnlyBanner: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.mediumGray,
+  },
+  readOnlyText: {
+    color: colors.lighterGray,
+    fontSize: 12,
+    textAlign: 'center',
   },
 });

@@ -96,13 +96,157 @@ export default function WorkoutSessionScreen() {
     if (!sessions || sessions.length === 0) return 'pending';
     const todaySession = sessions.find((s) => s.date === today);
     if (!todaySession || !todaySession.sets || todaySession.sets.length === 0) return 'pending';
-    const normalizedSets = todaySession.sets.filter((s) => (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0 || !!s.isCompleted);
-    if (normalizedSets.length === 0) return 'pending';
-    const completedCount = normalizedSets.filter((s) => !!s.isCompleted).length;
-    const anyTouched = normalizedSets.length > 0;
+    // Treat a set as "touched" only if reps or weight > 0 (ignore isCompleted when values are zero)
+    const touchedSets = todaySession.sets.filter((s) => (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0);
+    if (touchedSets.length === 0) return 'pending';
+    // Count a set as completed only if marked done AND has non-zero values
+    const completedCount = todaySession.sets.filter(
+      (s) => !!s.isCompleted && (s.reps ?? 0) > 0 && (s.weightKg ?? 0) > 0
+    ).length;
+    const anyTouched = touchedSets.length > 0;
     const required = Math.max(0, plannedSets || 0);
     if (required > 0 && completedCount >= required) return 'completed';
     return anyTouched ? 'in-progress' : 'pending';
+  };
+
+  const allExercisesCompleted = (() => {
+    if (!todaysWorkout) return false;
+    return (todaysWorkout.exercises || []).every((ex: any) => {
+      const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
+      return getExerciseStatus(exId, ex.sets) === 'completed';
+    });
+  })();
+
+  const handleFinishWorkout = async () => {
+    if (!user?.email || !userProgressData) return;
+    try {
+      const currentWorkoutIndex = userProgressData.currentWorkout - 1;
+      const completedRaw = userProgressData.completedWorkouts || '[]';
+      let completedArr: any[] = [];
+      try { completedArr = JSON.parse(completedRaw); } catch { completedArr = []; }
+      completedArr.push({
+        date: new Date().toISOString(),
+        workoutIndex: currentWorkoutIndex,
+        workoutName: todaysWorkout?.name,
+      });
+      const nextWorkout = Math.min(
+        (userProgressData.currentWorkout || 1) + 1,
+        (generatedProgram?.weeklyStructure?.length || 1) + 1
+      );
+      const updated = await userProgressService.update(userProgressData.id, {
+        currentWorkout: nextWorkout,
+        completedWorkouts: JSON.stringify(completedArr),
+      });
+      if (updated) {
+        setUserProgressData(updated);
+        // Go back to Home after finishing workout
+        router.replace('/(tabs)');
+      }
+    } catch (e) {
+      console.error('❌ Failed to finish workout:', e);
+    }
+  };
+
+  // TESTING HELPERS
+  const upsertTodaySessionForExercise = (
+    dataObj: any,
+    exercise: any,
+    markCompleted: boolean
+  ) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const exerciseId = exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase();
+    const plannedSets = exercise.sets || 0;
+    if (!dataObj.exerciseLogs) dataObj.exerciseLogs = {};
+    if (!dataObj.exerciseLogs[exerciseId]) dataObj.exerciseLogs[exerciseId] = [];
+    const sessions: any[] = dataObj.exerciseLogs[exerciseId];
+    const todayIdx = sessions.findIndex((s) => s.date === today);
+    const todaySession = todayIdx >= 0 ? sessions[todayIdx] : null;
+    // Find last non-today session as fallback for values
+    const lastSession = [...sessions]
+      .filter((s) => s.date !== today)
+      .sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+
+    // Parse default reps from exercise.reps if string like "8-12"
+    const parseDefaultReps = () => {
+      const r = exercise.reps;
+      if (typeof r === 'number') return r;
+      if (typeof r === 'string') {
+        const m = r.match(/(\d+)(?:\s*-\s*(\d+))?/);
+        if (m) return parseInt(m[1], 10);
+      }
+      return 10;
+    };
+    const defaultReps = parseDefaultReps();
+
+    const newSets = Array.from({ length: plannedSets }, (_, i) => {
+      const fromToday = todaySession?.sets?.[i];
+      const fromLast = lastSession?.sets?.[i];
+      const weightFallback = markCompleted ? 2.5 : 0;
+      const pickPositive = (a?: number, b?: number, fallback?: number) => {
+        if (typeof a === 'number' && a > 0) return a;
+        if (typeof b === 'number' && b > 0) return b;
+        return fallback ?? 0;
+      };
+      const repsFallback = defaultReps;
+      const weightKg = pickPositive(fromToday?.weightKg, fromLast?.weightKg, weightFallback);
+      const reps = pickPositive(fromToday?.reps, fromLast?.reps, repsFallback);
+      return {
+        setNumber: i + 1,
+        weightKg,
+        reps,
+        isCompleted: !!markCompleted,
+      };
+    });
+    const entry = { date: today, unit: (todaySession?.unit || lastSession?.unit || 'kg') as 'kg' | 'lb', sets: newSets };
+    if (todayIdx >= 0) sessions[todayIdx] = entry; else sessions.push(entry);
+  };
+
+  const handleMockAllCompleted = async () => {
+    if (!userProgressData || !todaysWorkout) return;
+    try {
+      let data: any = {};
+      try { data = userProgressData.weeklyWeights ? JSON.parse(userProgressData.weeklyWeights) : {}; } catch { data = {}; }
+      for (const ex of todaysWorkout.exercises || []) {
+        upsertTodaySessionForExercise(data, ex, true);
+      }
+      const updated = await userProgressService.update(userProgressData.id, {
+        weeklyWeights: JSON.stringify(data),
+      });
+      if (updated) {
+        setUserProgressData(updated);
+        // also recompute derived data by reloading progress from DB
+        const refreshed = await userProgressService.getByUserId(user?.email || '');
+        if (refreshed) setUserProgressData(refreshed);
+      }
+    } catch (e) {
+      console.error('❌ Mock complete all failed:', e);
+    }
+  };
+
+  const handleMockAllPending = async () => {
+    if (!userProgressData || !todaysWorkout) return;
+    try {
+      let data: any = {};
+      try { data = userProgressData.weeklyWeights ? JSON.parse(userProgressData.weeklyWeights) : {}; } catch { data = {}; }
+      for (const ex of todaysWorkout.exercises || []) {
+        // Pending: reset values to zero
+        const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
+        if (!data.exerciseLogs) data.exerciseLogs = {};
+        if (!data.exerciseLogs[exId]) data.exerciseLogs[exId] = [];
+        const today = new Date().toISOString().slice(0, 10);
+        const sessions: any[] = data.exerciseLogs[exId];
+        const idx = sessions.findIndex((s) => s.date === today);
+        const sets = Array.from({ length: ex.sets || 0 }, (_, i) => ({ setNumber: i + 1, weightKg: 0, reps: 0, isCompleted: false }));
+        const entry = { date: today, unit: 'kg' as const, sets };
+        if (idx >= 0) sessions[idx] = entry; else sessions.push(entry);
+      }
+      const updated = await userProgressService.update(userProgressData.id, {
+        weeklyWeights: JSON.stringify(data),
+      });
+      if (updated) setUserProgressData(updated);
+    } catch (e) {
+      console.error('❌ Mock pending all failed:', e);
+    }
   };
 
   if (loading) {
@@ -204,6 +348,19 @@ export default function WorkoutSessionScreen() {
             }) || (
               <Text style={styles.noExercisesText}>No exercises found for today</Text>
             )}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+              <TouchableOpacity style={[styles.finishButton, { backgroundColor: colors.primary }]} onPress={handleMockAllCompleted}>
+                <Text style={styles.finishButtonText}>Mock: All Completed</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.finishButton, { backgroundColor: colors.darkGray }]} onPress={handleMockAllPending}>
+                <Text style={styles.finishButtonText}>Mock: All Pending</Text>
+              </TouchableOpacity>
+            </View>
+            {allExercisesCompleted && (
+              <TouchableOpacity style={styles.finishButton} onPress={handleFinishWorkout}>
+                <Text style={styles.finishButtonText}>Finish Workout</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -300,6 +457,18 @@ const styles = StyleSheet.create({
     color: colors.lightGray,
     textAlign: 'center',
     marginTop: 32,
+  },
+  finishButton: {
+    marginTop: 16,
+    backgroundColor: colors.success,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  finishButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   noWorkoutContainer: {
     flex: 1,
