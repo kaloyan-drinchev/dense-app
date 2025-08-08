@@ -135,6 +135,11 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleSetComplete = (setId: string, isCompleted: boolean) => {
+    const index = sets.findIndex((s) => s.id === setId);
+    const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
+    const target = index >= 0 ? sets[index] : null;
+    const hasValues = !!target && (target.weight ?? 0) > 0 && (target.reps ?? 0) > 0;
+    if (!isEditable || !hasValues) return;
     const updatedSets = sets.map((set) =>
       set.id === setId ? { ...set, isCompleted } : set
     );
@@ -145,10 +150,23 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleWeightChange = (setId: string, weight: string) => {
+    const index = sets.findIndex((s) => s.id === setId);
+    const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
+    if (!isEditable) return;
     const numWeight = Math.max(0, fromDisplayWeightToKg(weight));
-    const updatedSets = sets.map((set) =>
+    let updatedSets = sets.map((set) =>
       set.id === setId ? { ...set, weight: numWeight } : set
     );
+    // If values become zero, unmark done automatically
+    const target = updatedSets.find((s) => s.id === setId);
+    if (target && (target.weight ?? 0) <= 0 || (target?.reps ?? 0) <= 0) {
+      if (target && target.isCompleted) {
+        updatedSets = updatedSets.map((s) =>
+          s.id === setId ? { ...s, isCompleted: false } : s
+        );
+        updateExerciseSet(exerciseKey, setId, { isCompleted: false });
+      }
+    }
     setSets(updatedSets);
     updateExerciseSet(exerciseKey, setId, { weight: numWeight });
     hasUserEditedRef.current = true;
@@ -156,10 +174,23 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleRepsChange = (setId: string, reps: string) => {
+    const index = sets.findIndex((s) => s.id === setId);
+    const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
+    if (!isEditable) return;
     const numReps = parseInt(reps) || 0;
-    const updatedSets = sets.map((set) =>
+    let updatedSets = sets.map((set) =>
       set.id === setId ? { ...set, reps: numReps } : set
     );
+    // If values become zero, unmark done automatically
+    const target = updatedSets.find((s) => s.id === setId);
+    if (target && (target.weight ?? 0) <= 0 || (target?.reps ?? 0) <= 0) {
+      if (target && target.isCompleted) {
+        updatedSets = updatedSets.map((s) =>
+          s.id === setId ? { ...s, isCompleted: false } : s
+        );
+        updateExerciseSet(exerciseKey, setId, { isCompleted: false });
+      }
+    }
     setSets(updatedSets);
     updateExerciseSet(exerciseKey, setId, { reps: numReps });
     hasUserEditedRef.current = true;
@@ -263,8 +294,18 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const handleCompleteExercise = async () => {
-    const completed = sets.map((s) => ({ ...s, isCompleted: true }));
-    setSets(completed);
+    // Only allow completion when all sets are already marked done
+    if (!sets.every((s) => s.isCompleted)) return;
+    await handleSaveSession();
+  };
+
+  const handleClearAll = async () => {
+    setSets((prev) => prev.map((s) => ({ ...s, reps: 0, weight: 0, isCompleted: false })));
+    hasUserEditedRef.current = true;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
     await handleSaveSession();
   };
 
@@ -298,81 +339,92 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         <Text style={[styles.headerText, styles.doneColumn]}>DONE</Text>
       </View>
 
-      {sets.map((set, index) => (
-        <View key={set.id} style={styles.setRow}>
-          <View style={styles.setColumn}>
-            <Text style={styles.setNumber}>{index + 1}</Text>
-          </View>
-
-          <View style={styles.weightColumn}>
-            <View style={styles.inputContainer}>
-              <TouchableOpacity
-                style={styles.adjustButton}
-                onPress={() => handleAdjustWeight(set.id, unit === 'kg' ? -2.5 : -5)}
-              >
-                <Icon name="minus" size={16} color={colors.white} />
-              </TouchableOpacity>
-
-              <TextInput
-                style={styles.input}
-                value={toDisplayWeight(set.weight)}
-                onChangeText={(text) => handleWeightChange(set.id, text)}
-                keyboardType="numeric"
-                placeholderTextColor={colors.lightGray}
-                placeholder="0"
-              />
-
-              <TouchableOpacity
-                style={styles.adjustButton}
-                onPress={() => handleAdjustWeight(set.id, unit === 'kg' ? 2.5 : 5)}
-              >
-                <Icon name="plus" size={16} color={colors.white} />
-              </TouchableOpacity>
+      {sets.map((set, index) => {
+        const editable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
+        const readyToComplete = editable && (set.weight ?? 0) > 0 && (set.reps ?? 0) > 0;
+        return (
+          <View key={set.id} style={styles.setRow}>
+            <View style={styles.setColumn}>
+              <Text style={styles.setNumber}>{index + 1}</Text>
             </View>
-          </View>
 
-          <View style={styles.repsColumn}>
-            <View style={styles.inputContainer}>
-              <TouchableOpacity
-                style={styles.adjustButton}
-                onPress={() => handleAdjustReps(set.id, -1)}
-                disabled={set.reps <= 0}
-              >
-                <Icon name="minus" size={16} color={colors.white} />
-              </TouchableOpacity>
+            <View style={styles.weightColumn}>
+              <View style={[styles.inputContainer, !editable && styles.disabledField]}>
+                <TouchableOpacity
+                  style={[styles.adjustButton, !editable && styles.disabledButton]}
+                  onPress={() => handleAdjustWeight(set.id, unit === 'kg' ? -2.5 : -5)}
+                  disabled={!editable}
+                >
+                  <Icon name="minus" size={16} color={colors.white} />
+                </TouchableOpacity>
 
-              <TextInput
-                style={styles.input}
-                value={set.reps.toString()}
-                onChangeText={(text) => handleRepsChange(set.id, text)}
-                keyboardType="numeric"
-                placeholderTextColor={colors.lightGray}
-                placeholder="0"
-              />
+                <TextInput
+                  style={[styles.input, !editable && styles.inputDisabled]}
+                  value={toDisplayWeight(set.weight)}
+                  onChangeText={(text) => handleWeightChange(set.id, text)}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.lightGray}
+                  placeholder="0"
+                  editable={editable}
+                />
 
-              <TouchableOpacity
-                style={styles.adjustButton}
-                onPress={() => handleAdjustReps(set.id, 1)}
-              >
-                <Icon name="plus" size={16} color={colors.white} />
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.adjustButton, !editable && styles.disabledButton]}
+                  onPress={() => handleAdjustWeight(set.id, unit === 'kg' ? 2.5 : 5)}
+                  disabled={!editable}
+                >
+                  <Icon name="plus" size={16} color={colors.white} />
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
 
-          <TouchableOpacity
-            style={[
-              styles.doneColumn,
-              styles.doneButton,
-              set.isCompleted && styles.doneButtonActive,
-            ]}
-            onPress={() => handleSetComplete(set.id, !set.isCompleted)}
-          >
-            {set.isCompleted ? (
-              <Icon name="check" size={20} color={colors.white} />
-            ) : null}
-          </TouchableOpacity>
-        </View>
-      ))}
+            <View style={styles.repsColumn}>
+              <View style={[styles.inputContainer, !editable && styles.disabledField]}>
+                <TouchableOpacity
+                  style={[styles.adjustButton, (!editable || set.reps <= 0) && styles.disabledButton]}
+                  onPress={() => handleAdjustReps(set.id, -1)}
+                  disabled={!editable || set.reps <= 0}
+                >
+                  <Icon name="minus" size={16} color={colors.white} />
+                </TouchableOpacity>
+
+                <TextInput
+                  style={[styles.input, !editable && styles.inputDisabled]}
+                  value={set.reps.toString()}
+                  onChangeText={(text) => handleRepsChange(set.id, text)}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.lightGray}
+                  placeholder="0"
+                  editable={editable}
+                />
+
+                <TouchableOpacity
+                  style={[styles.adjustButton, !editable && styles.disabledButton]}
+                  onPress={() => handleAdjustReps(set.id, 1)}
+                  disabled={!editable}
+                >
+                  <Icon name="plus" size={16} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.doneColumn,
+                styles.doneButton,
+                set.isCompleted && styles.doneButtonActive,
+                (!readyToComplete) && styles.disabledButton,
+              ]}
+              onPress={() => handleSetComplete(set.id, !set.isCompleted)}
+              disabled={!readyToComplete}
+            >
+              {set.isCompleted ? (
+                <Icon name="check" size={20} color={colors.white} />
+              ) : null}
+            </TouchableOpacity>
+          </View>
+        );
+      })}
 
       <View style={styles.actionsRow}>
         <TouchableOpacity
@@ -394,8 +446,21 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       </View>
 
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.completeButton} onPress={handleCompleteExercise}>
+        <TouchableOpacity
+          style={[
+            styles.completeButton,
+            !(sets.length > 0 && sets.every((s) => s.isCompleted)) && styles.disabledButton,
+          ]}
+          onPress={handleCompleteExercise}
+          disabled={!(sets.length > 0 && sets.every((s) => s.isCompleted))}
+        >
           <Text style={styles.completeButtonText}>Complete Exercise</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.actionsRow}>
+        <TouchableOpacity style={styles.clearButton} onPress={handleClearAll}>
+          <Text style={styles.clearButtonText}>Clear All (Today)</Text>
         </TouchableOpacity>
       </View>
 
@@ -521,6 +586,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  inputDisabled: {
+    opacity: 0.5,
+  },
   doneButton: {
     width: 36,
     height: 36,
@@ -575,6 +643,19 @@ const styles = StyleSheet.create({
   },
   completeButtonText: {
     color: colors.white,
+    fontWeight: 'bold',
+  },
+  clearButton: {
+    flex: 1,
+    backgroundColor: colors.darkGray,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.mediumGray,
+  },
+  clearButtonText: {
+    color: colors.lighterGray,
     fontWeight: 'bold',
   },
   notesContainer: {
