@@ -197,6 +197,18 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="workout-exercise-tracker" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="workout-session" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
         name="profile" 
         options={{ 
           title: "Profile",

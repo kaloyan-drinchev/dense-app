@@ -152,6 +152,85 @@ export const userProgressService = {
   async deleteAll(): Promise<void> {
     await db.delete(userProgress);
   },
+
+  // --- Exercise Set Tracking helpers stored in userProgress.weeklyWeights JSON ---
+  // Structure:
+  // weeklyWeights JSON := {
+  //   exerciseLogs: {
+  //     [exerciseId: string]: Array<{
+  //       date: string; // YYYY-MM-DD
+  //       unit: 'kg' | 'lb';
+  //       sets: Array<{ setNumber: number; weightKg: number; reps: number; isCompleted: boolean }>
+  //     }>
+  //   }
+  // }
+
+  async getWeeklyWeightsByUserId(userId: string): Promise<any> {
+    const progress = await this.getByUserId(userId);
+    if (!progress) return {};
+    try {
+      return progress.weeklyWeights ? JSON.parse(progress.weeklyWeights as unknown as string) : {};
+    } catch {
+      return {};
+    }
+  },
+
+  async getLastExerciseSession(userId: string, exerciseId: string): Promise<
+    | { date: string; unit: 'kg' | 'lb'; sets: Array<{ setNumber: number; weightKg: number; reps: number; isCompleted: boolean }> }
+    | null
+  > {
+    const data = await this.getWeeklyWeightsByUserId(userId);
+    const sessions = data?.exerciseLogs?.[exerciseId] as any[] | undefined;
+    if (!sessions || sessions.length === 0) return null;
+    // Return the most recent by date
+    const sorted = [...sessions].sort((a, b) => (a.date > b.date ? 1 : -1));
+    return sorted[sorted.length - 1];
+  },
+
+  async upsertTodayExerciseSession(
+    userId: string,
+    exerciseId: string,
+    payload: { unit: 'kg' | 'lb'; sets: Array<{ setNumber: number; weightKg: number; reps: number; isCompleted: boolean }> },
+    dateISO?: string
+  ): Promise<void> {
+    let progress = await this.getByUserId(userId);
+    if (!progress) {
+      // Create a minimal default progress row if none exists
+      const created = await this.create({
+        userId,
+        programId: 'ai-generated-program',
+        currentWeek: 1,
+        currentWorkout: 1,
+        startDate: new Date().toISOString(),
+        completedWorkouts: '[]',
+        weeklyWeights: '{}',
+      } as any);
+      progress = created || (await this.getByUserId(userId));
+      if (!progress) return;
+    }
+
+    const today = (dateISO || new Date().toISOString()).slice(0, 10); // YYYY-MM-DD
+    let data: any = {};
+    try {
+      data = progress.weeklyWeights ? JSON.parse(progress.weeklyWeights as unknown as string) : {};
+    } catch {
+      data = {};
+    }
+
+    if (!data.exerciseLogs) data.exerciseLogs = {};
+    if (!data.exerciseLogs[exerciseId]) data.exerciseLogs[exerciseId] = [];
+
+    const sessions: any[] = data.exerciseLogs[exerciseId];
+    const idx = sessions.findIndex((s) => s.date === today);
+    const newSession = { date: today, unit: payload.unit, sets: payload.sets };
+    if (idx >= 0) {
+      sessions[idx] = newSession;
+    } else {
+      sessions.push(newSession);
+    }
+
+    await this.update(progress.id, { weeklyWeights: JSON.stringify(data) });
+  },
 };
 
 // Daily Logs Operations

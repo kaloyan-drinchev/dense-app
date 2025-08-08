@@ -90,7 +90,7 @@ export default function WorkoutExerciseTrackerScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <Icon name="arrow-left" size={24} color={colors.white} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Exercise Not Found</Text>
+            <Text style={styles.headerTitle}>Exercise</Text>
           </View>
           
           <View style={styles.errorContainer}>
@@ -120,12 +120,7 @@ export default function WorkoutExerciseTrackerScreen() {
         </View>
 
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
-          <View style={styles.exerciseHeader}>
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            <View style={styles.targetMuscle}>
-              <Text style={styles.targetMuscleText}>{exercise.targetMuscle}</Text>
-            </View>
-          </View>
+          {/* Details header intentionally hidden */}
 
           <View style={styles.infoContainer}>
             <View style={styles.infoItem}>
@@ -151,7 +146,13 @@ export default function WorkoutExerciseTrackerScreen() {
 
           <View style={styles.trackerContainer}>
             <Text style={styles.trackerTitle}>Track Your Sets</Text>
-            <ExerciseTracker exercise={exercise} />
+            <ExerciseTracker
+              exercise={exercise}
+              exerciseKey={exercise.id}
+              registerSave={(fn) => {
+                // hook for future if we add custom back handling
+              }}
+            />
           </View>
         </ScrollView>
       </SafeAreaView>

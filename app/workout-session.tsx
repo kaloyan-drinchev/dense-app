@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '@/constants/colors';
 import { useAuthStore } from '@/store/auth-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
@@ -27,6 +28,13 @@ export default function WorkoutSessionScreen() {
   useEffect(() => {
     loadWorkoutData();
   }, [user]);
+
+  // Reload when screen gains focus (coming back from tracker)
+  useFocusEffect(
+    useCallback(() => {
+      loadWorkoutData();
+    }, [user?.email])
+  );
 
   const loadWorkoutData = async () => {
     if (!user?.email) {
@@ -68,6 +76,34 @@ export default function WorkoutSessionScreen() {
   };
 
   const todaysWorkout = getTodaysWorkout();
+  // Parse exercise logs for status computation
+  const weeklyWeightsData = (() => {
+    try {
+      return userProgressData?.weeklyWeights ? JSON.parse(userProgressData.weeklyWeights) : {};
+    } catch {
+      return {} as any;
+    }
+  })();
+
+  const getExerciseStatus = (
+    exerciseId: string,
+    plannedSets: number
+  ): 'pending' | 'in-progress' | 'completed' => {
+    const today = new Date().toISOString().slice(0, 10);
+    const sessions = weeklyWeightsData?.exerciseLogs?.[exerciseId] as
+      | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
+      | undefined;
+    if (!sessions || sessions.length === 0) return 'pending';
+    const todaySession = sessions.find((s) => s.date === today);
+    if (!todaySession || !todaySession.sets || todaySession.sets.length === 0) return 'pending';
+    const normalizedSets = todaySession.sets.filter((s) => (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0 || !!s.isCompleted);
+    if (normalizedSets.length === 0) return 'pending';
+    const completedCount = normalizedSets.filter((s) => !!s.isCompleted).length;
+    const anyTouched = normalizedSets.length > 0;
+    const required = Math.max(0, plannedSets || 0);
+    if (required > 0 && completedCount >= required) return 'completed';
+    return anyTouched ? 'in-progress' : 'pending';
+  };
 
   if (loading) {
     return (
@@ -149,7 +185,11 @@ export default function WorkoutSessionScreen() {
                 id: exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase(),
                 targetMuscle: exercise.targetMuscle || 'General',
                 restTime: exercise.restSeconds || 60,
-                isCompleted: false, // TODO: Track completion status
+                isCompleted:
+                  getExerciseStatus(
+                    exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase(),
+                    exercise.sets
+                  ) === 'completed',
               };
               
               return (
@@ -158,6 +198,7 @@ export default function WorkoutSessionScreen() {
                   exercise={exerciseWithId}
                   index={index}
                   onPress={() => handleExercisePress(exerciseWithId)}
+                  status={getExerciseStatus(exerciseWithId.id, exerciseWithId.sets)}
                 />
               );
             }) || (

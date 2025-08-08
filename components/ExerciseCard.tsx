@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { Exercise } from '@/types/workout';
@@ -10,18 +10,17 @@ interface ExerciseCardProps {
   exercise: Exercise;
   onPress: () => void;
   index: number;
+  status?: 'pending' | 'in-progress' | 'completed';
 }
 
 export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   exercise,
   onPress,
   index,
+  status = 'pending',
 }) => {
-  const [expanded, setExpanded] = useState(false);
-
-  const toggleExpanded = () => {
-    setExpanded(!expanded);
-  };
+  const statusLabel =
+    status === 'completed' ? 'Completed' : status === 'in-progress' ? 'In Progress' : 'Pending';
 
   return (
     <TouchableOpacity
@@ -40,13 +39,18 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
           <Text style={styles.title}>{exercise.name}</Text>
           <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
         </View>
-        <TouchableOpacity onPress={toggleExpanded} style={styles.expandButton}>
-          {expanded ? (
-            <Icon name="chevron-up" size={20} color={colors.lighterGray} />
-          ) : (
-            <Icon name="chevron-down" size={20} color={colors.lighterGray} />
-          )}
-        </TouchableOpacity>
+        <View
+          style={[
+            styles.statusBadge,
+            status === 'completed'
+              ? styles.statusCompleted
+              : status === 'in-progress'
+              ? styles.statusInProgress
+              : styles.statusPending,
+          ]}
+        >
+          <Text style={styles.statusText}>{statusLabel}</Text>
+        </View>
       </View>
 
       <View style={styles.infoContainer}>
@@ -68,25 +72,6 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
           </View>
         </View>
       </View>
-
-      {expanded && (
-        <View style={styles.expandedContent}>
-          {exercise.imageUrl && (
-            <Image
-              source={{ uri: exercise.imageUrl }}
-              style={styles.image}
-              contentFit="cover"
-              transition={300}
-            />
-          )}
-          {exercise.notes && (
-            <View style={styles.notesContainer}>
-              <Text style={styles.notesTitle}>Notes:</Text>
-              <Text style={styles.notesText}>{exercise.notes}</Text>
-            </View>
-          )}
-        </View>
-      )}
     </TouchableOpacity>
   );
 };
@@ -139,8 +124,17 @@ const styles = StyleSheet.create({
     color: colors.lighterGray,
     marginTop: 2,
   },
-  expandButton: {
-    padding: 4,
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.mediumGray,
+  },
+  statusText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
   },
   infoContainer: {
     flexDirection: 'row',
@@ -165,29 +159,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  expandedContent: {
-    marginTop: 16,
-  },
-  image: {
-    width: '100%',
-    height: 160,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  notesContainer: {
+  // Status colors
+  statusPending: {
     backgroundColor: colors.mediumGray,
-    padding: 12,
-    borderRadius: 8,
   },
-  notesTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 4,
+  statusInProgress: {
+    backgroundColor: '#a67c00',
   },
-  notesText: {
-    fontSize: 14,
-    color: colors.lighterGray,
-    lineHeight: 20,
+  statusCompleted: {
+    backgroundColor: colors.success,
   },
 });
