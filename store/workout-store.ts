@@ -31,7 +31,7 @@ interface WorkoutState {
   unlockNextWeek: () => void;
   updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   logWeight: (weight: number) => void;
-  logExerciseSet: (exerciseId: string, set: ExerciseSet) => void;
+  logExerciseSet: (exerciseId: string, newSet: ExerciseSet) => void;
   updateExerciseSet: (
     exerciseId: string,
     setId: string,
@@ -284,7 +284,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         set({ userProgress: updatedProgress });
       },
 
-      logExerciseSet: (exerciseId: string, set: ExerciseSet) => {
+      logExerciseSet: (exerciseId: string, newSet: ExerciseSet) => {
         const { activeProgram, userProgress } = get();
         if (!activeProgram || !userProgress) return;
 
@@ -317,8 +317,8 @@ export const useWorkoutStore = create<WorkoutState>()(
         // Add the set to the exercise progress
         updatedProgress.exerciseProgress[exerciseId].push({
           date: new Date().toISOString(),
-          weight: set.weight,
-          reps: set.reps,
+          weight: newSet.weight,
+          reps: newSet.reps,
         });
 
         set({

@@ -151,7 +151,6 @@ export default function ProgressScreen() {
             <WeightLogger />
             <ProgressChart
               userProgress={userProgress}
-              programType={activeProgram.type}
             />
           </>
         ) : (

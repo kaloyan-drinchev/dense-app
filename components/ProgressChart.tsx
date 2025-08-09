@@ -5,7 +5,6 @@ import { UserProgress } from '@/types/workout';
 
 interface ProgressChartProps {
   userProgress: UserProgress;
-  programType: 'bulking' | 'cutting';
 }
 
 const { width } = Dimensions.get('window');
@@ -13,7 +12,7 @@ const CHART_WIDTH = width - 48;
 const CHART_HEIGHT = 180;
 const BAR_WIDTH = 20;
 
-export const ProgressChart: React.FC<ProgressChartProps> = ({ userProgress, programType }) => {
+export const ProgressChart: React.FC<ProgressChartProps> = ({ userProgress }) => {
   // Get the last 7 weight logs or fewer if not available
   const weightLogs = userProgress.weightLog.slice(-7);
   
@@ -71,12 +70,7 @@ export const ProgressChart: React.FC<ProgressChartProps> = ({ userProgress, prog
             const isLoss = index > 0 && log.weight < weightLogs[index - 1].weight;
             
             // Determine bar color based on program type and weight change
-            let barColor = colors.primary;
-            if (programType === 'bulking') {
-              barColor = isGain ? colors.success : isLoss ? colors.error : colors.primary;
-            } else {
-              barColor = isLoss ? colors.success : isGain ? colors.error : colors.primary;
-            }
+            const barColor = isGain ? colors.success : isLoss ? colors.error : colors.primary;
             
             return (
               <View key={log.date} style={styles.barContainer}>
