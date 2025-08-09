@@ -175,22 +175,24 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
               </TouchableOpacity>
             </View>
 
-            {/* Social Login Buttons */}
+            {/* Social Login Buttons - VISIBLE BUT DISABLED */}
             <View style={styles.socialContainer}>
               <TouchableOpacity 
-                style={styles.socialButton}
-                onPress={() => handleSocialLogin('Google')}
+                style={[styles.socialButton, styles.disabledSocialButton]}
+                onPress={() => {/* Disabled - no action */}}
+                disabled={true}
               >
-                <Icon name="globe" size={20} color={colors.white} />
-                <Text style={styles.socialButtonText}>Continue with Google</Text>
+                <Icon name="globe" size={20} color={colors.lightGray} />
+                <Text style={[styles.socialButtonText, styles.disabledSocialButtonText]}>Continue with Google</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={styles.socialButton}
-                onPress={() => handleSocialLogin('Apple')}
+                style={[styles.socialButton, styles.disabledSocialButton]}
+                onPress={() => {/* Disabled - no action */}}
+                disabled={true}
               >
-                <Icon name="smartphone" size={20} color={colors.white} />
-                <Text style={styles.socialButtonText}>Continue with Apple</Text>
+                <Icon name="smartphone" size={20} color={colors.lightGray} />
+                <Text style={[styles.socialButtonText, styles.disabledSocialButtonText]}>Continue with Apple</Text>
               </TouchableOpacity>
             </View>
 
@@ -399,6 +401,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.white,
+  },
+  disabledSocialButton: {
+    backgroundColor: colors.mediumGray,
+    opacity: 0.6,
+  },
+  disabledSocialButtonText: {
+    color: colors.lightGray,
   },
   dividerContainer: {
     flexDirection: 'row',

@@ -64,23 +64,18 @@ export default function HomeScreen() {
       console.log('📊 Wizard results:', wizardResults);
       
       if (wizardResults?.generatedSplit) {
-        const program = JSON.parse(wizardResults.generatedSplit);
+        const generatedProgram = JSON.parse(wizardResults.generatedSplit);
         
         // Create a better program title based on muscle priorities
         if (wizardResults.musclePriorities) {
           const priorities = JSON.parse(wizardResults.musclePriorities);
           const priorityText = priorities.slice(0, 2).join(' & ').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-          program.displayTitle = `${priorityText} Focus`;
+          generatedProgram.displayTitle = `${priorityText} Focus`;
         }
         
-        setGeneratedProgram(program);
-        console.log('✅ Loaded generated program:', program.programName);
-        console.log('🎯 Display title:', program.displayTitle);
-        console.log('🤖 Program details:', {
-          name: program.programName,
-          weeks: program.totalWeeks,
-          workouts: program.weeklyStructure?.length
-        });
+        setGeneratedProgram(generatedProgram);
+        console.log('✅ Loaded generated program:', generatedProgram.programName);
+        console.log('🎯 Display title:', generatedProgram.displayTitle);
       } else {
         console.log('⚠️ No generated program found in wizard results');
       }
@@ -91,6 +86,8 @@ export default function HomeScreen() {
       console.log('🏁 loadGeneratedProgram completed');
     }
   };
+
+
 
   const loadUserProgress = async () => {
     if (!user?.email) {
