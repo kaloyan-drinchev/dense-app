@@ -192,39 +192,12 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* Progress Tracking Banner */}
-        {userProgressData && generatedProgram && (
-          <View style={styles.progressBanner}>
-            <LinearGradient
-              colors={['rgba(76, 175, 80, 0.8)', 'rgba(56, 142, 60, 0.9)']}
-              style={styles.bannerGradient}
-            >
-              <View style={styles.bannerContent}>
-                <Text style={styles.bannerTitle}>{generatedProgram.displayTitle || generatedProgram.programName}</Text>
-                <Text style={styles.bannerWeek}>Week {userProgressData.currentWeek}</Text>
-                <Text style={styles.bannerWorkout}>Workout {userProgressData.currentWorkout}</Text>
-              </View>
-              
-              <TouchableOpacity 
-                style={styles.bannerButton}
-                onPress={() => router.push('/single-program-view')}
-              >
-                <Text style={styles.bannerButtonText}>View Program</Text>
-                <Icon name="arrow-right" size={16} color={colors.white} />
-              </TouchableOpacity>
-            </LinearGradient>
-          </View>
-        )}
+
 
         {/* Today's Workout Preview */}
         {generatedProgram && userProgressData && (
           <View style={styles.todaysWorkout}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Today's Workout</Text>
-              <TouchableOpacity onPress={() => router.push('/finished-workouts')}>
-                <Text style={styles.linkText}>Finished Workouts</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.sectionTitle}>Today's Workout</Text>
             {getTodaysWorkout() ? (
               <View style={styles.workoutCard}>
                 <LinearGradient
@@ -273,6 +246,16 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
             )}
+            
+            {/* Finished Workouts Button */}
+            <TouchableOpacity 
+              style={styles.finishedWorkoutsButton}
+              onPress={() => router.push('/finished-workouts')}
+            >
+              <Icon name="list" size={20} color={colors.primary} />
+              <Text style={styles.finishedWorkoutsButtonText}>View Finished Workouts</Text>
+              <Icon name="arrow-right" size={16} color={colors.lightGray} />
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -319,41 +302,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.lightGray,
   },
-  // Progress Banner Styles
-  progressBanner: {
-    height: 120,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 24,
-  },
-  bannerGradient: {
-    flex: 1,
-    padding: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  bannerContent: {
-    flex: 1,
-  },
-  bannerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.white,
-    marginBottom: 8,
-  },
-  bannerWeek: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 4,
-  },
-  bannerWorkout: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: colors.white,
-    opacity: 0.9,
-  },
   bannerButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 8,
@@ -368,6 +316,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.white,
   },
+
   // Today's Workout Styles
   todaysWorkout: {
     marginBottom: 24,
@@ -466,5 +415,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.lightGray,
     textAlign: 'center',
+  },
+  finishedWorkoutsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    gap: 12,
+  },
+  finishedWorkoutsButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
   },
 });

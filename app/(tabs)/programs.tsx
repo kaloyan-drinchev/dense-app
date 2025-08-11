@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, Text, View, ScrollView } from "react-native";
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useWorkoutStore } from "@/store/workout-store";
 import { useAuthStore } from "@/store/auth-store";
 import { colors } from "@/constants/colors";
 import { ProgramCard } from "@/components/ProgramCard";
+import { LinearGradient } from 'expo-linear-gradient';
+import { Feather as Icon } from '@expo/vector-icons';
 
 export default function ProgramsScreen() {
   const router = useRouter();
@@ -13,32 +15,58 @@ export default function ProgramsScreen() {
   const { user } = useAuthStore();
   const [userRecommendedPrograms, setUserRecommendedPrograms] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatedProgram, setGeneratedProgram] = useState<any>(null);
+  const [userProgressData, setUserProgressData] = useState<any>(null);
 
-  // Fetch user's recommended programs from wizard results
+  // Load generated program and progress
   useEffect(() => {
-    const fetchUserRecommendations = async () => {
-      if (!user?.email) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const { wizardResultsService } = await import('@/db/services');
-        const wizardResults = await wizardResultsService.getByUserId(user.email);
-        
-        if (wizardResults?.suggestedPrograms) {
-          const recommendedIds = JSON.parse(wizardResults.suggestedPrograms);
-          setUserRecommendedPrograms(recommendedIds);
-        }
-      } catch (error) {
-        console.error('Failed to fetch user recommendations:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserRecommendations();
+    loadGeneratedProgram();
+    loadUserProgress();
   }, [user?.email]);
+
+  const loadGeneratedProgram = async () => {
+    if (!user?.email) return;
+
+    try {
+      const { wizardResultsService } = await import('@/db/services');
+      const wizardResults = await wizardResultsService.getByUserId(user.email);
+      
+      if (wizardResults?.generatedSplit) {
+        const program = JSON.parse(wizardResults.generatedSplit);
+        
+        // Create a better program title based on muscle priorities
+        if (wizardResults.musclePriorities) {
+          const priorities = JSON.parse(wizardResults.musclePriorities);
+          const priorityText = priorities.slice(0, 2).join(' & ').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+          program.displayTitle = `${priorityText} Focus`;
+        }
+        
+        setGeneratedProgram(program);
+      }
+
+      // Also load recommended programs for fallback
+      if (wizardResults?.suggestedPrograms) {
+        const recommendedIds = JSON.parse(wizardResults.suggestedPrograms);
+        setUserRecommendedPrograms(recommendedIds);
+      }
+    } catch (error) {
+      console.error('Failed to load generated program:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUserProgress = async () => {
+    if (!user?.email) return;
+
+    try {
+      const { userProgressService } = await import('@/db/services');
+      const progress = await userProgressService.getByUserId(user.email);
+      setUserProgressData(progress);
+    } catch (error) {
+      console.error('Failed to load user progress:', error);
+    }
+  };
 
   // Filter programs to show only recommended ones
   const displayPrograms = userRecommendedPrograms.length > 0 
@@ -71,6 +99,30 @@ export default function ProgramsScreen() {
             }
           </Text>
         </View>
+
+        {/* Current Program Progress Banner */}
+        {userProgressData && generatedProgram && (
+          <View style={styles.progressBanner}>
+            <LinearGradient
+              colors={['rgba(76, 175, 80, 0.8)', 'rgba(56, 142, 60, 0.9)']}
+              style={styles.bannerGradient}
+            >
+              <View style={styles.bannerContent}>
+                <Text style={styles.bannerTitle}>Your Current Program</Text>
+                <Text style={styles.bannerProgramName}>{generatedProgram.displayTitle || generatedProgram.programName}</Text>
+                <Text style={styles.bannerProgress}>Week {userProgressData.currentWeek} • Workout {userProgressData.currentWorkout}</Text>
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.bannerButton}
+                onPress={() => router.push('/single-program-view')}
+              >
+                <Text style={styles.bannerButtonText}>View Program</Text>
+                <Icon name="arrow-right" size={16} color={colors.white} />
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        )}
 
         <View style={styles.programsContainer}>
           {displayPrograms.map((program) => (
@@ -176,6 +228,56 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: colors.lighterGray,
+  },
+  // Progress Banner Styles
+  progressBanner: {
+    height: 120,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  bannerGradient: {
+    flex: 1,
+    padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  bannerContent: {
+    flex: 1,
+  },
+  bannerTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.white,
+    opacity: 0.9,
+    marginBottom: 4,
+  },
+  bannerProgramName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: 6,
+  },
+  bannerProgress: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.white,
+    opacity: 0.9,
+  },
+  bannerButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bannerButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.white,
   },
   programsContainer: {
     marginBottom: 32,
