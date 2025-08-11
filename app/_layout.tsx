@@ -217,6 +217,12 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="ai-chat" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
         name="workout-session" 
         options={{ 
           headerShown: false,

@@ -256,6 +256,8 @@ export default function HomeScreen() {
               <Text style={styles.finishedWorkoutsButtonText}>View Finished Workouts</Text>
               <Icon name="arrow-right" size={16} color={colors.lightGray} />
             </TouchableOpacity>
+
+
           </View>
         )}
       </ScrollView>
@@ -431,4 +433,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.white,
   },
+
 });
