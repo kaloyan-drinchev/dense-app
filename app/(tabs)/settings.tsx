@@ -16,7 +16,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { colors } from '@/constants/colors';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import ConnectionTest from '@/components/ConnectionTest';
+// import ConnectionTest from '@/components/ConnectionTest';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -105,12 +105,13 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Developer</Text>
           
-          <View style={styles.connectionTestContainer}>
+          {/* Backend Connection Test - Commented out for now */}
+          {/* <View style={styles.connectionTestContainer}>
             <ConnectionTest />
-          </View>
+          </View> */}
         </View>
 
-        <View style={styles.profileCard}>
+        <TouchableOpacity style={styles.profileCard} onPress={handleEditProfile}>
           <View style={styles.profileAvatar}>
             <Text style={styles.profileInitial}>
               {user?.name ? user.name[0].toUpperCase() : userProfile?.name ? userProfile.name[0].toUpperCase() : '?'}
@@ -126,10 +127,8 @@ export default function SettingsScreen() {
                 : 'Tap to complete your profile'}
             </Text>
           </View>
-          <TouchableOpacity onPress={handleEditProfile}>
-            <Icon name="chevron-right" size={24} color={colors.lightGray} />
-          </TouchableOpacity>
-        </View>
+          <Icon name="chevron-right" size={24} color={colors.lightGray} />
+        </TouchableOpacity>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
