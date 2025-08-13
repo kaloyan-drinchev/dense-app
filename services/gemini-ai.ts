@@ -1,6 +1,5 @@
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutStore } from '@/store/workout-store';
-import { AIActionHandlers, AIActionResult } from './ai-action-handlers';
 
 const GEMINI_API_KEY = 'AIzaSyAw2azVyXjAD239R7X6wDyQyYDEwmTty1Q';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
@@ -17,6 +16,28 @@ export interface AIResponse {
 }
 
 class GeminiAIService {
+  private async fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options);
+        
+        // If it's a 503 error, retry after a delay
+        if (response.status === 503 && attempt < maxRetries) {
+          console.log(`🔄 Attempt ${attempt} failed with 503, retrying in ${attempt * 2}s...`);
+          await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+          continue;
+        }
+        
+        return response;
+      } catch (error) {
+        if (attempt === maxRetries) throw error;
+        console.log(`🔄 Attempt ${attempt} failed, retrying in ${attempt * 2}s...`);
+        await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+      }
+    }
+    throw new Error('Max retries exceeded');
+  }
+
   private getUserContext() {
     const { user } = useAuthStore.getState();
     const { generatedProgram, userProgress } = useWorkoutStore.getState();
@@ -40,27 +61,28 @@ CONTEXT:
 - Current Program: ${context.currentProgram}
 - Week: ${context.currentWeek}, Workout: ${context.currentWorkout}
 
-CAPABILITIES:
-1. Answer fitness questions
-2. Modify workout programs (change exercises, sets, reps, focus muscle groups)
-3. Generate new DENSE programs based on user goals
-4. Provide nutrition and recovery advice
+      I'M A FITNESS CHAT ASSISTANT - I can help answer questions about:
+      - Workout techniques and form
+      - Exercise recommendations 
+      - DENSE training methodology
+      - Nutrition and recovery tips
+      - General fitness advice
 
-DENSE TRAINING PRINCIPLES:
-- Push/Pull/Legs split, 2x per week
-- Training to failure on working sets
-- Progressive overload focus
-- Compounds: 6-12 reps, Isolations: 10-15 reps
-- 12-16 sets per muscle group per week
-- Rest: Compounds 2-4min, Isolations 30-90sec
+      DENSE TRAINING PRINCIPLES:
+      - Push/Pull/Legs split, 2x per week
+      - Training to failure on working sets
+      - Progressive overload focus
+      - Compounds: 6-12 reps, Isolations: 10-15 reps
+      - 12-16 sets per muscle group per week
+      - Rest: Compounds 2-4min, Isolations 30-90sec
 
-RESPONSE FORMAT:
-- Keep responses conversational and helpful
-- If user wants program changes, ask clarifying questions first
-- Be specific about exercise recommendations
-- Always prioritize safety and proper form
+      RESPONSE FORMAT:
+      - Keep responses SHORT and helpful (1-3 sentences)
+      - Be friendly and motivating
+      - Focus on practical advice
+      - No need to mention database or program changes
 
-Remember: You're helping someone achieve their fitness goals through the DENSE methodology.`;
+      Remember: I'm here to chat and help with fitness knowledge!`;
   }
 
   async sendMessage(userMessage: string, chatHistory: any[] = []): Promise<AIResponse> {
@@ -109,7 +131,7 @@ Remember: You're helping someone achieve their fitness goals through the DENSE m
         ]
       };
 
-      const response = await fetch(GEMINI_API_URL, {
+      const response = await this.fetchWithRetry(GEMINI_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -129,223 +151,35 @@ Remember: You're helping someone achieve their fitness goals through the DENSE m
 
       const aiMessage = data.candidates[0].content.parts[0].text;
 
-      // Parse for potential actions and execute them
-      const actions = await this.parseAndExecuteActions(aiMessage, userMessage);
-
+      // Just return the AI message - no database actions
       return {
         message: aiMessage,
-        actions: actions
+        actions: []
       };
 
     } catch (error) {
       console.error('Gemini AI Error:', error);
+
+      // More specific error messages
+      let fallbackMessage = "I apologize, but I'm having trouble connecting right now. Please try again in a moment.";
       
-      // Fallback response
+      if (error instanceof Error) {
+        if (error.message.includes('503')) {
+          fallbackMessage = "🔄 The AI service is temporarily busy. Please try again in 10-30 seconds. Your request is important to me!";
+        } else if (error.message.includes('429')) {
+          fallbackMessage = "⏱️ Rate limit reached. Please wait a moment before sending another message.";
+        } else if (error.message.includes('401')) {
+          fallbackMessage = "🔑 API authentication issue. Please contact support if this persists.";
+        }
+      }
+
       return {
-        message: "I apologize, but I'm having trouble connecting right now. Please try again in a moment. In the meantime, I'm here to help with your fitness questions!"
+        message: fallbackMessage
       };
     }
   }
 
-  private async parseAndExecuteActions(aiMessage: string, userMessage: string): Promise<any[]> {
-    const actions: any[] = [];
-    const userInput = userMessage.toLowerCase();
-    
-    // Enhanced action detection with automatic execution
-    
-    // 1. MODIFY PROGRAM
-    if (this.isModifyProgramRequest(userInput)) {
-      const modifications = this.extractModifications(userMessage, aiMessage);
-      
-      const action = {
-        type: 'modify_program' as const,
-        payload: modifications,
-        description: 'Modify current workout program',
-        executed: false,
-        result: undefined
-      };
-
-      // Execute the action
-      try {
-        const result = await AIActionHandlers.modifyProgram(modifications);
-        action.executed = true;
-        action.result = result;
-        console.log('🔄 Program modification executed:', result);
-      } catch (error) {
-        console.error('❌ Failed to execute program modification:', error);
-        action.result = { success: false, message: 'Failed to modify program' };
-      }
-      
-      actions.push(action);
-    }
-
-    // 2. GENERATE NEW PROGRAM  
-    if (this.isGenerateNewProgramRequest(userInput)) {
-      const parameters = this.extractGenerationParameters(userMessage, aiMessage);
-      
-      const action = {
-        type: 'generate_program' as const,
-        payload: parameters,
-        description: 'Generate new workout program',
-        executed: false,
-        result: undefined
-      };
-
-      // Execute the action
-      try {
-        const result = await AIActionHandlers.generateNewProgram(parameters);
-        action.executed = true;
-        action.result = result;
-        console.log('🚀 New program generation executed:', result);
-      } catch (error) {
-        console.error('❌ Failed to execute program generation:', error);
-        action.result = { success: false, message: 'Failed to generate new program' };
-      }
-      
-      actions.push(action);
-    }
-
-    // 3. UPDATE SETTINGS
-    if (this.isUpdateSettingsRequest(userInput)) {
-      const settings = this.extractSettingsChanges(userMessage, aiMessage);
-      
-      const action = {
-        type: 'update_settings' as const,
-        payload: settings,
-        description: 'Update user preferences',
-        executed: false,
-        result: undefined
-      };
-
-      // Execute the action
-      try {
-        const result = await AIActionHandlers.updateSettings(settings);
-        action.executed = true;
-        action.result = result;
-        console.log('⚙️ Settings update executed:', result);
-      } catch (error) {
-        console.error('❌ Failed to execute settings update:', error);
-        action.result = { success: false, message: 'Failed to update settings' };
-      }
-      
-      actions.push(action);
-    }
-
-    return actions;
-  }
-
-  private isModifyProgramRequest(userInput: string): boolean {
-    const modifyKeywords = ['modify', 'change', 'adjust', 'update', 'replace', 'switch'];
-    const programKeywords = ['program', 'workout', 'routine', 'exercises', 'training'];
-    
-    return modifyKeywords.some(k => userInput.includes(k)) && 
-           programKeywords.some(k => userInput.includes(k));
-  }
-
-  private isGenerateNewProgramRequest(userInput: string): boolean {
-    const generateKeywords = ['new', 'generate', 'create', 'make', 'build', 'design'];
-    const programKeywords = ['program', 'workout', 'routine', 'plan', 'training'];
-    
-    return generateKeywords.some(k => userInput.includes(k)) && 
-           programKeywords.some(k => userInput.includes(k));
-  }
-
-  private isUpdateSettingsRequest(userInput: string): boolean {
-    const settingsKeywords = ['preferences', 'settings', 'goals', 'experience', 'days', 'level'];
-    const updateKeywords = ['update', 'change', 'set', 'modify'];
-    
-    return settingsKeywords.some(k => userInput.includes(k)) || 
-           (updateKeywords.some(k => userInput.includes(k)) && settingsKeywords.some(k => userInput.includes(k)));
-  }
-
-  private extractModifications(userMessage: string, aiMessage: string) {
-    const userInput = userMessage.toLowerCase();
-    const modifications: any = {
-      additionalNotes: `Modified based on: "${userMessage}"`
-    };
-
-    // Extract focus muscle groups
-    const muscleGroups = ['chest', 'shoulders', 'arms', 'back', 'legs', 'glutes', 'core', 'triceps', 'biceps', 'quads', 'hamstrings'];
-    const mentionedMuscles = muscleGroups.filter(muscle => userInput.includes(muscle));
-    if (mentionedMuscles.length > 0) {
-      modifications.focusMuscleGroups = mentionedMuscles;
-    }
-
-    // Extract intensity changes
-    if (userInput.includes('harder') || userInput.includes('intense') || userInput.includes('increase')) {
-      modifications.intensityAdjustment = 'increase';
-    } else if (userInput.includes('easier') || userInput.includes('lighter') || userInput.includes('decrease')) {
-      modifications.intensityAdjustment = 'decrease';
-    }
-
-    return modifications;
-  }
-
-  private extractGenerationParameters(userMessage: string, aiMessage: string) {
-    const userInput = userMessage.toLowerCase();
-    const parameters: any = {
-      additionalRequests: userMessage
-    };
-
-    // Extract goals
-    if (userInput.includes('muscle') || userInput.includes('gain') || userInput.includes('mass')) {
-      parameters.goal = 'muscle_gain';
-    } else if (userInput.includes('strength') || userInput.includes('strong')) {
-      parameters.goal = 'strength';
-    } else if (userInput.includes('endurance') || userInput.includes('cardio')) {
-      parameters.goal = 'endurance';
-    } else if (userInput.includes('fat') || userInput.includes('weight loss') || userInput.includes('cut')) {
-      parameters.goal = 'fat_loss';
-    }
-
-    // Extract experience level
-    if (userInput.includes('beginner') || userInput.includes('new')) {
-      parameters.experience = 'beginner';
-    } else if (userInput.includes('advanced') || userInput.includes('expert')) {
-      parameters.experience = 'advanced';
-    }
-
-    // Extract days per week
-    const dayMatches = userInput.match(/(\d+)\s*days?/);
-    if (dayMatches) {
-      parameters.daysPerWeek = parseInt(dayMatches[1]);
-    }
-
-    // Extract focus muscle groups
-    const muscleGroups = ['chest', 'shoulders', 'arms', 'back', 'legs', 'glutes', 'core'];
-    const mentionedMuscles = muscleGroups.filter(muscle => userInput.includes(muscle));
-    if (mentionedMuscles.length > 0) {
-      parameters.focusMuscleGroups = mentionedMuscles;
-    }
-
-    return parameters;
-  }
-
-  private extractSettingsChanges(userMessage: string, aiMessage: string) {
-    const userInput = userMessage.toLowerCase();
-    const settings: any = {};
-
-    // Extract and set relevant settings based on user input
-    if (userInput.includes('goal')) {
-      if (userInput.includes('muscle')) settings.fitnessGoals = 'muscle_gain';
-      else if (userInput.includes('strength')) settings.fitnessGoals = 'strength';
-      else if (userInput.includes('endurance')) settings.fitnessGoals = 'endurance';
-      else if (userInput.includes('fat loss')) settings.fitnessGoals = 'fat_loss';
-    }
-
-    if (userInput.includes('experience') || userInput.includes('level')) {
-      if (userInput.includes('beginner')) settings.experienceLevel = 'beginner';
-      else if (userInput.includes('intermediate')) settings.experienceLevel = 'intermediate';
-      else if (userInput.includes('advanced')) settings.experienceLevel = 'advanced';
-    }
-
-    const dayMatches = userInput.match(/(\d+)\s*days?/);
-    if (dayMatches) {
-      settings.availableDays = parseInt(dayMatches[1]);
-    }
-
-    return settings;
-  }
+      // Pure chat AI - no database actions
 }
 
 export const geminiAI = new GeminiAIService();

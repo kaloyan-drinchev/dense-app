@@ -9,7 +9,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Alert,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather as Icon } from '@expo/vector-icons';
@@ -102,18 +104,38 @@ export default function AIChatScreen() {
 
 
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      await Clipboard.setStringAsync(text);
+      // Simple alert for now - can be replaced with toast later
+      Alert.alert('✅ Copied!', 'Message copied to clipboard', [{ text: 'OK' }]);
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+      Alert.alert('❌ Error', 'Failed to copy message', [{ text: 'OK' }]);
+    }
+  };
+
   const MessageBubble = ({ message }: { message: Message }) => (
-    <View style={[
-      styles.messageBubble,
-      message.role === 'user' ? styles.userBubble : styles.aiBubble
-    ]}>
-      <Text style={[
-        styles.messageText,
-        message.role === 'user' ? styles.userText : styles.aiText
+    <TouchableOpacity
+      onLongPress={() => copyToClipboard(message.content)}
+      activeOpacity={0.8}
+      delayLongPress={500}
+    >
+      <View style={[
+        styles.messageBubble,
+        message.role === 'user' ? styles.userBubble : styles.aiBubble
       ]}>
-        {message.content}
-      </Text>
-    </View>
+        <Text 
+          style={[
+            styles.messageText,
+            message.role === 'user' ? styles.userText : styles.aiText
+          ]}
+          selectable={true}
+        >
+          {message.content}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 
   return (

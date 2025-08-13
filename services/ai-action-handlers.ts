@@ -1,8 +1,10 @@
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
-import { expo_sqlite } from '@/db/client';
 import { ProgramGenerator, WizardResponses } from '@/utils/program-generator';
 import { Platform } from 'react-native';
+import { db } from '@/db/client';
+import { userProfiles } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export interface AIActionResult {
   success: boolean;
@@ -130,38 +132,107 @@ export class AIActionHandlers {
       // Generate the new program using static method
       const newProgram = ProgramGenerator.generateProgram(wizardResponses);
 
-      // Save to database
-      await expo_sqlite.insertProgram({
-        ...newProgram,
-        userId: user.id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isActive: true
+      // Save to database using proper services
+      const { wizardResultsService, userProgressService } = await import('@/db/services');
+      
+      // Update wizard results with new program
+      await wizardResultsService.update(user.email, {
+        generatedSplit: JSON.stringify(newProgram),
+        musclePriorities: JSON.stringify(parameters.focusMuscleGroups || [])
       });
 
-      // Deactivate old program
-      const { generatedProgram } = useWorkoutStore.getState();
-      if (generatedProgram?.id) {
-        await expo_sqlite.updateProgram(generatedProgram.id, { isActive: false });
+      // Reset user progress for new program - delete old progress and create new
+      const existingProgress = await userProgressService.getByUserId(user.email);
+      if (existingProgress) {
+        await userProgressService.delete(existingProgress.id);
       }
-
-      // Update Zustand store
-      useWorkoutStore.getState().setGeneratedProgram(newProgram);
+      
+      // Create new progress entry
+      await userProgressService.create({
+        userId: user.email,
+        programId: newProgram.programName || 'ai-generated-program',
+        currentWeek: 1,
+        completedWorkouts: [],
+        weeklyWeights: {}
+      });
       useWorkoutStore.getState().resetProgress();
 
       console.log('✅ New program successfully generated');
 
       return {
         success: true,
-        message: `Successfully generated your new ${goal.replace('_', ' ')} program! ${parameters.additionalRequests || 'Ready to start training!'}`,
+        message: `✅ New program created! Check Programs tab.`,
         data: newProgram
       };
 
     } catch (error) {
       console.error('❌ Failed to generate new program:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error));
       return {
         success: false,
-        message: 'Failed to generate new program. Please try again.'
+        message: '❌ Failed to create program. Try again.'
+      };
+    }
+  }
+
+  /**
+   * Rename the current program (simple test)
+   */
+  static async renameProgram(newName: string): Promise<AIActionResult> {
+    try {
+      if (Platform.OS === 'web') {
+        return {
+          success: false,
+          message: 'Program renaming not available on web platform'
+        };
+      }
+
+      const { user } = useAuthStore.getState();
+      
+      if (!user) {
+        return {
+          success: false,
+          message: 'No active user found'
+        };
+      }
+
+      console.log('🏷️ Renaming program to:', newName);
+
+      // Get current wizard results
+      const { wizardResultsService } = await import('@/db/services');
+      const wizardResults = await wizardResultsService.getByUserId(user.email);
+      
+      if (!wizardResults || !wizardResults.generatedSplit) {
+        return {
+          success: false,
+          message: 'No program found to rename'
+        };
+      }
+
+      // Update the program name in the generated program
+      const currentProgram = JSON.parse(wizardResults.generatedSplit);
+      currentProgram.programName = newName;
+      currentProgram.displayTitle = newName;
+
+      // Save back to database
+      await wizardResultsService.update(user.email, {
+        generatedSplit: JSON.stringify(currentProgram)
+      });
+
+      console.log('✅ Program successfully renamed');
+
+      return {
+        success: true,
+        message: `✅ Program renamed to "${newName}"! Check Programs tab.`,
+        data: { newName }
+      };
+
+    } catch (error) {
+      console.error('❌ Failed to rename program:', error);
+      console.error('Rename error details:', error instanceof Error ? error.message : String(error));
+      return {
+        success: false,
+        message: '❌ Failed to rename program. Try again.'
       };
     }
   }
@@ -195,25 +266,47 @@ export class AIActionHandlers {
 
       console.log('⚙️ Updating user settings:', settings);
 
-      // Update user settings in database
-      await expo_sqlite.updateUser(user.id, settings);
+      // Update user settings using proper services
+      const { userProfileService } = await import('@/db/services');
+      
+      // Get current profile by userId (not by id)
+      let currentProfile;
+      try {
+        // The getByUserId method doesn't exist, we need to get by userId field
+        const profiles = await db.select().from(userProfiles).where(eq(userProfiles.userId, user.email));
+        currentProfile = profiles[0];
+      } catch (error) {
+        console.log('No existing profile found, will create new one');
+      }
 
-      // Update auth store
-      useAuthStore.getState().updateUser({ ...user, ...settings });
+      if (!currentProfile) {
+        // Create new profile
+        currentProfile = await userProfileService.create({
+          userId: user.email,
+          fitnessGoals: settings.fitnessGoals || 'muscle_gain',
+          experienceLevel: settings.experienceLevel || 'intermediate',
+          availableDays: settings.availableDays || 6,
+          preferredSplit: settings.preferredSplit || 'push_pull_legs'
+        });
+      } else {
+        // Update existing profile using the profile's id
+        await userProfileService.update(currentProfile.id, settings);
+      }
 
       console.log('✅ Settings successfully updated');
 
       return {
         success: true,
-        message: 'Successfully updated your preferences! These changes will be applied to future programs.',
+        message: '✅ Settings updated!',
         data: settings
       };
 
     } catch (error) {
       console.error('❌ Failed to update settings:', error);
+      console.error('Settings error details:', error instanceof Error ? error.message : String(error));
       return {
         success: false,
-        message: 'Failed to update settings. Please try again.'
+        message: '❌ Failed to update settings. Try again.'
       };
     }
   }
