@@ -71,11 +71,18 @@ export type UserProgress = {
 };
 
 export type UserProfile = {
+  id?: string;
   name: string;
-  weight: number;
-  height: number;
-  age: number;
-  goal: 'bulking' | 'cutting' | 'maintenance';
-  fitnessLevel: 'beginner' | 'intermediate' | 'advanced';
-  profileImage?: string;
+  email?: string;
+  profilePicture?: string;
+  weight?: number;
+  height?: number;
+  age?: number;
+  goal?: string;
+  fitnessLevel?: 'beginner' | 'intermediate' | 'advanced';
+  experienceLevel?: string;
+  availableDays?: number;
+  userId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };

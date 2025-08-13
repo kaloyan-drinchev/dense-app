@@ -7,7 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  Switch,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -15,37 +15,19 @@ import { Feather as Icon } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutStore } from '@/store/workout-store';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 
 interface ProfileData {
   // Basic Personal Details
   name: string;
-  email: string;
-  dateOfBirth: string;
-  gender: 'male' | 'female' | 'other' | '';
+  profilePicture: string; // Base64 or URI
   
   // Physical Measurements
   height: string; // cm
   currentWeight: string; // kg
   targetWeight: string; // kg
   bodyFat: string; // percentage
-  
-  // Fitness Profile
-  experienceLevel: 'beginner' | 'intermediate' | 'advanced' | '';
-  fitnessGoals: string[];
-  activityLevel: 'sedentary' | 'light' | 'moderate' | 'very_active' | '';
-  workoutFrequency: string; // days per week
-  preferredWorkoutTypes: string[];
-  
-  // DENSE-Specific
-  trainingDaysPerWeek: string;
-  musclePriorities: string[];
-  equipmentAccess: 'full_gym' | 'home_gym' | 'bodyweight' | '';
-  workoutDuration: '30-45' | '45-60' | '60+' | '';
-  
-  // App Preferences
-  units: 'metric' | 'imperial';
-  notifications: boolean;
-  theme: 'light' | 'dark' | 'auto';
 }
 
 export default function ProfileEditScreen() {
@@ -55,37 +37,100 @@ export default function ProfileEditScreen() {
 
   const [profile, setProfile] = useState<ProfileData>({
     name: user?.name || userProfile?.name || '',
-    email: user?.email || '',
-    dateOfBirth: userProfile?.dateOfBirth || '',
-    gender: userProfile?.gender || '',
+    profilePicture: userProfile?.profilePicture || '',
     height: userProfile?.height?.toString() || '',
     currentWeight: userProfile?.weight?.toString() || '',
     targetWeight: userProfile?.targetWeight?.toString() || '',
     bodyFat: userProfile?.bodyFat?.toString() || '',
-    experienceLevel: userProfile?.experienceLevel || '',
-    fitnessGoals: userProfile?.fitnessGoals ? [userProfile.fitnessGoals] : [],
-    activityLevel: userProfile?.activityLevel || '',
-    workoutFrequency: userProfile?.availableDays?.toString() || '',
-    preferredWorkoutTypes: [],
-    trainingDaysPerWeek: userProfile?.availableDays?.toString() || '6',
-    musclePriorities: [],
-    equipmentAccess: '',
-    workoutDuration: '',
-    units: 'metric',
-    notifications: true,
-    theme: 'dark',
   });
 
   const [isSaving, setIsSaving] = useState(false);
 
+  const pickImage = async () => {
+    try {
+      // Request permissions first
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission Required', 'You need to allow access to your photo library to change your profile picture.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        
+        // Convert to base64 for storage
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        updateProfile('profilePicture', `data:image/jpeg;base64,${base64}`);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
-    try {
-      // Here you would save to your database
-      // For now, we'll just show a success message
+            try {
+          // Update auth store if name changed
+          if (profile.name !== user?.name) {
+            const { updateUser } = useAuthStore.getState();
+            updateUser({ ...user, name: profile.name });
+          }
+
+      // Save to database using userProfileService
+      const { userProfileService } = await import('@/db/services');
+      
+      // Check if profile exists
+      let existingProfile;
+      try {
+        // Try to find existing profile by email
+        const allProfiles = await userProfileService.getAll();
+        existingProfile = allProfiles.find(p => p.email === user?.email);
+      } catch (error) {
+        console.log('No existing profile found');
+      }
+
+      const profileData = {
+        name: profile.name,
+        email: user?.email, // Keep existing email from auth store
+        profilePicture: profile.profilePicture,
+        weight: profile.currentWeight ? parseFloat(profile.currentWeight) : undefined,
+        height: profile.height ? parseFloat(profile.height) : undefined,
+        targetWeight: profile.targetWeight ? parseFloat(profile.targetWeight) : undefined,
+        bodyFat: profile.bodyFat ? parseFloat(profile.bodyFat) : undefined,
+      };
+
+      if (existingProfile) {
+        // Update existing profile
+        await userProfileService.update(existingProfile.id, profileData);
+      } else {
+        // Create new profile
+        await userProfileService.create(profileData);
+      }
+
+      // Update workout store
+      const { updateUserProfile } = useWorkoutStore.getState();
+      updateUserProfile({
+        ...profileData,
+        experienceLevel: profile.experienceLevel,
+        availableDays: parseInt(profile.trainingDaysPerWeek) || 6,
+      });
+
       Alert.alert('Success', 'Profile updated successfully!');
       router.back();
     } catch (error) {
+      console.error('Failed to save profile:', error);
       Alert.alert('Error', 'Failed to update profile. Please try again.');
     } finally {
       setIsSaving(false);
@@ -96,32 +141,11 @@ export default function ProfileEditScreen() {
     setProfile(prev => ({ ...prev, [field]: value }));
   };
 
-  const toggleGoal = (goal: string) => {
-    setProfile(prev => ({
-      ...prev,
-      fitnessGoals: prev.fitnessGoals.includes(goal)
-        ? prev.fitnessGoals.filter(g => g !== goal)
-        : [...prev.fitnessGoals, goal]
-    }));
-  };
 
-  const toggleWorkoutType = (type: string) => {
-    setProfile(prev => ({
-      ...prev,
-      preferredWorkoutTypes: prev.preferredWorkoutTypes.includes(type)
-        ? prev.preferredWorkoutTypes.filter(t => t !== type)
-        : [...prev.preferredWorkoutTypes, type]
-    }));
-  };
 
-  const toggleMusclePriority = (muscle: string) => {
-    setProfile(prev => ({
-      ...prev,
-      musclePriorities: prev.musclePriorities.includes(muscle)
-        ? prev.musclePriorities.filter(m => m !== muscle)
-        : [...prev.musclePriorities, muscle].slice(0, 3) // Max 3 priorities
-    }));
-  };
+
+
+
 
   const renderSection = (title: string, children: React.ReactNode) => (
     <View style={styles.section}>
@@ -150,68 +174,11 @@ export default function ProfileEditScreen() {
     </View>
   );
 
-  const renderPicker = (
-    label: string,
-    options: { label: string; value: string }[],
-    selectedValue: string,
-    onSelect: (value: string) => void
-  ) => (
-    <View style={styles.inputGroup}>
-      <Text style={styles.label}>{label}</Text>
-      <View style={styles.pickerContainer}>
-        {options.map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[
-              styles.pickerOption,
-              selectedValue === option.value && styles.pickerOptionSelected
-            ]}
-            onPress={() => onSelect(option.value)}
-          >
-            <Text style={[
-              styles.pickerOptionText,
-              selectedValue === option.value && styles.pickerOptionTextSelected
-            ]}>
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
 
-  const renderMultiSelect = (
-    label: string,
-    options: string[],
-    selectedValues: string[],
-    onToggle: (value: string) => void,
-    maxSelections?: number
-  ) => (
-    <View style={styles.inputGroup}>
-      <Text style={styles.label}>
-        {label} {maxSelections && `(max ${maxSelections})`}
-      </Text>
-      <View style={styles.multiSelectContainer}>
-        {options.map((option) => (
-          <TouchableOpacity
-            key={option}
-            style={[
-              styles.multiSelectOption,
-              selectedValues.includes(option) && styles.multiSelectOptionSelected
-            ]}
-            onPress={() => onToggle(option)}
-          >
-            <Text style={[
-              styles.multiSelectOptionText,
-              selectedValues.includes(option) && styles.multiSelectOptionTextSelected
-            ]}>
-              {option}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
+
+
+
+
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -228,18 +195,39 @@ export default function ProfileEditScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {/* Profile Picture */}
+        {renderSection('Profile Picture', (
+          <View style={styles.profilePictureSection}>
+            <TouchableOpacity style={styles.profilePictureContainer} onPress={pickImage}>
+              {profile.profilePicture && profile.profilePicture !== 'placeholder_avatar' ? (
+                <Image source={{ uri: profile.profilePicture }} style={styles.profileImage} />
+              ) : (
+                <View style={styles.profilePlaceholder}>
+                  <Icon name="camera" size={32} color={colors.lightGray} />
+                  <Text style={styles.profilePlaceholderText}>
+                    {profile.profilePicture === 'placeholder_avatar' ? 'Placeholder Set' : 'Add Photo'}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.changePhotoButton} onPress={pickImage}>
+              <Text style={styles.changePhotoText}>
+                {profile.profilePicture ? 'Change Photo' : 'Add Photo'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+
         {/* Basic Personal Details */}
         {renderSection('Personal Information', (
           <>
             {renderInput('Full Name', profile.name, (text) => updateProfile('name', text), 'Enter your full name')}
-            {renderInput('Email', profile.email, (text) => updateProfile('email', text), 'your@email.com')}
-            {renderInput('Date of Birth', profile.dateOfBirth, (text) => updateProfile('dateOfBirth', text), 'YYYY-MM-DD')}
-            {renderPicker('Gender', [
-              { label: 'Male', value: 'male' },
-              { label: 'Female', value: 'female' },
-              { label: 'Other', value: 'other' },
-            ], profile.gender, (value) => updateProfile('gender', value))}
           </>
         ))}
 
@@ -253,80 +241,7 @@ export default function ProfileEditScreen() {
           </>
         ))}
 
-        {/* Fitness Profile */}
-        {renderSection('Fitness Profile', (
-          <>
-            {renderPicker('Experience Level', [
-              { label: 'Beginner', value: 'beginner' },
-              { label: 'Intermediate', value: 'intermediate' },
-              { label: 'Advanced', value: 'advanced' },
-            ], profile.experienceLevel, (value) => updateProfile('experienceLevel', value))}
 
-            {renderMultiSelect('Fitness Goals', [
-              'Weight Loss', 'Muscle Gain', 'Strength', 'Endurance', 'General Fitness', 'Athletic Performance'
-            ], profile.fitnessGoals, toggleGoal)}
-
-            {renderPicker('Activity Level', [
-              { label: 'Sedentary', value: 'sedentary' },
-              { label: 'Lightly Active', value: 'light' },
-              { label: 'Moderately Active', value: 'moderate' },
-              { label: 'Very Active', value: 'very_active' },
-            ], profile.activityLevel, (value) => updateProfile('activityLevel', value))}
-
-            {renderMultiSelect('Preferred Workout Types', [
-              'Strength Training', 'Cardio', 'HIIT', 'Yoga', 'Pilates', 'CrossFit', 'Bodyweight'
-            ], profile.preferredWorkoutTypes, toggleWorkoutType)}
-          </>
-        ))}
-
-        {/* DENSE-Specific Settings */}
-        {renderSection('DENSE Training Settings', (
-          <>
-            {renderInput('Training Days Per Week', profile.trainingDaysPerWeek, (text) => updateProfile('trainingDaysPerWeek', text), '6', 'numeric')}
-            
-            {renderMultiSelect('Muscle Priorities', [
-              'Chest', 'Shoulders', 'Arms', 'Back', 'Legs', 'Glutes', 'Core'
-            ], profile.musclePriorities, toggleMusclePriority, 3)}
-
-            {renderPicker('Equipment Access', [
-              { label: 'Full Gym', value: 'full_gym' },
-              { label: 'Home Gym', value: 'home_gym' },
-              { label: 'Bodyweight Only', value: 'bodyweight' },
-            ], profile.equipmentAccess, (value) => updateProfile('equipmentAccess', value))}
-
-            {renderPicker('Preferred Workout Duration', [
-              { label: '30-45 minutes', value: '30-45' },
-              { label: '45-60 minutes', value: '45-60' },
-              { label: '60+ minutes', value: '60+' },
-            ], profile.workoutDuration, (value) => updateProfile('workoutDuration', value))}
-          </>
-        ))}
-
-        {/* App Preferences */}
-        {renderSection('App Preferences', (
-          <>
-            {renderPicker('Units', [
-              { label: 'Metric (kg, cm)', value: 'metric' },
-              { label: 'Imperial (lbs, ft)', value: 'imperial' },
-            ], profile.units, (value) => updateProfile('units', value))}
-
-            <View style={styles.switchRow}>
-              <Text style={styles.label}>Push Notifications</Text>
-              <Switch
-                value={profile.notifications}
-                onValueChange={(value) => updateProfile('notifications', value)}
-                trackColor={{ false: colors.mediumGray, true: colors.primaryLight }}
-                thumbColor={profile.notifications ? colors.primary : colors.lightGray}
-              />
-            </View>
-
-            {renderPicker('Theme', [
-              { label: 'Light', value: 'light' },
-              { label: 'Dark', value: 'dark' },
-              { label: 'Auto', value: 'auto' },
-            ], profile.theme, (value) => updateProfile('theme', value))}
-          </>
-        ))}
 
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -397,63 +312,50 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.mediumGray,
   },
-  pickerContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  pickerOption: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.mediumGray,
-  },
-  pickerOptionSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  pickerOptionText: {
-    fontSize: 14,
-    color: colors.white,
-  },
-  pickerOptionTextSelected: {
-    color: colors.white,
-    fontWeight: '600',
-  },
-  multiSelectContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  multiSelectOption: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.mediumGray,
-  },
-  multiSelectOptionSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  multiSelectOptionText: {
-    fontSize: 12,
-    color: colors.white,
-  },
-  multiSelectOptionTextSelected: {
-    color: colors.white,
-    fontWeight: '600',
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
+
   bottomPadding: {
     height: 40,
+  },
+
+  // Profile Picture Styles
+  profilePictureSection: {
+    alignItems: 'center',
+  },
+  profilePictureContainer: {
+    marginBottom: 16,
+  },
+  profileImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.darkGray,
+  },
+  profilePlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.darkGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.mediumGray,
+    borderStyle: 'dashed',
+  },
+  profilePlaceholderText: {
+    fontSize: 12,
+    color: colors.lightGray,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  changePhotoButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  changePhotoText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

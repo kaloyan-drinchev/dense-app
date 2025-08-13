@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,9 +8,10 @@ import {
   Switch,
   Alert,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
 import { colors } from '@/constants/colors';
@@ -23,6 +24,43 @@ export default function SettingsScreen() {
   const { userProfile, resetProgress } = useWorkoutStore();
   const { user, logout } = useAuthStore();
   const [notifications, setNotifications] = useState(true);
+
+  // Reload profile when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadProfile = async () => {
+        if (user?.email) {
+          try {
+            const { userProfileService } = await import('@/db/services');
+            const allProfiles = await userProfileService.getAll();
+            const userProfileData = allProfiles.find(p => p.email === user.email);
+            
+            if (userProfileData) {
+              const { updateUserProfile } = useWorkoutStore.getState();
+              // Convert database types (null) to app types (undefined)
+              const convertedProfile = {
+                ...userProfileData,
+                email: userProfileData.email ?? undefined,
+                weight: userProfileData.weight ?? undefined,
+                height: userProfileData.height ?? undefined,
+                age: userProfileData.age ?? undefined,
+                profilePicture: userProfileData.profilePicture ?? undefined,
+                goal: userProfileData.goal ?? undefined,
+                createdAt: userProfileData.createdAt ?? undefined,
+                updatedAt: userProfileData.updatedAt ?? undefined,
+                syncedAt: userProfileData.syncedAt ?? undefined,
+              };
+              await updateUserProfile(convertedProfile);
+            }
+          } catch (error) {
+            console.log('Failed to reload profile:', error);
+          }
+        }
+      };
+      
+      loadProfile();
+    }, [user?.email])
+  );
 
   const handleNotificationsToggle = () => {
     setNotifications(!notifications);
@@ -113,9 +151,18 @@ export default function SettingsScreen() {
 
         <TouchableOpacity style={styles.profileCard} onPress={handleEditProfile}>
           <View style={styles.profileAvatar}>
-            <Text style={styles.profileInitial}>
-              {user?.name ? user.name[0].toUpperCase() : userProfile?.name ? userProfile.name[0].toUpperCase() : '?'}
-            </Text>
+            {userProfile?.profilePicture && userProfile.profilePicture !== 'placeholder_avatar' ? (
+              <Image 
+                source={{ uri: userProfile.profilePicture }} 
+                style={styles.profileAvatarImage}
+              />
+            ) : (
+              <View style={styles.profileAvatarPlaceholder}>
+                <Text style={styles.profileInitial}>
+                  {user?.name ? user.name[0].toUpperCase() : userProfile?.name ? userProfile.name[0].toUpperCase() : '?'}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>
@@ -265,6 +312,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
+    overflow: 'hidden',
+  },
+  profileAvatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  profileAvatarPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   profileInitial: {
     fontSize: 24,

@@ -26,6 +26,7 @@ interface AuthState {
   checkAuthStatus: () => Promise<void>;
   checkWizardStatus: () => Promise<void>;
   setWizardCompleted: () => void;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -196,6 +197,16 @@ export const useAuthStore = create<AuthState>()(
       setWizardCompleted: () => {
         set({ hasCompletedWizard: true });
         console.log('🧙 Wizard marked as completed');
+      },
+
+      // Update user information
+      updateUser: (updates: Partial<User>) => {
+        const { user } = get();
+        if (user) {
+          const updatedUser = { ...user, ...updates };
+          set({ user: updatedUser });
+          console.log('👤 User updated:', updates);
+        }
       },
     }),
     {

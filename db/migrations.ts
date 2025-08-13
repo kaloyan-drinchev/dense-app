@@ -11,15 +11,47 @@ export const initializeDatabase = async () => {
     // Check and run migrations first
     await DatabaseVersionManager.checkAndMigrate();
     
+    // Add missing columns if they don't exist (manual migrations)
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_profiles ADD COLUMN profile_picture TEXT;
+      `);
+      console.log('✅ Added profile_picture column to user_profiles table');
+    } catch (error) {
+      // Column might already exist, ignore the error
+      console.log('ℹ️ profile_picture column already exists or error adding:', error);
+    }
+
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_profiles ADD COLUMN target_weight REAL;
+      `);
+      console.log('✅ Added target_weight column to user_profiles table');
+    } catch (error) {
+      console.log('ℹ️ target_weight column already exists or error adding:', error);
+    }
+
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_profiles ADD COLUMN body_fat REAL;
+      `);
+      console.log('✅ Added body_fat column to user_profiles table');
+    } catch (error) {
+      console.log('ℹ️ body_fat column already exists or error adding:', error);
+    }
+    
     // Create tables using raw SQL for initial setup
     await expo_sqlite.execAsync(`
       CREATE TABLE IF NOT EXISTS user_profiles (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         email TEXT,
+        profile_picture TEXT,
         age INTEGER,
         weight REAL,
         height REAL,
+        target_weight REAL,
+        body_fat REAL,
         goal TEXT,
         created_at TEXT DEFAULT (CURRENT_TIMESTAMP),
         updated_at TEXT DEFAULT (CURRENT_TIMESTAMP),

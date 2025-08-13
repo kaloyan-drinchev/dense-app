@@ -6,9 +6,12 @@ export const userProfiles = sqliteTable('user_profiles', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email'),
+  profilePicture: text('profile_picture'), // Base64 encoded image or file path
   age: integer('age'),
   weight: real('weight'),
   height: real('height'),
+  targetWeight: real('target_weight'),
+  bodyFat: real('body_fat'),
   goal: text('goal'),
   createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
