@@ -223,6 +223,12 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="profile-edit" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
         name="workout-session" 
         options={{ 
           headerShown: false,

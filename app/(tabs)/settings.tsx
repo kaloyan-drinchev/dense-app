@@ -32,7 +32,7 @@ export default function SettingsScreen() {
   };
 
   const handleEditProfile = () => {
-    router.push('/profile');
+    router.push('/profile-edit');
   };
 
   const handleResetProgress = () => {
