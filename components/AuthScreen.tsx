@@ -3,502 +3,387 @@ import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
   TouchableOpacity,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
   Alert,
+  Keyboard,
+  TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/constants/colors';
-import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
+import { Feather as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/auth-store';
+import { biometricAuthService } from '@/services/biometric-auth';
 
 interface AuthScreenProps {
   onComplete: () => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
-  const router = useRouter();
-  const { login, register, isLoading, error, clearError } = useAuthStore();
+  const { 
+    authenticateWithBiometric, 
+    authenticateWithPIN, 
+    isLoading, 
+    error, 
+    clearError 
+  } = useAuthStore();
   
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    name: '',
-  });
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPinInput, setShowPinInput] = useState(false);
+  const [pin, setPin] = useState('');
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricType, setBiometricType] = useState<string>('');
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
 
-  // Clear any auth errors when component mounts
   useEffect(() => {
     clearError();
+    checkBiometricStatus();
+    // Try biometric authentication immediately if enabled
+    tryBiometricAuth();
   }, []);
 
-  const handleTabSwitch = (tab: 'login' | 'register') => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    setActiveTab(tab);
-    setValidationErrors({});
-  };
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData({ ...formData, [field]: value });
-    // Clear validation error when user starts typing
-    if (validationErrors[field]) {
-      setValidationErrors({ ...validationErrors, [field]: '' });
+  const checkBiometricStatus = async () => {
+    const supported = await biometricAuthService.isSupported();
+    const enabled = await biometricAuthService.isBiometricEnabled();
+    
+    setBiometricSupported(supported);
+    setBiometricEnabled(enabled);
+    
+    if (supported) {
+      const types = await biometricAuthService.getSupportedTypes();
+      const typeName = biometricAuthService.getBiometricName(types);
+      setBiometricType(typeName);
     }
   };
 
-  const validateForm = () => {
-    const errors: Record<string, string> = {};
-
-    // Email validation
-    if (!formData.email) {
-      errors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = 'Please enter a valid email';
-    }
-
-    // Password validation
-    if (!formData.password) {
-      errors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
-    }
-
-    // Register-specific validations
-    if (activeTab === 'register') {
-      if (!formData.name) {
-        errors.name = 'Name is required';
-      }
-    }
-
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = async () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-
-    if (validateForm()) {
-      try {
-        let result;
-        
-        if (activeTab === 'login') {
-          result = await login(formData.email, formData.password);
-        } else {
-          result = await register(formData.email, formData.password, formData.name);
+  const tryBiometricAuth = async () => {
+    if (biometricEnabled && biometricSupported) {
+      const result = await authenticateWithBiometric();
+      
+      if (result.success) {
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
-
-        if (result.success) {
-          if (Platform.OS !== 'web') {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }
-          handleContinueToApp();
-        } else {
-          Alert.alert('Error', result.error || 'Authentication failed');
-        }
-      } catch (error) {
-        Alert.alert('Error', 'Something went wrong. Please try again.');
+        onComplete();
+      } else if (!result.cancelled) {
+        // If biometric failed (not cancelled), show PIN input
+        setShowPinInput(true);
+      } else {
+        // User cancelled biometric, show PIN input
+        setShowPinInput(true);
       }
     } else {
-      if (Platform.OS !== 'web') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
+      // Biometric not enabled, show PIN input directly
+      setShowPinInput(true);
     }
   };
 
-  const handleSocialLogin = (provider: string) => {
+  const handleBiometricAuth = async () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    // TODO: Implement social login
-    // For now, simulate success
-    handleContinueToApp();
+
+    const result = await authenticateWithBiometric();
+    
+    if (result.success) {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      onComplete();
+    } else if (!result.cancelled) {
+      Alert.alert('Authentication Failed', result.error || 'Please try again or use your PIN.');
+    }
   };
 
-  const handleContinueToApp = () => {
-    onComplete();
+  const handlePinAuth = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    if (!pin || pin.length < 4) {
+      Alert.alert('Invalid PIN', 'Please enter your PIN.');
+      return;
+    }
+
+    const result = await authenticateWithPIN(pin);
+    
+    if (result.success) {
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      setPin('');
+      onComplete();
+    } else {
+      Alert.alert('Incorrect PIN', result.error || 'Please try again.');
+      setPin('');
+    }
   };
+
+  const handlePinChange = (value: string) => {
+    // Only allow numeric input
+    const numericValue = value.replace(/[^0-9]/g, '');
+    setPin(numericValue);
+  };
+
+  const renderBiometricAuth = () => (
+    <View style={styles.authContainer}>
+      <View style={styles.iconContainer}>
+        <Icon 
+          name={biometricType === 'Face ID' ? 'smile' : 'fingerprint'} 
+          size={64} 
+          color={colors.primary} 
+        />
+      </View>
+      
+      <Text style={styles.title}>Welcome Back</Text>
+      <Text style={styles.subtitle}>
+        Use {biometricType} to access your workouts
+      </Text>
+      
+      <TouchableOpacity
+        style={styles.biometricButton}
+        onPress={handleBiometricAuth}
+        disabled={isLoading}
+      >
+        <Icon 
+          name={biometricType === 'Face ID' ? 'smile' : 'fingerprint'} 
+          size={24} 
+          color={colors.white} 
+        />
+        <Text style={styles.biometricButtonText}>
+          Use {biometricType}
+        </Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={styles.pinFallbackButton}
+        onPress={() => setShowPinInput(true)}
+      >
+        <Text style={styles.pinFallbackText}>Use PIN instead</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderPinAuth = () => (
+    <View style={styles.authContainer}>
+      <View style={styles.iconContainer}>
+        <Icon name="lock" size={64} color={colors.primary} />
+      </View>
+      
+      <Text style={styles.title}>Enter Your PIN</Text>
+      <Text style={styles.subtitle}>
+        Enter your PIN to access your workouts
+      </Text>
+      
+      <View style={styles.pinInputContainer}>
+        <TextInput
+          style={styles.pinInput}
+          value={pin}
+          onChangeText={handlePinChange}
+          placeholder="Enter PIN"
+          placeholderTextColor={colors.lightGray}
+          keyboardType="numeric"
+          secureTextEntry
+          maxLength={6}
+          returnKeyType="done"
+          onSubmitEditing={handlePinAuth}
+          autoFocus
+        />
+      </View>
+      
+      <TouchableOpacity
+        style={[styles.pinButton, isLoading && styles.pinButtonDisabled]}
+        onPress={handlePinAuth}
+        disabled={isLoading || !pin}
+      >
+        <Text style={styles.pinButtonText}>
+          {isLoading ? 'Authenticating...' : 'Unlock'}
+        </Text>
+      </TouchableOpacity>
+      
+      {biometricEnabled && biometricSupported && (
+        <TouchableOpacity
+          style={styles.biometricFallbackButton}
+          onPress={() => {
+            setShowPinInput(false);
+            setPin('');
+          }}
+        >
+          <Icon 
+            name={biometricType === 'Face ID' ? 'smile' : 'fingerprint'} 
+            size={16} 
+            color={colors.lightGray} 
+          />
+          <Text style={styles.biometricFallbackText}>
+            Use {biometricType} instead
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 
   return (
-    <LinearGradient
-      colors={[colors.dark, colors.darkGray]}
-      style={styles.container}
-    >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardAvoid}
-        >
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <LinearGradient
+        colors={[colors.dark, colors.darkGray]}
+        style={styles.container}
+      >
+        <SafeAreaView style={styles.safeArea}>
           <ScrollView 
-            style={styles.scrollView} 
-            contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
+            style={styles.scrollView}
+            contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
           >
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.welcomeContainer}>
-                <Text style={styles.welcomeTitle}>Save Your Progress! 🎉</Text>
-                <Text style={styles.welcomeSubtitle}>
-                  Create an account to save your personalized preferences and track your fitness journey
-                </Text>
-              </View>
+            <View style={styles.logoContainer}>
+              <Text style={styles.logo}>RORK DENSE</Text>
+              <Text style={styles.logoSubtitle}>Your Fitness Journey</Text>
             </View>
-
-            {/* Tab Switcher */}
-            <View style={styles.tabContainer}>
-              <TouchableOpacity
-                style={[styles.tab, activeTab === 'register' && styles.activeTab]}
-                onPress={() => handleTabSwitch('register')}
-              >
-                <Text style={[styles.tabText, activeTab === 'register' && styles.activeTabText]}>
-                  Create Account
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tab, activeTab === 'login' && styles.activeTab]}
-                onPress={() => handleTabSwitch('login')}
-              >
-                <Text style={[styles.tabText, activeTab === 'login' && styles.activeTabText]}>
-                  Sign In
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Social Login Buttons - VISIBLE BUT DISABLED */}
-            <View style={styles.socialContainer}>
-              <TouchableOpacity 
-                style={[styles.socialButton, styles.disabledSocialButton]}
-                onPress={() => {/* Disabled - no action */}}
-                disabled={true}
-              >
-                <Icon name="globe" size={20} color={colors.lightGray} />
-                <Text style={[styles.socialButtonText, styles.disabledSocialButtonText]}>Continue with Google</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.socialButton, styles.disabledSocialButton]}
-                onPress={() => {/* Disabled - no action */}}
-                disabled={true}
-              >
-                <Icon name="smartphone" size={20} color={colors.lightGray} />
-                <Text style={[styles.socialButtonText, styles.disabledSocialButtonText]}>Continue with Apple</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Form */}
-            <View style={styles.formContainer}>
-              {activeTab === 'register' && (
-                <View style={styles.inputContainer}>
-                  <View style={styles.inputWrapper}>
-                    <Icon name="user" size={20} color={colors.lightGray} />
-                                          <TextInput
-                        style={styles.textInput}
-                        placeholder="Full Name"
-                        placeholderTextColor={colors.lightGray}
-                        value={formData.name}
-                        onChangeText={(value) => handleInputChange('name', value)}
-                        autoCapitalize="words"
-                        autoComplete="name"
-                        textContentType="name"
-                      />
-                  </View>
-                  {validationErrors.name && (
-                    <Text style={styles.errorText}>{validationErrors.name}</Text>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.inputContainer}>
-                <View style={styles.inputWrapper}>
-                  <Icon name="mail" size={20} color={colors.lightGray} />
-                                      <TextInput
-                      style={styles.textInput}
-                      placeholder="Email Address"
-                      placeholderTextColor={colors.lightGray}
-                      value={formData.email}
-                      onChangeText={(value) => handleInputChange('email', value)}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoComplete="username"
-                      textContentType="emailAddress"
-                    />
-                </View>
-                {validationErrors.email && (
-                  <Text style={styles.errorText}>{validationErrors.email}</Text>
-                )}
-              </View>
-
-              <View style={styles.inputContainer}>
-                <View style={styles.inputWrapper}>
-                  <Icon name="lock" size={20} color={colors.lightGray} />
-                                      <TextInput
-                      style={styles.textInput}
-                      placeholder="Password"
-                      placeholderTextColor={colors.lightGray}
-                      value={formData.password}
-                      onChangeText={(value) => handleInputChange('password', value)}
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      spellCheck={false}
-                      autoComplete="off"
-                      textContentType="oneTimeCode"
-                      passwordRules=""
-                      importantForAutofill="no"
-                    />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeButton}
-                  >
-                    <Icon 
-                      name={showPassword ? 'eye-off' : 'eye'} 
-                      size={20} 
-                      color={colors.lightGray} 
-                    />
-                  </TouchableOpacity>
-                </View>
-                {validationErrors.password && (
-                  <Text style={styles.errorText}>{validationErrors.password}</Text>
-                )}
-              </View>
-
-              {activeTab === 'login' && (
-                <TouchableOpacity style={styles.forgotPassword}>
-                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Submit Button */}
-            <TouchableOpacity 
-              style={[styles.submitButton, isLoading && styles.disabledButton]} 
-              onPress={handleSubmit}
-              disabled={isLoading}
-            >
-              <Text style={styles.submitButtonText}>
-                {isLoading 
-                  ? (activeTab === 'register' ? 'Creating Account...' : 'Signing In...') 
-                  : (activeTab === 'register' ? 'Create Account' : 'Sign In')
-                }
-              </Text>
-              {!isLoading && <Icon name="arrow-right" size={20} color={colors.white} />}
-            </TouchableOpacity>
-
-            {/* Show auth error if any */}
+            
+            {showPinInput ? renderPinAuth() : renderBiometricAuth()}
+            
             {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            )}
-
-            {/* Terms */}
-            {activeTab === 'register' && (
-              <Text style={styles.termsText}>
-                By creating an account, you agree to our{' '}
-                <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
-                <Text style={styles.termsLink}>Privacy Policy</Text>
-              </Text>
+              <Text style={styles.errorText}>{error}</Text>
             )}
           </ScrollView>
-        </KeyboardAvoidingView>
+        </SafeAreaView>
       </LinearGradient>
+    </TouchableWithoutFeedback>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.dark,
   },
-  keyboardAvoid: {
+  safeArea: {
     flex: 1,
   },
   scrollView: {
     flex: 1,
   },
-  contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 40,
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+    minHeight: '100%',
   },
-  header: {
-    marginBottom: 30,
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 48,
   },
-  welcomeContainer: {
+  logo: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.white,
+    letterSpacing: 2,
+  },
+  logoSubtitle: {
+    fontSize: 16,
+    color: colors.lighterGray,
+    marginTop: 4,
+  },
+  authContainer: {
     alignItems: 'center',
   },
-  welcomeTitle: {
+  iconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.darkGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.white,
     textAlign: 'center',
     marginBottom: 8,
   },
-  welcomeSubtitle: {
+  subtitle: {
+    fontSize: 16,
+    color: colors.lighterGray,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  biometricButton: {
+    flexDirection: 'row',
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    minWidth: 200,
+  },
+  biometricButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginLeft: 8,
+  },
+  pinFallbackButton: {
+    padding: 12,
+  },
+  pinFallbackText: {
     fontSize: 16,
     color: colors.lightGray,
     textAlign: 'center',
-    lineHeight: 22,
   },
-  tabContainer: {
-    flexDirection: 'row',
+  pinInputContainer: {
+    width: '100%',
+    marginBottom: 24,
+  },
+  pinInput: {
     backgroundColor: colors.darkGray,
     borderRadius: 12,
-    padding: 4,
-    marginBottom: 30,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  activeTab: {
-    backgroundColor: colors.primary,
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.lightGray,
-  },
-  activeTabText: {
+    padding: 16,
+    fontSize: 18,
     color: colors.white,
+    textAlign: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+    letterSpacing: 4,
   },
-  socialContainer: {
-    gap: 12,
-    marginBottom: 30,
-  },
-  socialButton: {
-    flexDirection: 'row',
+  pinButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.darkGray,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 12,
+    marginBottom: 16,
+    minWidth: 200,
   },
-  socialButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.white,
-  },
-  disabledSocialButton: {
-    backgroundColor: colors.mediumGray,
+  pinButtonDisabled: {
     opacity: 0.6,
   },
-  disabledSocialButtonText: {
-    color: colors.lightGray,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 30,
-    gap: 16,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.mediumGray,
-  },
-  dividerText: {
-    fontSize: 14,
-    color: colors.lightGray,
-    fontWeight: '500',
-  },
-  formContainer: {
-    gap: 20,
-    marginBottom: 30,
-  },
-  inputContainer: {
-    gap: 8,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    gap: 12,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.white,
-    paddingVertical: 16,
-  },
-  eyeButton: {
-    padding: 4,
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.error,
-    marginLeft: 4,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginTop: -8,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  submitButton: {
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    gap: 8,
-    marginBottom: 16,
-  },
-  submitButtonText: {
+  pinButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.white,
   },
-  termsText: {
-    fontSize: 12,
-    color: colors.lightGray,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  termsLink: {
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  errorContainer: {
-    backgroundColor: colors.error + '20',
-    borderRadius: 8,
+  biometricFallbackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 12,
+  },
+  biometricFallbackText: {
+    fontSize: 14,
+    color: colors.lightGray,
+    marginLeft: 6,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 14,
+    textAlign: 'center',
     marginTop: 16,
-    borderWidth: 1,
-    borderColor: colors.error + '40',
   },
 });

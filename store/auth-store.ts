@@ -2,11 +2,13 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { userProfileService, wizardResultsService } from '@/db/services';
+import { biometricAuthService } from '@/services/biometric-auth';
+import { generateId } from '@/utils/helpers';
 
 export interface User {
   id: string;
-  email: string;
   name: string;
+  email?: string; // Optional - for future cloud sync
   createdAt: string;
 }
 
@@ -17,16 +19,19 @@ interface AuthState {
   user: User | null;
   error: string | null;
   hasCompletedWizard: boolean;
+  isFirstTime: boolean;
 
   // Actions
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  authenticateWithBiometric: () => Promise<{ success: boolean; error?: string; cancelled?: boolean }>;
+  authenticateWithPIN: (pin: string) => Promise<{ success: boolean; error?: string }>;
+  setupNewUser: (name: string, pin: string, enableBiometric: boolean) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   clearError: () => void;
   checkAuthStatus: () => Promise<void>;
   checkWizardStatus: () => Promise<void>;
   setWizardCompleted: () => void;
   updateUser: (updates: Partial<User>) => void;
+  checkIfFirstTime: () => Promise<boolean>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -38,100 +43,155 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       error: null,
       hasCompletedWizard: false,
+      isFirstTime: true,
 
-      // Login function
-      login: async (email: string, password: string) => {
+      // Authenticate with biometric (Face ID/Touch ID)
+      authenticateWithBiometric: async () => {
         set({ isLoading: true, error: null });
 
         try {
-          if (!email || !password) {
-            set({ isLoading: false, error: 'Please enter both email and password' });
-            return { success: false, error: 'Please enter both email and password' };
-          }
-
-          // Simulate login delay
-          await new Promise(resolve => setTimeout(resolve, 1000));
-
-          // Check if user exists in local database
-          const userProfile = await userProfileService.getById(email);
+          const result = await biometricAuthService.authenticate();
           
-          if (!userProfile) {
-            // User doesn't exist - show proper error
-            const errorMessage = 'No account found with this email. Please register first.';
-            set({ isLoading: false, error: errorMessage });
-            console.log('❌ Login failed: User not found for email:', email);
-            return { success: false, error: errorMessage };
+          if (result.success) {
+            // Get the existing user from local storage
+            const profiles = await userProfileService.getAll();
+            if (profiles.length === 0) {
+              set({ isLoading: false, error: 'No user found. Please set up your account first.' });
+              return { success: false, error: 'No user found' };
+            }
+
+            const userProfile = profiles[0]; // Since it's single-user app, get first profile
+            const user: User = {
+              id: userProfile.id,
+              name: userProfile.name,
+              email: userProfile.email || undefined,
+              createdAt: userProfile.createdAt || '',
+            };
+
+            // Check wizard status
+            const hasWizard = await wizardResultsService.hasCompletedWizard(user.id);
+
+            set({ 
+              isAuthenticated: true, 
+              isLoading: false, 
+              user,
+              error: null,
+              hasCompletedWizard: hasWizard
+            });
+
+            console.log('✅ User authenticated with biometric:', user.name);
+            return { success: true };
+          } else {
+            set({ isLoading: false });
+            return { 
+              success: false, 
+              error: result.error, 
+              cancelled: result.cancelled 
+            };
           }
-
-          // TODO: In a real app, you would validate the password here
-          // For now, we're just checking if the user exists in the database
-
-          const user: User = {
-            id: userProfile.id,
-            email: userProfile.email || '',
-            name: userProfile.name || '',
-            createdAt: userProfile.createdAt || '',
-          };
-
-          // Check if user has completed wizard
-          const hasWizard = await wizardResultsService.hasCompletedWizard(user.email);
-
-          set({ 
-            isAuthenticated: true, 
-            isLoading: false, 
-            user,
-            error: null,
-            hasCompletedWizard: hasWizard
-          });
-
-          console.log('✅ User logged in successfully:', user.email);
-          console.log('🧙 Wizard completed:', hasWizard);
-          return { success: true };
-
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Login failed';
+          const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
           set({ isLoading: false, error: errorMessage });
-          console.error('❌ Login error:', error);
+          console.error('❌ Biometric auth error:', error);
           return { success: false, error: errorMessage };
         }
       },
 
-      // Register function
-      register: async (email: string, password: string, name: string) => {
+      // Authenticate with PIN
+      authenticateWithPIN: async (pin: string) => {
         set({ isLoading: true, error: null });
 
         try {
-          if (!email || !password || !name) {
-            set({ isLoading: false, error: 'Please fill in all fields' });
-            return { success: false, error: 'Please fill in all fields' };
+          const isValid = await biometricAuthService.verifyPIN(pin);
+          
+          if (isValid) {
+            // Get the existing user from local storage
+            const profiles = await userProfileService.getAll();
+            if (profiles.length === 0) {
+              set({ isLoading: false, error: 'No user found. Please set up your account first.' });
+              return { success: false, error: 'No user found' };
+            }
+
+            const userProfile = profiles[0];
+            const user: User = {
+              id: userProfile.id,
+              name: userProfile.name,
+              email: userProfile.email || undefined,
+              createdAt: userProfile.createdAt || '',
+            };
+
+            // Check wizard status
+            const hasWizard = await wizardResultsService.hasCompletedWizard(user.id);
+
+            set({ 
+              isAuthenticated: true, 
+              isLoading: false, 
+              user,
+              error: null,
+              hasCompletedWizard: hasWizard
+            });
+
+            console.log('✅ User authenticated with PIN:', user.name);
+            return { success: true };
+          } else {
+            set({ isLoading: false, error: 'Incorrect PIN' });
+            return { success: false, error: 'Incorrect PIN' };
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
+          set({ isLoading: false, error: errorMessage });
+          console.error('❌ PIN auth error:', error);
+          return { success: false, error: errorMessage };
+        }
+      },
+
+      // Setup new user (first time)
+      setupNewUser: async (name: string, pin: string, enableBiometric: boolean) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          if (!name || !pin) {
+            set({ isLoading: false, error: 'Please provide name and PIN' });
+            return { success: false, error: 'Please provide name and PIN' };
           }
 
-          // Check if user already exists
-          const existingUser = await userProfileService.getById(email);
-          if (existingUser) {
-            set({ isLoading: false, error: 'User already exists with this email' });
-            return { success: false, error: 'User already exists with this email' };
+          if (pin.length < 4) {
+            set({ isLoading: false, error: 'PIN must be at least 4 digits' });
+            return { success: false, error: 'PIN must be at least 4 digits' };
           }
 
-          // Simulate registration delay
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Check if user already exists (for single-user app, clear existing if any)
+          const existingProfiles = await userProfileService.getAll();
+          if (existingProfiles.length > 0) {
+            // Clear existing data for fresh setup (single-user app)
+            await userProfileService.deleteAll();
+            await wizardResultsService.deleteAll();
+            console.log('🔄 Cleared existing user data for fresh setup');
+          }
 
-          // Create new user profile in local database
+          // Set up PIN
+          const pinSet = await biometricAuthService.setupPIN(pin);
+          if (!pinSet) {
+            set({ isLoading: false, error: 'Failed to set up PIN' });
+            return { success: false, error: 'Failed to set up PIN' };
+          }
+
+          // Enable biometric if requested and supported
+          if (enableBiometric) {
+            await biometricAuthService.setBiometricEnabled(true);
+          }
+
+          // Create user profile
+          const userId = generateId();
           const userProfile = await userProfileService.create({
             name,
-            email,
-          });
-
-          // Update the ID to be the email for easy lookup
-          const updatedProfile = await userProfileService.update(userProfile.id, {
-            id: email,
+            id: userId,
           });
 
           const user: User = {
-            id: email,
-            email: email,
+            id: userId,
             name: name,
-            createdAt: updatedProfile?.createdAt || new Date().toISOString(),
+            createdAt: userProfile.createdAt || new Date().toISOString(),
           };
 
           set({ 
@@ -139,29 +199,33 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false, 
             user,
             error: null,
-            hasCompletedWizard: false // New users haven't completed wizard yet
+            hasCompletedWizard: false,
+            isFirstTime: false
           });
 
-          console.log('✅ User registered successfully:', user.email);
-          console.log('🧙 Wizard status: Not completed (new user)');
+          console.log('✅ New user set up successfully:', user.name);
           return { success: true };
 
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+          const errorMessage = error instanceof Error ? error.message : 'Setup failed';
           set({ isLoading: false, error: errorMessage });
-          console.error('❌ Registration error:', error);
+          console.error('❌ User setup error:', error);
           return { success: false, error: errorMessage };
         }
       },
 
       // Logout function
       logout: () => {
+        // Clear biometric/PIN data
+        biometricAuthService.clearAuthData();
+        
         set({ 
           isAuthenticated: false, 
           user: null, 
           error: null,
           isLoading: false,
-          hasCompletedWizard: false
+          hasCompletedWizard: false,
+          isFirstTime: true
         });
         console.log('✅ User logged out');
       },
@@ -176,7 +240,7 @@ export const useAuthStore = create<AuthState>()(
         const state = get();
         if (state.user && !state.isAuthenticated) {
           set({ isAuthenticated: true });
-          console.log('✅ Auth state restored for user:', state.user.email);
+          console.log('✅ Auth state restored for user:', state.user.name);
           
           // Also check wizard status
           await get().checkWizardStatus();
@@ -187,7 +251,7 @@ export const useAuthStore = create<AuthState>()(
       checkWizardStatus: async () => {
         const state = get();
         if (state.user) {
-          const hasWizard = await wizardResultsService.hasCompletedWizard(state.user.email);
+          const hasWizard = await wizardResultsService.hasCompletedWizard(state.user.id);
           set({ hasCompletedWizard: hasWizard });
           console.log('🧙 Wizard status checked:', hasWizard);
         }
@@ -208,6 +272,22 @@ export const useAuthStore = create<AuthState>()(
           console.log('👤 User updated:', updates);
         }
       },
+
+      // Check if this is first time opening the app
+      checkIfFirstTime: async () => {
+        try {
+          const profiles = await userProfileService.getAll();
+          const hasPIN = await biometricAuthService.hasPIN();
+          const isFirstTime = profiles.length === 0 || !hasPIN;
+          
+          set({ isFirstTime });
+          console.log('🔍 First time check:', isFirstTime);
+          return isFirstTime;
+        } catch (error) {
+          console.error('❌ Error checking first time status:', error);
+          return true; // Assume first time if error
+        }
+      },
     }),
     {
       name: 'auth-storage',
@@ -216,6 +296,7 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
         user: state.user,
         hasCompletedWizard: state.hasCompletedWizard,
+        isFirstTime: state.isFirstTime,
       }),
     }
   )

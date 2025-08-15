@@ -25,14 +25,14 @@ const SingleProgramView = () => {
   }, []);
 
   const loadGeneratedProgram = async () => {
-    console.log('🔍 Loading generated program for user:', user?.email);
+    console.log('🔍 Loading generated program for user:', user?.id);
     if (!user) {
       console.log('❌ No user found');
       return;
     }
     
     try {
-      const wizardResults = await wizardResultsService.getByUserId(user.email);
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
       console.log('📊 Wizard results:', wizardResults);
       
       if (wizardResults && wizardResults.generatedSplit) {

@@ -29,7 +29,7 @@ export default function FinishedWorkoutsScreen() {
         return;
       }
       try {
-        const progress = await userProgressService.getByUserId(user.email);
+        const progress = await userProgressService.getByUserId(user.id);
         if (progress?.completedWorkouts) {
           let arr: CompletedEntry[] = [];
           try { arr = JSON.parse(progress.completedWorkouts as unknown as string) || []; } catch { arr = []; }
@@ -38,7 +38,7 @@ export default function FinishedWorkoutsScreen() {
         } else {
           setEntries([]);
         }
-        const wiz = await wizardResultsService.getByUserId(user.email);
+        const wiz = await wizardResultsService.getByUserId(user.id);
         if (wiz?.generatedSplit) {
           try { setProgram(JSON.parse(wiz.generatedSplit)); } catch {}
         }

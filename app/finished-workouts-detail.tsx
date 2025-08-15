@@ -19,13 +19,13 @@ export default function FinishedWorkoutsDetailScreen() {
 
   useEffect(() => {
     const load = async () => {
-      if (!user?.email) { setLoading(false); return; }
+      if (!user?.id) { setLoading(false); return; }
       try {
-        const wiz = await wizardResultsService.getByUserId(user.email);
+        const wiz = await wizardResultsService.getByUserId(user.id);
         if (wiz?.generatedSplit) {
           try { setProgram(JSON.parse(wiz.generatedSplit)); } catch {}
         }
-        const progress = await userProgressService.getByUserId(user.email);
+        const progress = await userProgressService.getByUserId(user.id);
         if (progress?.weeklyWeights) {
           try {
             const ww = JSON.parse(progress.weeklyWeights as unknown as string);

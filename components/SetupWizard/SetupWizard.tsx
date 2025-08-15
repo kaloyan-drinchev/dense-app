@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   Animated,
+  Alert,
 } from 'react-native';
 import { colors } from '@/constants/colors';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
@@ -40,6 +41,8 @@ interface SetupWizardProps {
 export default function SetupWizard({ onClose }: SetupWizardProps) {
   const router = useRouter();
   const { user, setWizardCompleted } = useAuthStore();
+  
+
   
   const [currentStep, setCurrentStep] = useState(0);
   const [validationError, setValidationError] = useState('');
@@ -165,6 +168,14 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     try {
       setIsGeneratingProgram(true);
       
+      // Safety check - ensure user is available
+      if (!user || !user.id) {
+        console.error('❌ Cannot complete wizard: User not available:', { user, userId: user?.id });
+        Alert.alert('Error', 'User not authenticated. Please restart the app.');
+        setIsGeneratingProgram(false);
+        return;
+      }
+      
       // Simulate AI generation process
       await simulateAIGeneration();
       
@@ -183,9 +194,9 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
       const generatedProgram = ProgramGenerator.generateProgram(wizardResponses);
       
       // Save to database
-      if (user) {
+      if (user && user.id) {
         await wizardResultsService.create({
-          userId: user.email,
+          userId: user.id,
           trainingExperience: preferences.trainingExperience,
           bodyFatLevel: preferences.bodyFatLevel,
           trainingDaysPerWeek: preferences.trainingDaysPerWeek,
@@ -200,6 +211,9 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           benchKg: preferences.benchKg ? parseFloat(preferences.benchKg) : null,
           deadliftKg: preferences.deadliftKg ? parseFloat(preferences.deadliftKg) : null,
         });
+      } else {
+        console.error('❌ No user or user.id available:', { user, userId: user?.id });
+        throw new Error('User not authenticated or missing ID');
       }
       
       // Store the generated program data

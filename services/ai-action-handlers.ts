@@ -136,20 +136,20 @@ export class AIActionHandlers {
       const { wizardResultsService, userProgressService } = await import('@/db/services');
       
       // Update wizard results with new program
-      await wizardResultsService.update(user.email, {
+      await wizardResultsService.updateByUserId(user.id, {
         generatedSplit: JSON.stringify(newProgram),
         musclePriorities: JSON.stringify(parameters.focusMuscleGroups || [])
       });
 
-      // Reset user progress for new program - delete old progress and create new
-      const existingProgress = await userProgressService.getByUserId(user.email);
+            // Reset user progress for new program - delete old progress and create new
+      const existingProgress = await userProgressService.getByUserId(user.id);
       if (existingProgress) {
         await userProgressService.delete(existingProgress.id);
       }
-      
+
       // Create new progress entry
       await userProgressService.create({
-        userId: user.email,
+        userId: user.id,
         programId: newProgram.programName || 'ai-generated-program',
         currentWeek: 1,
         completedWorkouts: [],
@@ -200,7 +200,7 @@ export class AIActionHandlers {
 
       // Get current wizard results
       const { wizardResultsService } = await import('@/db/services');
-      const wizardResults = await wizardResultsService.getByUserId(user.email);
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
       
       if (!wizardResults || !wizardResults.generatedSplit) {
         return {
@@ -215,7 +215,7 @@ export class AIActionHandlers {
       currentProgram.displayTitle = newName;
 
       // Save back to database
-      await wizardResultsService.update(user.email, {
+      await wizardResultsService.updateByUserId(user.id, {
         generatedSplit: JSON.stringify(currentProgram)
       });
 
@@ -272,9 +272,8 @@ export class AIActionHandlers {
       // Get current profile by userId (not by id)
       let currentProfile;
       try {
-        // The getByUserId method doesn't exist, we need to get by userId field
-        const profiles = await db.select().from(userProfiles).where(eq(userProfiles.userId, user.email));
-        currentProfile = profiles[0];
+        // Get user profile by ID
+        currentProfile = await userProfileService.getById(user.id);
       } catch (error) {
         console.log('No existing profile found, will create new one');
       }
@@ -282,7 +281,7 @@ export class AIActionHandlers {
       if (!currentProfile) {
         // Create new profile
         currentProfile = await userProfileService.create({
-          userId: user.email,
+          name: user.name,
           fitnessGoals: settings.fitnessGoals || 'muscle_gain',
           experienceLevel: settings.experienceLevel || 'intermediate',
           availableDays: settings.availableDays || 6,

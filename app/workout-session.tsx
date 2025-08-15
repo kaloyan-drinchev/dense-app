@@ -44,14 +44,14 @@ export default function WorkoutSessionScreen() {
 
     try {
       // Load program data
-      const wizardResults = await wizardResultsService.getByUserId(user.email);
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
       if (wizardResults?.generatedSplit) {
         const program = JSON.parse(wizardResults.generatedSplit);
         setGeneratedProgram(program);
       }
 
       // Load progress data
-      const progress = await userProgressService.getByUserId(user.email);
+      const progress = await userProgressService.getByUserId(user.id);
       setUserProgressData(progress);
     } catch (error) {
       console.error('❌ Failed to load workout data:', error);

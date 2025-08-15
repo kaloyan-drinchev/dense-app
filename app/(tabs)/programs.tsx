@@ -19,14 +19,14 @@ export default function ProgramsScreen() {
   useEffect(() => {
     loadGeneratedProgram();
     loadUserProgress();
-  }, [user?.email]);
+  }, [user?.id]);
 
   const loadGeneratedProgram = async () => {
-    if (!user?.email) return;
+    if (!user?.id) return;
 
     try {
       const { wizardResultsService } = await import('@/db/services');
-      const wizardResults = await wizardResultsService.getByUserId(user.email);
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
       
       if (wizardResults?.generatedSplit) {
         const program = JSON.parse(wizardResults.generatedSplit);
@@ -48,11 +48,11 @@ export default function ProgramsScreen() {
   };
 
   const loadUserProgress = async () => {
-    if (!user?.email) return;
+    if (!user?.id) return;
 
     try {
       const { userProgressService } = await import('@/db/services');
-      const progress = await userProgressService.getByUserId(user.email);
+      const progress = await userProgressService.getByUserId(user.id);
       setUserProgressData(progress);
     } catch (error) {
       console.error('Failed to load user progress:', error);
@@ -106,7 +106,12 @@ export default function ProgramsScreen() {
         {!loading && (!userProgressData || !generatedProgram) && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No Active Program</Text>
-            <Text style={styles.emptyText}>Complete the setup wizard to generate your personalized training program.</Text>
+            <Text style={styles.emptyText}>
+              {!user?.id 
+                ? "Please restart the app to load your profile."
+                : "Complete the setup wizard to generate your personalized training program."
+              }
+            </Text>
           </View>
         )}
 

@@ -5,7 +5,7 @@ import { integer, sqliteTable, text, real } from 'drizzle-orm/sqlite-core';
 export const userProfiles = sqliteTable('user_profiles', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  email: text('email'),
+  email: text('email'), // Optional - for future cloud sync
   profilePicture: text('profile_picture'), // Base64 encoded image or file path
   age: integer('age'),
   weight: real('weight'),

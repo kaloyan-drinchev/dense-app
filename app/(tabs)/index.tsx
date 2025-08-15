@@ -46,21 +46,21 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadUserProgress();
-    }, [user?.email])
+    }, [user?.id])
   );
 
   const loadGeneratedProgram = async () => {
-    console.log('🔍 loadGeneratedProgram called, user:', user?.email);
+    console.log('🔍 loadGeneratedProgram called, user:', user?.id);
     
-    if (!user?.email) {
-      console.log('❌ No user email found');
+    if (!user?.id) {
+      console.log('❌ No user ID found');
       setLoadingProgram(false);
       return;
     }
 
     try {
-      console.log('🔄 Fetching wizard results for user:', user.email);
-      const wizardResults = await wizardResultsService.getByUserId(user.email);
+      console.log('🔄 Fetching wizard results for user:', user.id);
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
       console.log('📊 Wizard results:', wizardResults);
       
       if (wizardResults?.generatedSplit) {
@@ -90,13 +90,13 @@ export default function HomeScreen() {
 
 
   const loadUserProgress = async () => {
-    if (!user?.email) {
+    if (!user?.id) {
       setLoadingProgress(false);
       return;
     }
 
     try {
-      const progress = await userProgressService.getByUserId(user.email);
+      const progress = await userProgressService.getByUserId(user.id);
       
       if (progress) {
         setUserProgressData(progress);
@@ -109,7 +109,7 @@ export default function HomeScreen() {
         console.log('⚠️ No user progress found - will create default');
         // Create default progress starting at week 1, day 1
         const defaultProgress = await userProgressService.create({
-          userId: user.email,
+          userId: user.id,
           programId: 'ai-generated-program',
           currentWeek: 1,
           currentWorkout: 1,

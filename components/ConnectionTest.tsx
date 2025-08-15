@@ -188,7 +188,7 @@ const ConnectionTest: React.FC = () => {
       }
       
       // Get wizard results from database
-      const wizardResults = await wizardResultsService.getByUserId(currentUser.email);
+      const wizardResults = await wizardResultsService.getByUserId(currentUser.id);
       
       if (wizardResults) {
         Alert.alert(

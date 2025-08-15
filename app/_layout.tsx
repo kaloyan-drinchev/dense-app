@@ -8,6 +8,7 @@ import { Platform } from "react-native";
 import { initializeDatabase } from "@/db/migrations";
 import { useAuthStore } from "@/store/auth-store";
 import { AuthScreen } from "@/components/AuthScreen";
+import { BiometricSetupScreen } from "@/components/BiometricSetupScreen";
 import { SetupWizard } from "@/components/SetupWizard";
 import { AppUpdateManager } from "@/utils/app-updates";
 
@@ -29,7 +30,7 @@ export default function RootLayout() {
   
   const [dbInitialized, setDbInitialized] = useState(false);
   const [dbError, setDbError] = useState<Error | null>(null);
-  const { isAuthenticated, checkAuthStatus } = useAuthStore();
+  const { isAuthenticated, isFirstTime, checkAuthStatus, checkIfFirstTime } = useAuthStore();
 
   // Initialize database and check auth status on app startup
   useEffect(() => {
@@ -40,8 +41,9 @@ export default function RootLayout() {
         if (success) {
           console.log('✅ Database initialization completed');
           
-          // Check if user was previously authenticated
+          // Check if user was previously authenticated and if it's first time
           await checkAuthStatus();
+          await checkIfFirstTime();
           
           // Check for app updates and show what's new
           const wasUpdated = await AppUpdateManager.checkForAppUpdate();
@@ -94,35 +96,53 @@ export default function RootLayout() {
 }
 
 function AppNavigator() {
-  const { isAuthenticated, hasCompletedWizard } = useAuthStore();
-  const [showAuth, setShowAuth] = useState(!isAuthenticated);
+  const { isAuthenticated, hasCompletedWizard, isFirstTime } = useAuthStore();
+  const [showBiometricSetup, setShowBiometricSetup] = useState(isFirstTime);
+  const [showAuth, setShowAuth] = useState(!isAuthenticated && !isFirstTime);
   const [showWizard, setShowWizard] = useState(false);
 
   // DEBUG: Log navigation state
   console.log('🧭 AppNavigator state:', {
     isAuthenticated,
     hasCompletedWizard,
+    isFirstTime,
+    showBiometricSetup,
     showAuth,
     showWizard,
-    willShow: showAuth ? 'AUTH' : showWizard ? 'WIZARD' : 'MAIN_APP'
+    willShow: showBiometricSetup ? 'BIOMETRIC_SETUP' : showAuth ? 'AUTH' : showWizard ? 'WIZARD' : 'MAIN_APP'
   });
 
-  // Update showAuth when authentication state changes
+  // Update navigation state when authentication/first time state changes
   useEffect(() => {
-    setShowAuth(!isAuthenticated);
-  }, [isAuthenticated]);
-
-  // Update showWizard when authentication and wizard state changes
-  useEffect(() => {
-    if (isAuthenticated && !hasCompletedWizard) {
-      setShowWizard(true);
+    if (isFirstTime) {
+      setShowBiometricSetup(true);
       setShowAuth(false);
+      setShowWizard(false);
+    } else if (!isAuthenticated) {
+      setShowBiometricSetup(false);
+      setShowAuth(true);
+      setShowWizard(false);
+    } else if (isAuthenticated && !hasCompletedWizard) {
+      setShowBiometricSetup(false);
+      setShowAuth(false);
+      setShowWizard(true);
     } else {
+      setShowBiometricSetup(false);
+      setShowAuth(false);
       setShowWizard(false);
     }
-  }, [isAuthenticated, hasCompletedWizard]);
+  }, [isAuthenticated, hasCompletedWizard, isFirstTime]);
 
-  // Show auth screen if not authenticated
+  // Show biometric setup for first-time users
+  if (showBiometricSetup) {
+    return (
+      <BiometricSetupScreen 
+        onComplete={() => setShowBiometricSetup(false)}
+      />
+    );
+  }
+
+  // Show auth screen if not authenticated (returning users)
   if (showAuth) {
     return (
       <AuthScreen 

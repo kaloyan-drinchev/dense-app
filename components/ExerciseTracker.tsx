@@ -83,7 +83,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       }
       if (!user?.email || !exerciseKey) return;
       try {
-        const last = await userProgressService.getLastExerciseSession(user.email, exerciseKey);
+        const last = await userProgressService.getLastExerciseSession(user.id, exerciseKey);
         if (last?.sets) {
           setPrevSessionSets(last.sets);
           setUnit(last.unit || 'kg');
@@ -279,10 +279,10 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       })),
     };
     try {
-      await userProgressService.upsertTodayExerciseSession(user.email, exerciseKey, payload);
+      await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
       // Reload last to confirm persisted state and keep banner visible
       try {
-        const last = await userProgressService.getLastExerciseSession(user.email, exerciseKey);
+        const last = await userProgressService.getLastExerciseSession(user.id, exerciseKey);
         if (last?.sets) {
           setPrevSessionSets(last.sets);
         }

@@ -37,7 +37,7 @@ export default function WorkoutExerciseTrackerScreen() {
 
     try {
       // Load the generated program data
-      const wizardResults = await wizardResultsService.getByUserId(user.email);
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
       if (wizardResults?.generatedSplit) {
         const program = JSON.parse(wizardResults.generatedSplit);
         

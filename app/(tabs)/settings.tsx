@@ -33,7 +33,7 @@ export default function SettingsScreen() {
           try {
             const { userProfileService } = await import('@/db/services');
             const allProfiles = await userProfileService.getAll();
-            const userProfileData = allProfiles.find(p => p.email === user.email);
+            const userProfileData = allProfiles.find(p => p.id === user.id);
             
             if (userProfileData) {
               const { updateUserProfile } = useWorkoutStore.getState();
