@@ -101,8 +101,12 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({ onCo
         <Icon name="user" size={48} color={colors.primary} />
       </View>
       
-      <Text style={styles.title}>Welcome to RORK DENSE</Text>
-      <Text style={styles.subtitle}>Let's get you set up with a secure account</Text>
+              <Text style={styles.title}>Welcome to DENSE 💪</Text>
+        <View style={styles.welcomeMessageContainer}>
+          <Text style={styles.subtitle}>This is version 1 of our app — focused ONLY on one thing:</Text>
+          <Text style={styles.highlightText}>🔥 Getting you stronger and leaner. Fast. ⚡</Text>
+          <Text style={styles.subtitle}>Answer 8 quick questions and we'll build your fully custom training program 🎯</Text>
+        </View>
       
       <View style={styles.inputContainer}>
         <Text style={styles.label}>What's your name?</Text>
@@ -169,7 +173,7 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({ onCo
     <View style={styles.stepContainer}>
       <View style={styles.iconContainer}>
         <Icon 
-          name={biometricType === 'Face ID' ? 'smile' : 'fingerprint'} 
+          name={biometricType === 'Face ID' ? 'user' : 'shield'} 
           size={48} 
           color={colors.primary} 
         />
@@ -319,8 +323,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.lighterGray,
     textAlign: 'center',
-    marginBottom: 32,
     lineHeight: 24,
+  },
+  welcomeMessageContainer: {
+    marginBottom: 32,
+    paddingHorizontal: 8,
+  },
+  highlightText: {
+    fontSize: 18,
+    color: colors.primary,
+    textAlign: 'center',
+    fontWeight: 'bold',
+    marginVertical: 12,
+    lineHeight: 26,
   },
   inputContainer: {
     width: '100%',
@@ -357,7 +372,7 @@ const styles = StyleSheet.create({
   },
   biometricOptionSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.darkGray,
   },
   biometricOptionText: {
     fontSize: 16,

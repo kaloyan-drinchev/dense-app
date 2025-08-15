@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -32,6 +32,31 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   const [selectedPlan, setSelectedPlan] = useState<string>('sixmonth'); // Default to popular plan
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const planRefs = useRef<{ [key: string]: View | null }>({});
+
+  // Auto-scroll to selected plan when component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (scrollViewRef.current) {
+        // Find the index of the selected plan
+        const selectedPlanIndex = SUBSCRIPTION_PLANS.findIndex(plan => plan.id === selectedPlan);
+        
+        if (selectedPlanIndex > 0) {
+          // Scroll to approximately where the selected plan should be
+          // Each plan card is roughly 200px tall with margins
+          const estimatedY = selectedPlanIndex * 220 + 200; // 200px offset for header content
+          
+          scrollViewRef.current.scrollTo({
+            y: estimatedY,
+            animated: true,
+          });
+        }
+      }
+    }, 500); // Slightly longer delay to ensure layout is complete
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const handlePlanSelect = (planId: string) => {
     if (Platform.OS !== 'web') {
@@ -106,6 +131,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     return (
       <TouchableOpacity
         key={plan.id}
+        ref={(ref) => planRefs.current[plan.id] = ref}
         style={[styles.planCard, isSelected && styles.planCardSelected]}
         onPress={() => handlePlanSelect(plan.id)}
         disabled={isProcessing}
@@ -168,6 +194,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     >
       <SafeAreaView style={styles.safeArea}>
         <ScrollView 
+          ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
@@ -381,7 +408,7 @@ const styles = StyleSheet.create({
   },
   planCardSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.darkGray,
   },
   popularBadge: {
     position: 'absolute',
