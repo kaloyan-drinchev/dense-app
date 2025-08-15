@@ -17,6 +17,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { colors } from '@/constants/colors';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LoadingState } from '@/components/LoadingState';
 // import ConnectionTest from '@/components/ConnectionTest';
 
 export default function SettingsScreen() {
@@ -24,6 +25,7 @@ export default function SettingsScreen() {
   const { userProfile, resetProgress } = useWorkoutStore();
   const { user, logout } = useAuthStore();
   const [notifications, setNotifications] = useState(true);
+  const [isResetting, setIsResetting] = useState(false);
 
   // Reload profile when screen comes into focus
   useFocusEffect(
@@ -74,27 +76,41 @@ export default function SettingsScreen() {
   };
 
   const handleResetProgress = () => {
+    if (isResetting) return; // Prevent multiple resets
+    
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
     Alert.alert(
       'Reset Progress',
-      'This will reset all your workout progress. This action cannot be undone.',
+      'This will clear all your progress and return you to the setup screen. This action cannot be undone.',
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Reset',
+          text: 'Reset Everything',
           style: 'destructive',
-          onPress: () => {
-            resetProgress();
-            if (Platform.OS !== 'web') {
-              Haptics.notificationAsync(
-                Haptics.NotificationFeedbackType.Success
-              );
+          onPress: async () => {
+            setIsResetting(true);
+            try {
+              // First reset all progress data
+              await resetProgress();
+              
+              // Then logout to return to biometric setup
+              await logout();
+              
+              if (Platform.OS !== 'web') {
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success
+                );
+              }
+            } catch (error) {
+              console.error('Reset progress error:', error);
+              Alert.alert('Error', 'Failed to reset progress. Please try again.');
+              setIsResetting(false);
             }
           },
         },
@@ -133,9 +149,15 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
+      {isResetting && (
+        <View style={styles.loadingOverlay}>
+          <LoadingState text="Resetting all data..." />
+        </View>
+      )}
       <ScrollView
-        style={styles.scrollView}
+        style={[styles.scrollView, isResetting && styles.disabled]}
         contentContainerStyle={styles.contentContainer}
+        scrollEnabled={!isResetting}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Settings</Text>
@@ -225,8 +247,9 @@ export default function SettingsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.settingItem}
-            onPress={handleResetProgress}
+            style={[styles.settingItem, isResetting && styles.disabled]}
+            onPress={isResetting ? undefined : handleResetProgress}
+            disabled={isResetting}
           >
             <View
               style={[styles.settingIcon, { backgroundColor: colors.error }]}
@@ -236,7 +259,7 @@ export default function SettingsScreen() {
             <View style={styles.settingContent}>
               <Text style={styles.settingTitle}>Reset Progress</Text>
               <Text style={styles.settingDescription}>
-                Clear all workout data and start fresh
+                Clear all data and return to setup screen
               </Text>
             </View>
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
@@ -390,5 +413,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  disabled: {
+    opacity: 0.5,
   },
 });

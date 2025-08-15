@@ -38,7 +38,8 @@ interface WorkoutState {
     updates: Partial<ExerciseSet>
   ) => void;
   loadUserProgress: () => Promise<void>;
-  resetProgress: () => void;
+  resetProgress: () => Promise<void>;
+  clearUserProfile: () => void;
   testConnection: () => Promise<boolean>;
 }
 
@@ -382,11 +383,42 @@ export const useWorkoutStore = create<WorkoutState>()(
         }
       },
 
-      resetProgress: () => {
+      resetProgress: async () => {
+        try {
+          // Clear database progress data
+          const { userProgressService, dailyLogService, programService } = await import('@/db/services');
+          
+          // Clear all progress-related database tables
+          await userProgressService.deleteAll();
+          await dailyLogService.deleteAll();
+          await programService.deleteAll(); // Clear generated programs too
+          
+          console.log('🗑️ All progress data cleared from database');
+          
+          // Clear in-memory state
+          set({
+            activeProgram: null,
+            userProgress: null,
+            programs: [], // Clear programs array
+          });
+          
+          console.log('🧹 Progress reset completed');
+        } catch (error) {
+          console.error('❌ Error resetting progress:', error);
+          // Still clear in-memory state even if database clear fails
+          set({
+            activeProgram: null,
+            userProgress: null,
+            programs: [],
+          });
+        }
+      },
+
+      clearUserProfile: () => {
         set({
-          activeProgram: null,
-          userProgress: null,
+          userProfile: null,
         });
+        console.log('🧹 User profile cleared from workout store');
       },
     }),
     {

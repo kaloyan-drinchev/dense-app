@@ -17,7 +17,9 @@ import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { wizardResultsService, userProfileService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
+import { useSubscriptionStore } from '@/store/subscription-store';
 import { ProgramGenerator, type WizardResponses } from '@/utils/program-generator';
+import { SubscriptionScreen } from '@/components/SubscriptionScreen';
 
 // Import extracted constants and types
 import {
@@ -41,6 +43,7 @@ interface SetupWizardProps {
 export default function SetupWizard({ onClose }: SetupWizardProps) {
   const router = useRouter();
   const { user, setWizardCompleted } = useAuthStore();
+  const { setSubscriptionStatus } = useSubscriptionStore();
   
 
   
@@ -53,33 +56,34 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   const [generatedProgramData, setGeneratedProgramData] = useState<any>(null);
   const [isNavigatingToProgram, setIsNavigatingToProgram] = useState(false);
   const [showProgramView, setShowProgramView] = useState(false);
+  const [showSubscriptionScreen, setShowSubscriptionScreen] = useState(false);
   
   const [preferences, setPreferences] = useState<WizardPreferences>({
-    // Step 2: Current Strength
-    squatKg: '',
-    benchKg: '',
-    deadliftKg: '',
+    // Step 2: Current Strength - Default to moderate beginner weights
+    squatKg: '60',
+    benchKg: '50',
+    deadliftKg: '70',
     
-    // Step 3: Training Experience
-    trainingExperience: '',
+    // Step 3: Training Experience - Default to intermediate
+    trainingExperience: '6_18_months',
     
-    // Step 4: Body Fat
-    bodyFatLevel: '',
+    // Step 4: Body Fat - Default to athletic range
+    bodyFatLevel: 'athletic_12_18',
     
-    // Step 5: Weekly Schedule
-    trainingDaysPerWeek: 3,
-    preferredTrainingDays: [],
+    // Step 5: Weekly Schedule - Default to 4 days with common schedule
+    trainingDaysPerWeek: 4,
+    preferredTrainingDays: ['monday', 'tuesday', 'thursday', 'friday'],
     
-    // Step 6: Muscle Priorities
-    musclePriorities: [],
+    // Step 6: Muscle Priorities - Default to popular chest and back focus
+    musclePriorities: ['chest', 'back'],
     
-    // Step 7: Pump Work
-    pumpWorkPreference: '',
+    // Step 7: Pump Work - Default to moderate preference
+    pumpWorkPreference: 'maybe_sometimes',
     
-    // Step 8: Recovery
-    recoveryProfile: '',
+    // Step 8: Recovery - Default to normal recovery
+    recoveryProfile: 'need_more_rest',
     
-    // Step 9: Duration
+    // Step 9: Duration - Default to 12 weeks
     programDurationWeeks: 12
   });
 
@@ -219,19 +223,36 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
       // Store the generated program data
       setGeneratedProgramData(generatedProgram);
       
-      // Mark wizard as completed and close the wizard
-      setWizardCompleted();
       console.log('🚀 Generated program:', generatedProgram.programName);
-      console.log('✅ Wizard marked as completed, closing wizard');
       
-      // Close the wizard immediately
-      onClose();
+      // Show subscription screen instead of completing wizard
+      setIsGeneratingProgram(false);
+      setShowSubscriptionScreen(true);
 
     } catch (error) {
       console.error('❌ Failed to save wizard results:', error);
       setIsGeneratingProgram(false);
       setGenerationStep('❌ Error generating program');
     }
+  };
+
+  const handleSubscriptionComplete = async () => {
+    // Refresh subscription status
+    await setSubscriptionStatus(await import('@/services/subscription-service').then(s => s.subscriptionService.getSubscriptionStatus()));
+    
+    // Mark wizard as completed and close
+    setWizardCompleted();
+    console.log('✅ Subscription completed, wizard marked as completed');
+    
+    // Close the wizard
+    onClose();
+  };
+
+  const handleSubscriptionSkip = () => {
+    // User chose not to subscribe, go back to wizard
+    setShowSubscriptionScreen(false);
+    setIsGeneratingProgram(false);
+    // Could also show a different flow or just stay on the last step
   };
 
   const simulateAIGeneration = async () => {
@@ -664,6 +685,18 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   }
 
   // Show loading screen during generation
+  // Show subscription screen after program generation
+  if (showSubscriptionScreen) {
+    return (
+      <SubscriptionScreen
+        onSubscribed={handleSubscriptionComplete}
+        onSkip={handleSubscriptionSkip}
+        showSkipOption={false} // Don't allow skipping - must subscribe
+        programPreview={generatedProgramData}
+      />
+    );
+  }
+
   if (isGeneratingProgram) {
     return (
       <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>

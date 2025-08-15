@@ -7,9 +7,11 @@ import { Platform } from "react-native";
 
 import { initializeDatabase } from "@/db/migrations";
 import { useAuthStore } from "@/store/auth-store";
+import { useSubscriptionStore } from "@/store/subscription-store";
 import { AuthScreen } from "@/components/AuthScreen";
 import { BiometricSetupScreen } from "@/components/BiometricSetupScreen";
 import { SetupWizard } from "@/components/SetupWizard";
+import { SubscriptionScreen } from "@/components/SubscriptionScreen";
 import { AppUpdateManager } from "@/utils/app-updates";
 
 import { ErrorBoundary } from "./error-boundary";
@@ -97,19 +99,30 @@ export default function RootLayout() {
 
 function AppNavigator() {
   const { isAuthenticated, hasCompletedWizard, isFirstTime } = useAuthStore();
+  const { hasActiveSubscription, checkSubscriptionStatus } = useSubscriptionStore();
   const [showBiometricSetup, setShowBiometricSetup] = useState(isFirstTime);
   const [showAuth, setShowAuth] = useState(!isAuthenticated && !isFirstTime);
   const [showWizard, setShowWizard] = useState(false);
+  const [showSubscription, setShowSubscription] = useState(false);
+
+  // Check subscription status when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated && !isFirstTime) {
+      checkSubscriptionStatus();
+    }
+  }, [isAuthenticated, isFirstTime]);
 
   // DEBUG: Log navigation state
   console.log('🧭 AppNavigator state:', {
     isAuthenticated,
     hasCompletedWizard,
     isFirstTime,
+    hasActiveSubscription: hasActiveSubscription(),
     showBiometricSetup,
     showAuth,
     showWizard,
-    willShow: showBiometricSetup ? 'BIOMETRIC_SETUP' : showAuth ? 'AUTH' : showWizard ? 'WIZARD' : 'MAIN_APP'
+    showSubscription,
+    willShow: showBiometricSetup ? 'BIOMETRIC_SETUP' : showAuth ? 'AUTH' : showWizard ? 'WIZARD' : showSubscription ? 'SUBSCRIPTION' : 'MAIN_APP'
   });
 
   // Update navigation state when authentication/first time state changes
@@ -118,20 +131,30 @@ function AppNavigator() {
       setShowBiometricSetup(true);
       setShowAuth(false);
       setShowWizard(false);
+      setShowSubscription(false);
     } else if (!isAuthenticated) {
       setShowBiometricSetup(false);
       setShowAuth(true);
       setShowWizard(false);
+      setShowSubscription(false);
     } else if (isAuthenticated && !hasCompletedWizard) {
       setShowBiometricSetup(false);
       setShowAuth(false);
       setShowWizard(true);
+      setShowSubscription(false);
+    } else if (isAuthenticated && hasCompletedWizard && !hasActiveSubscription()) {
+      // User completed wizard but doesn't have active subscription
+      setShowBiometricSetup(false);
+      setShowAuth(false);
+      setShowWizard(false);
+      setShowSubscription(true);
     } else {
       setShowBiometricSetup(false);
       setShowAuth(false);
       setShowWizard(false);
+      setShowSubscription(false);
     }
-  }, [isAuthenticated, hasCompletedWizard, isFirstTime]);
+  }, [isAuthenticated, hasCompletedWizard, isFirstTime, hasActiveSubscription]);
 
   // Show biometric setup for first-time users
   if (showBiometricSetup) {
@@ -160,7 +183,17 @@ function AppNavigator() {
     );
   }
 
-  // Show main app if authenticated and completed wizard
+  // Show subscription screen if wizard completed but no active subscription
+  if (showSubscription) {
+    return (
+      <SubscriptionScreen
+        onSubscribed={() => setShowSubscription(false)}
+        showSkipOption={false}
+      />
+    );
+  }
+
+  // Show main app if authenticated, completed wizard, and has subscription
   return <RootLayoutNav />;
 }
 

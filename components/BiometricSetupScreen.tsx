@@ -63,8 +63,8 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({ onCo
       }
       setStep('pin');
     } else if (step === 'pin') {
-      if (!pin || pin.length < 4) {
-        Alert.alert('Invalid PIN', 'PIN must be at least 4 digits.');
+      if (!pin || pin.length !== 4) {
+        Alert.alert('Invalid PIN', 'PIN must be exactly 4 digits.');
         return;
       }
       if (pin !== confirmPin) {
@@ -115,7 +115,6 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({ onCo
           autoCapitalize="words"
           autoComplete="name"
           returnKeyType="next"
-          onSubmitEditing={handleNext}
         />
       </View>
     </View>
@@ -131,18 +130,17 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({ onCo
       <Text style={styles.subtitle}>This will be used to access your workout data</Text>
       
       <View style={styles.inputContainer}>
-        <Text style={styles.label}>Create PIN (4+ digits)</Text>
+        <Text style={styles.label}>Create PIN (4 digits)</Text>
         <TextInput
           style={styles.textInput}
           value={pin}
           onChangeText={setPin}
-          placeholder="Enter PIN"
+          placeholder="Enter 4-digit PIN"
           placeholderTextColor={colors.lightGray}
           keyboardType="numeric"
           secureTextEntry
-          maxLength={6}
+          maxLength={4}
           returnKeyType="next"
-          onSubmitEditing={() => confirmPin ? handleNext() : null}
         />
       </View>
       
@@ -152,13 +150,12 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({ onCo
           style={styles.textInput}
           value={confirmPin}
           onChangeText={setConfirmPin}
-          placeholder="Confirm PIN"
+          placeholder="Confirm 4-digit PIN"
           placeholderTextColor={colors.lightGray}
           keyboardType="numeric"
           secureTextEntry
-          maxLength={6}
+          maxLength={4}
           returnKeyType="done"
-          onSubmitEditing={handleNext}
         />
       </View>
       
@@ -254,10 +251,26 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({ onCo
             </TouchableOpacity>
             
             <View style={styles.stepIndicator}>
-              <View style={[styles.stepDot, step !== 'name' && styles.stepDotCompleted]} />
-              <View style={[styles.stepDot, step === 'biometric' && styles.stepDotCompleted]} />
+              {/* Step 1: Name */}
+              <View style={[
+                styles.stepDot, 
+                step === 'name' && styles.stepDotActive,
+                (step === 'pin' || step === 'biometric') && styles.stepDotCompleted
+              ]} />
+              
+              {/* Step 2: PIN */}
+              <View style={[
+                styles.stepDot, 
+                step === 'pin' && styles.stepDotActive,
+                step === 'biometric' && styles.stepDotCompleted
+              ]} />
+              
+              {/* Step 3: Biometric (only if supported) */}
               {biometricSupported && (
-                <View style={[styles.stepDot, step === 'biometric' && styles.stepDotActive]} />
+                <View style={[
+                  styles.stepDot, 
+                  step === 'biometric' && styles.stepDotActive
+                ]} />
               )}
             </View>
           </View>

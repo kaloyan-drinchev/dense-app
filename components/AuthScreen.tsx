@@ -103,8 +103,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    if (!pin || pin.length < 4) {
-      Alert.alert('Invalid PIN', 'Please enter your PIN.');
+    if (!pin || pin.length !== 4) {
+      Alert.alert('Invalid PIN', 'Please enter your 4-digit PIN.');
       return;
     }
 
@@ -132,7 +132,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
     <View style={styles.authContainer}>
       <View style={styles.iconContainer}>
         <Icon 
-          name={biometricType === 'Face ID' ? 'smile' : 'fingerprint'} 
+          name={biometricType === 'Face ID' ? 'user' : 'shield'} 
           size={64} 
           color={colors.primary} 
         />
@@ -149,7 +149,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
         disabled={isLoading}
       >
         <Icon 
-          name={biometricType === 'Face ID' ? 'smile' : 'fingerprint'} 
+          name={biometricType === 'Face ID' ? 'user' : 'shield'} 
           size={24} 
           color={colors.white} 
         />
@@ -183,11 +183,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
           style={styles.pinInput}
           value={pin}
           onChangeText={handlePinChange}
-          placeholder="Enter PIN"
+          placeholder="Enter 4-digit PIN"
           placeholderTextColor={colors.lightGray}
           keyboardType="numeric"
           secureTextEntry
-          maxLength={6}
+          maxLength={4}
           returnKeyType="done"
           onSubmitEditing={handlePinAuth}
           autoFocus
@@ -213,7 +213,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
           }}
         >
           <Icon 
-            name={biometricType === 'Face ID' ? 'smile' : 'fingerprint'} 
+            name={biometricType === 'Face ID' ? 'user' : 'shield'} 
             size={16} 
             color={colors.lightGray} 
           />

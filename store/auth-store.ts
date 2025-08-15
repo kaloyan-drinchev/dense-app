@@ -155,9 +155,9 @@ export const useAuthStore = create<AuthState>()(
             return { success: false, error: 'Please provide name and PIN' };
           }
 
-          if (pin.length < 4) {
-            set({ isLoading: false, error: 'PIN must be at least 4 digits' });
-            return { success: false, error: 'PIN must be at least 4 digits' };
+          if (pin.length !== 4) {
+            set({ isLoading: false, error: 'PIN must be exactly 4 digits' });
+            return { success: false, error: 'PIN must be exactly 4 digits' };
           }
 
           // Check if user already exists (for single-user app, clear existing if any)
@@ -166,6 +166,11 @@ export const useAuthStore = create<AuthState>()(
             // Clear existing data for fresh setup (single-user app)
             await userProfileService.deleteAll();
             await wizardResultsService.deleteAll();
+            
+            // Also clear the workout store's user profile (which may contain old profile image)
+            const { useWorkoutStore } = await import('@/store/workout-store');
+            useWorkoutStore.getState().clearUserProfile();
+            
             console.log('🔄 Cleared existing user data for fresh setup');
           }
 
@@ -186,6 +191,7 @@ export const useAuthStore = create<AuthState>()(
           const userProfile = await userProfileService.create({
             name,
             id: userId,
+            profilePicture: null, // Ensure no profile picture by default
           });
 
           const user: User = {
@@ -215,9 +221,14 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // Logout function
-      logout: () => {
+      logout: async () => {
         // Clear biometric/PIN data
-        biometricAuthService.clearAuthData();
+        await biometricAuthService.clearAuthData();
+        
+        // Clear workout store user profile
+        const { useWorkoutStore } = await import('@/store/workout-store');
+        useWorkoutStore.getState().clearUserProfile();
+        useWorkoutStore.getState().resetProgress();
         
         set({ 
           isAuthenticated: false, 

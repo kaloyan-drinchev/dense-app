@@ -1,0 +1,563 @@
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors } from '@/constants/colors';
+import { Feather as Icon } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { subscriptionService, SUBSCRIPTION_PLANS, type SubscriptionPlan } from '@/services/subscription-service';
+
+interface SubscriptionScreenProps {
+  onSubscribed: () => void;
+  onSkip?: () => void;
+  showSkipOption?: boolean;
+  programPreview?: any;
+}
+
+export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ 
+  onSubscribed, 
+  onSkip,
+  showSkipOption = false,
+  programPreview 
+}) => {
+  const [selectedPlan, setSelectedPlan] = useState<string>('sixmonth'); // Default to popular plan
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const handlePlanSelect = (planId: string) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setSelectedPlan(planId);
+  };
+
+  const handlePurchase = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const result = await subscriptionService.purchasePlan(selectedPlan);
+      
+      if (result.success) {
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        
+        Alert.alert(
+          '🎉 Welcome to RORK DENSE Pro!',
+          'Your subscription is now active. Enjoy unlimited access to your personalized workout programs!',
+          [{ text: 'Start Training', onPress: onSubscribed }]
+        );
+      } else {
+        Alert.alert('Payment Failed', result.error || 'Please try again.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRestorePurchases = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    setIsRestoring(true);
+
+    try {
+      const result = await subscriptionService.restorePurchases();
+      
+      if (result.restored > 0) {
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        
+        Alert.alert(
+          'Purchases Restored!',
+          'Your subscription has been restored successfully.',
+          [{ text: 'Continue', onPress: onSubscribed }]
+        );
+      } else {
+        Alert.alert('No Purchases Found', 'No previous purchases were found to restore.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to restore purchases. Please try again.');
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const renderPlanCard = (plan: SubscriptionPlan) => {
+    const isSelected = selectedPlan === plan.id;
+    
+    return (
+      <TouchableOpacity
+        key={plan.id}
+        style={[styles.planCard, isSelected && styles.planCardSelected]}
+        onPress={() => handlePlanSelect(plan.id)}
+        disabled={isProcessing}
+      >
+        {plan.isPopular && (
+          <View style={styles.popularBadge}>
+            <Text style={styles.popularText}>MOST POPULAR</Text>
+          </View>
+        )}
+        
+        <View style={styles.planHeader}>
+          <View style={styles.planNameContainer}>
+            <Text style={styles.planName}>{plan.name}</Text>
+            {plan.savingsPercentage > 0 && (
+              <View style={styles.savingsBadge}>
+                <Text style={styles.savingsText}>Save {plan.savingsPercentage}%</Text>
+              </View>
+            )}
+          </View>
+        </View>
+        
+        <View style={styles.priceContainer}>
+          <Text style={styles.price}>${plan.price}</Text>
+          {plan.duration > 1 && (
+            <Text style={styles.monthlyPrice}>${plan.monthlyPrice}/month</Text>
+          )}
+          {plan.originalPrice > plan.price && (
+            <Text style={styles.originalPrice}>${plan.originalPrice}</Text>
+          )}
+        </View>
+        
+        <View style={styles.featuresContainer}>
+          {plan.features.map((feature, index) => (
+            <View key={index} style={styles.featureRow}>
+              <Icon name="check" size={16} color={colors.primary} />
+              <Text style={styles.featureText}>{feature}</Text>
+            </View>
+          ))}
+          
+          {plan.bonusFeatures && plan.bonusFeatures.map((bonus, index) => (
+            <View key={`bonus-${index}`} style={styles.bonusFeatureRow}>
+              <Text style={styles.bonusFeatureText}>{bonus}</Text>
+            </View>
+          ))}
+        </View>
+        
+        <View style={styles.selectionIndicator}>
+          <View style={[styles.radioButton, isSelected && styles.radioButtonSelected]}>
+            {isSelected && <View style={styles.radioButtonInner} />}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <LinearGradient
+      colors={[colors.dark, colors.darkGray]}
+      style={styles.container}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.iconContainer}>
+              <Icon name="zap" size={48} color={colors.primary} />
+            </View>
+            <Text style={styles.title}>Unlock Your Custom Program</Text>
+            <Text style={styles.subtitle}>
+              Get unlimited access to AI-generated workout programs tailored specifically for your goals
+            </Text>
+          </View>
+
+          {/* Program Preview Teaser */}
+          {programPreview && (
+            <View style={styles.previewContainer}>
+              <Text style={styles.previewTitle}>Your Program is Ready!</Text>
+              <View style={styles.previewBox}>
+                <Text style={styles.previewName}>{programPreview.displayTitle || programPreview.programName}</Text>
+                <Text style={styles.previewDescription}>
+                  Custom {programPreview.split || 'Split'} • {programPreview.weeks?.length || 12} weeks
+                </Text>
+                <View style={styles.blurOverlay}>
+                  <Icon name="lock" size={32} color={colors.white} />
+                  <Text style={styles.blurText}>Subscribe to unlock</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Subscription Plans */}
+          <View style={styles.plansContainer}>
+            <Text style={styles.sectionTitle}>Choose Your Plan</Text>
+            {SUBSCRIPTION_PLANS.map(plan => renderPlanCard(plan))}
+          </View>
+
+          {/* Benefits */}
+          <View style={styles.benefitsContainer}>
+            <Text style={styles.benefitsTitle}>Why RORK DENSE Pro?</Text>
+            <View style={styles.benefitRow}>
+              <Icon name="target" size={20} color={colors.primary} />
+              <Text style={styles.benefitText}>AI-powered program generation</Text>
+            </View>
+            <View style={styles.benefitRow}>
+              <Icon name="trending-up" size={20} color={colors.primary} />
+              <Text style={styles.benefitText}>Real-time progress tracking</Text>
+            </View>
+            <View style={styles.benefitRow}>
+              <Icon name="smartphone" size={20} color={colors.primary} />
+              <Text style={styles.benefitText}>Works completely offline</Text>
+            </View>
+            <View style={styles.benefitRow}>
+              <Icon name="users" size={20} color={colors.primary} />
+              <Text style={styles.benefitText}>Based on DENSE training philosophy</Text>
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Footer Actions */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.subscribeButton, isProcessing && styles.subscribeButtonDisabled]}
+            onPress={handlePurchase}
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <>
+                <Text style={styles.subscribeButtonText}>
+                  Start ${subscriptionService.getPlan(selectedPlan)?.monthlyPrice}/month
+                </Text>
+                <Icon name="arrow-right" size={20} color={colors.white} />
+              </>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.footerLinks}>
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={handleRestorePurchases}
+              disabled={isRestoring}
+            >
+              <Text style={styles.linkText}>
+                {isRestoring ? 'Restoring...' : 'Restore Purchases'}
+              </Text>
+            </TouchableOpacity>
+
+            {showSkipOption && onSkip && (
+              <TouchableOpacity
+                style={styles.linkButton}
+                onPress={onSkip}
+              >
+                <Text style={styles.linkText}>Maybe Later</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <Text style={styles.disclaimer}>
+            🔒 Mock payments enabled for development. No actual charges will be made.
+          </Text>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.darkGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.lighterGray,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  previewContainer: {
+    marginBottom: 32,
+  },
+  previewTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  previewBox: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 20,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  previewName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: 8,
+  },
+  previewDescription: {
+    fontSize: 14,
+    color: colors.lighterGray,
+  },
+  blurOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  blurText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  plansContainer: {
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  planCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    position: 'relative',
+  },
+  planCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryDark,
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: -10,
+    left: 20,
+    right: 20,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    alignSelf: 'center',
+  },
+  popularText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  planHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    marginRight: 50, // Leave space for the selection circle
+  },
+  planNameContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  planName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
+  savingsBadge: {
+    backgroundColor: colors.success,
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  savingsText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  priceContainer: {
+    marginBottom: 16,
+  },
+  price: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
+  monthlyPrice: {
+    fontSize: 16,
+    color: colors.lighterGray,
+    marginTop: 4,
+  },
+  originalPrice: {
+    fontSize: 14,
+    color: colors.lightGray,
+    textDecorationLine: 'line-through',
+    marginTop: 4,
+  },
+  featuresContainer: {
+    marginBottom: 16,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  featureText: {
+    fontSize: 14,
+    color: colors.white,
+    marginLeft: 12,
+    flex: 1,
+  },
+  bonusFeatureRow: {
+    marginBottom: 6,
+  },
+  bonusFeatureText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+  },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.lightGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioButtonSelected: {
+    borderColor: colors.primary,
+  },
+  radioButtonInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+  },
+  benefitsContainer: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+  },
+  benefitsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  benefitText: {
+    fontSize: 16,
+    color: colors.white,
+    marginLeft: 12,
+    flex: 1,
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  subscribeButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    padding: 18,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  subscribeButtonDisabled: {
+    opacity: 0.6,
+  },
+  subscribeButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginRight: 8,
+  },
+  footerLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 32,
+    marginBottom: 16,
+  },
+  linkButton: {
+    padding: 8,
+  },
+  linkText: {
+    fontSize: 16,
+    color: colors.lightGray,
+    textAlign: 'center',
+  },
+  disclaimer: {
+    fontSize: 12,
+    color: colors.lightGray,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+});
