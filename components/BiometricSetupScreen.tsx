@@ -10,6 +10,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   ScrollView,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -225,12 +226,14 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({ onCo
         style={styles.container}
       >
         <SafeAreaView style={styles.safeArea}>
-          <ScrollView 
-            style={styles.scrollView}
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
+          <View style={styles.mainContainer}>
+            <ScrollView 
+              style={styles.scrollView}
+              contentContainerStyle={styles.content}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              automaticallyAdjustKeyboardInsets={true}
+            >
             {step === 'name' && renderNameStep()}
             {step === 'pin' && renderPinStep()}
             {step === 'biometric' && renderBiometricStep()}
@@ -278,6 +281,7 @@ export const BiometricSetupScreen: React.FC<BiometricSetupScreenProps> = ({ onCo
               )}
             </View>
           </View>
+          </View>
         </SafeAreaView>
       </LinearGradient>
     </TouchableWithoutFeedback>
@@ -291,14 +295,17 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  mainContainer: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    justifyContent: 'center',
-    minHeight: '80%',
+    paddingTop: 60,
+    paddingBottom: 140, // Extra padding to account for fixed footer
   },
   stepContainer: {
     alignItems: 'center',
@@ -381,8 +388,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingTop: 20,
+    paddingBottom: 34, // Account for safe area
+    backgroundColor: colors.darkGray,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   nextButton: {
     flexDirection: 'row',

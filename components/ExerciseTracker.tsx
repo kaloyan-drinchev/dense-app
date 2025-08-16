@@ -37,6 +37,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const router = useRouter();
   const MAX_SETS = 8;
   const MIN_SETS = 1;
+  const MAX_WEIGHT_KG = 300; // Maximum weight in kg
+  const MAX_REPS = 50; // Maximum reps per set
   const { updateExerciseSet } = useWorkoutStore();
   const { user } = useAuthStore();
 
@@ -81,7 +83,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         setPrevSessionSets(presetSession.sets);
         return;
       }
-      if (!user?.email || !exerciseKey) return;
+      if (!user?.id || !exerciseKey) return;
       try {
         const last = await userProgressService.getLastExerciseSession(user.id, exerciseKey);
         if (last?.sets) {
@@ -98,7 +100,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     };
     loadPrev();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email, exerciseKey, presetSession?.unit, JSON.stringify(presetSession?.sets)]);
+  }, [user?.id, exerciseKey, presetSession?.unit, JSON.stringify(presetSession?.sets)]);
 
   // Expose immediate save to parent (e.g., on back press)
   useEffect(() => {
@@ -167,7 +169,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     const index = sets.findIndex((s) => s.id === setId);
     const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
     if (!isEditable) return;
-    const numWeight = Math.max(0, fromDisplayWeightToKg(weight));
+    const rawWeight = fromDisplayWeightToKg(weight);
+    const numWeight = Math.max(0, Math.min(MAX_WEIGHT_KG, rawWeight));
     let updatedSets = sets.map((set) =>
       set.id === setId ? { ...set, weight: numWeight } : set
     );
@@ -192,7 +195,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     const index = sets.findIndex((s) => s.id === setId);
     const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
     if (!isEditable) return;
-    const numReps = parseInt(reps) || 0;
+    const rawReps = parseInt(reps) || 0;
+    const numReps = Math.max(0, Math.min(MAX_REPS, rawReps));
     let updatedSets = sets.map((set) =>
       set.id === setId ? { ...set, reps: numReps } : set
     );
@@ -216,14 +220,14 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     const set = sets.find((s) => s.id === setId);
     if (!set) return;
     const currentDisplay = parseFloat(toDisplayWeight(set.weight)) || 0;
-    const nextDisplay = Math.max(0, currentDisplay + deltaDisplayUnits);
+    const nextDisplay = Math.max(0, Math.min(MAX_WEIGHT_KG, currentDisplay + deltaDisplayUnits));
     handleWeightChange(setId, nextDisplay.toString());
   };
 
   const handleAdjustReps = (setId: string, delta: number) => {
     const set = sets.find((s) => s.id === setId);
     if (!set) return;
-    const next = Math.max(0, (set.reps || 0) + delta);
+    const next = Math.max(0, Math.min(MAX_REPS, (set.reps || 0) + delta));
     handleRepsChange(setId, next.toString());
   };
 
@@ -262,7 +266,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
 
   const handleSaveSession = async () => {
     if (readOnly) return;
-    if (!user?.email) return;
+    if (!user?.id) return;
     if (isSavingRef.current) {
       pendingSaveRef.current = true;
       return;
@@ -391,7 +395,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                   onChangeText={(text) => handleWeightChange(set.id, text)}
                   keyboardType="numeric"
                   placeholderTextColor={colors.lightGray}
-                  placeholder="0"
+                  placeholder={`0 (max ${MAX_WEIGHT_KG}${unit})`}
                   editable={editable && !readOnly}
                 />
 
@@ -421,7 +425,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                   onChangeText={(text) => handleRepsChange(set.id, text)}
                   keyboardType="numeric"
                   placeholderTextColor={colors.lightGray}
-                  placeholder="0"
+                  placeholder={`0 (max ${MAX_REPS})`}
                   editable={editable && !readOnly}
                 />
 
@@ -497,12 +501,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         </View>
       )}
 
-      {exercise.notes && (
-        <View style={styles.notesContainer}>
-          <Text style={styles.notesTitle}>Notes:</Text>
-          <Text style={styles.notesText}>{exercise.notes}</Text>
-        </View>
-      )}
+
     </View>
   );
 };
@@ -691,23 +690,7 @@ const styles = StyleSheet.create({
     color: colors.lighterGray,
     fontWeight: 'bold',
   },
-  notesContainer: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: colors.mediumGray,
-    borderRadius: 8,
-  },
-  notesTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 14,
-    color: colors.lighterGray,
-    lineHeight: 20,
-  },
+
   readOnlyBanner: {
     backgroundColor: colors.darkGray,
     borderRadius: 8,

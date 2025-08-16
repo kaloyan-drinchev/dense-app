@@ -30,7 +30,7 @@ export default function WorkoutExerciseTrackerScreen() {
   }, [exerciseId, user]);
 
   const loadExerciseData = async () => {
-    if (!user?.email || !exerciseId) {
+    if (!user?.id || !exerciseId) {
       setLoading(false);
       return;
     }
@@ -153,6 +153,9 @@ export default function WorkoutExerciseTrackerScreen() {
 
           <View style={styles.trackerContainer}>
             <Text style={styles.trackerTitle}>Track Your Sets</Text>
+            <View style={styles.instructionContainer}>
+              <Text style={styles.instructionText}>💪 Do more reps than the previous workout</Text>
+            </View>
             <ExerciseTracker
               exercise={exercise}
               exerciseKey={exercise.id}
@@ -275,6 +278,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.white,
     marginBottom: 16,
+  },
+  instructionContainer: {
+    backgroundColor: 'rgba(58, 81, 153, 0.2)',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  instructionText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   errorContainer: {
     flex: 1,

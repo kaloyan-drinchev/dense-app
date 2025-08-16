@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -18,6 +18,7 @@ import {
   Feather as Icon,
   MaterialIcons as MaterialIcon,
 } from '@expo/vector-icons';
+import { WorkoutStartModal } from '@/components/WorkoutStartModal';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -35,6 +36,7 @@ export default function HomeScreen() {
   // State for user progress tracking
   const [userProgressData, setUserProgressData] = useState<any>(null);
   const [loadingProgress, setLoadingProgress] = useState(true);
+  const [showWorkoutModal, setShowWorkoutModal] = useState(false);
 
   // Load user's generated program and progress
   useEffect(() => {
@@ -49,9 +51,9 @@ export default function HomeScreen() {
     }, [user?.id])
   );
 
+
+
   const loadGeneratedProgram = async () => {
-    console.log('🔍 loadGeneratedProgram called, user:', user?.id);
-    
     if (!user?.id) {
       console.log('❌ No user ID found');
       setLoadingProgram(false);
@@ -59,9 +61,7 @@ export default function HomeScreen() {
     }
 
     try {
-      console.log('🔄 Fetching wizard results for user:', user.id);
       const wizardResults = await wizardResultsService.getByUserId(user.id);
-      console.log('📊 Wizard results:', wizardResults);
       
       if (wizardResults?.generatedSplit) {
         const generatedProgram = JSON.parse(wizardResults.generatedSplit);
@@ -132,7 +132,6 @@ export default function HomeScreen() {
     if (!generatedProgram || !userProgressData) return null;
     
     const currentWorkoutIndex = userProgressData.currentWorkout - 1;
-    // Clamp index to available workouts range
     const total = generatedProgram.weeklyStructure?.length || 0;
     const safeIndex = Math.max(0, Math.min(currentWorkoutIndex, Math.max(0, total - 1)));
     const workout = generatedProgram.weeklyStructure?.[safeIndex];
@@ -140,12 +139,30 @@ export default function HomeScreen() {
     return workout || null;
   };
 
+  // Memoized today's workout to prevent multiple function calls
+  const todaysWorkout = useMemo(() => {
+    return getTodaysWorkout();
+  }, [generatedProgram, userProgressData]);
+
   const handleEditProfile = () => {
     router.push('/profile');
   };
 
   const handleProgramSelect = () => {
     router.push('/programs');
+  };
+
+  const handleStartWorkoutPress = () => {
+    setShowWorkoutModal(true);
+  };
+
+  const handleConfirmWorkout = () => {
+    setShowWorkoutModal(false);
+    router.push('/workout-session');
+  };
+
+  const handleCancelWorkout = () => {
+    setShowWorkoutModal(false);
   };
 
   const handleContinueWorkout = () => {
@@ -198,34 +215,34 @@ export default function HomeScreen() {
         {generatedProgram && userProgressData && (
           <View style={styles.todaysWorkout}>
             <Text style={styles.sectionTitle}>Today's Workout</Text>
-            {getTodaysWorkout() ? (
+            {todaysWorkout ? (
               <View style={styles.workoutCard}>
                 <LinearGradient
                   colors={['rgba(58, 81, 153, 0.8)', 'rgba(45, 65, 120, 0.9)']}
                   style={styles.workoutGradient}
                 >
                   <View style={styles.workoutHeader}>
-                    <Text style={styles.workoutName}>{getTodaysWorkout()?.name}</Text>
-                    <Text style={styles.workoutDuration}>{getTodaysWorkout()?.estimatedDuration} min</Text>
+                    <Text style={styles.workoutName}>{todaysWorkout?.name}</Text>
+                    <Text style={styles.workoutDuration}>{todaysWorkout?.estimatedDuration} min</Text>
                   </View>
                   
                   <View style={styles.exercisePreview}>
                     <Text style={styles.exercisePreviewTitle}>Key Exercises:</Text>
-                    {getTodaysWorkout()?.exercises?.slice(0, 3).map((exercise: any, index: number) => (
+                    {todaysWorkout?.exercises?.slice(0, 3).map((exercise: any, index: number) => (
                       <Text key={index} style={styles.exercisePreviewItem}>
                         • {exercise.name} - {exercise.sets} sets × {exercise.reps} reps
                       </Text>
                     ))}
-                    {getTodaysWorkout()?.exercises?.length > 3 && (
+                    {todaysWorkout?.exercises?.length > 3 && (
                       <Text style={styles.exercisePreviewMore}>
-                        +{getTodaysWorkout()?.exercises?.length - 3} more exercises
+                        +{todaysWorkout?.exercises?.length - 3} more exercises
                       </Text>
                     )}
                   </View>
                   
                   <TouchableOpacity 
                     style={styles.startWorkoutButton}
-                    onPress={() => router.push('/workout-session')}
+                    onPress={handleStartWorkoutPress}
                   >
                     <Text style={styles.startWorkoutText}>Start Workout</Text>
                     <Icon name="play" size={18} color={colors.white} />
@@ -261,6 +278,14 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Workout Start Modal */}
+      <WorkoutStartModal
+        visible={showWorkoutModal}
+        onConfirm={handleConfirmWorkout}
+        onCancel={handleCancelWorkout}
+        workoutName={todaysWorkout?.name}
+      />
     </SafeAreaView>
   );
 }

@@ -13,6 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '@/constants/colors';
 import { useAuthStore } from '@/store/auth-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
+import { useWorkoutTimer } from '@/hooks/useWorkoutTimer';
 import {
   Feather as Icon,
 } from '@expo/vector-icons';
@@ -24,20 +25,28 @@ export default function WorkoutSessionScreen() {
   const [generatedProgram, setGeneratedProgram] = useState<any>(null);
   const [userProgressData, setUserProgressData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { formattedTime, startTimer, stopTimer, resetTimer } = useWorkoutTimer();
 
   useEffect(() => {
     loadWorkoutData();
+    // Start timer when workout session begins
+    startTimer();
+    
+    // Cleanup timer when component unmounts
+    return () => {
+      stopTimer();
+    };
   }, [user]);
 
   // Reload when screen gains focus (coming back from tracker)
   useFocusEffect(
     useCallback(() => {
       loadWorkoutData();
-    }, [user?.email])
+    }, [user?.id])
   );
 
   const loadWorkoutData = async () => {
-    if (!user?.email) {
+    if (!user?.id) {
       setLoading(false);
       return;
     }
@@ -118,7 +127,7 @@ export default function WorkoutSessionScreen() {
   })();
 
   const handleFinishWorkout = async () => {
-    if (!user?.email || !userProgressData) return;
+    if (!user?.id || !userProgressData) return;
     try {
       const currentWorkoutIndex = userProgressData.currentWorkout - 1;
       const completedRaw = userProgressData.completedWorkouts || '[]';
@@ -131,7 +140,7 @@ export default function WorkoutSessionScreen() {
       });
       const nextWorkout = Math.min(
         (userProgressData.currentWorkout || 1) + 1,
-        (generatedProgram?.weeklyStructure?.length || 1) + 1
+        (generatedProgram?.weeklyStructure?.length || 1)
       );
       const updated = await userProgressService.update(userProgressData.id, {
         currentWorkout: nextWorkout,
@@ -139,6 +148,8 @@ export default function WorkoutSessionScreen() {
       });
       if (updated) {
         setUserProgressData(updated);
+        // Stop the timer when workout is finished
+        stopTimer();
         // Go back to Home after finishing workout
         router.replace('/(tabs)');
       }
@@ -215,7 +226,7 @@ export default function WorkoutSessionScreen() {
       if (updated) {
         setUserProgressData(updated);
         // also recompute derived data by reloading progress from DB
-        const refreshed = await userProgressService.getByUserId(user?.email || '');
+        const refreshed = await userProgressService.getByUserId(user?.id || '');
         if (refreshed) setUserProgressData(refreshed);
       }
     } catch (e) {
@@ -301,6 +312,13 @@ export default function WorkoutSessionScreen() {
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
           <View style={styles.workoutHeader}>
             <Text style={styles.workoutName}>{todaysWorkout.name}</Text>
+            
+            {/* Workout Timer */}
+            <View style={styles.timerContainer}>
+              <Icon name="watch" size={20} color={colors.primary} />
+              <Text style={styles.timerText}>{formattedTime}</Text>
+            </View>
+            
             <View style={styles.workoutMeta}>
               <View style={styles.metaItem}>
                 <Icon name="clock" size={16} color={colors.primary} />
@@ -414,7 +432,27 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.white,
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  timerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(58, 81, 153, 0.1)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(58, 81, 153, 0.3)',
+  },
+  timerText: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginLeft: 12,
+    fontFamily: 'monospace',
+    letterSpacing: 2,
   },
   workoutMeta: {
     flexDirection: 'row',

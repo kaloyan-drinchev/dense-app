@@ -322,10 +322,14 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               <Text style={styles.inputLabel}>Squat (kg)</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="80"
+                placeholder="80 (max 300kg)"
                 placeholderTextColor={colors.lightGray}
                 value={preferences.squatKg}
-                onChangeText={(value) => handleInputChange('squatKg', value)}
+                onChangeText={(value) => {
+                  const numValue = parseFloat(value) || 0;
+                  const limitedValue = Math.max(0, Math.min(300, numValue));
+                  handleInputChange('squatKg', limitedValue.toString());
+                }}
                 keyboardType="numeric"
               />
             </View>
@@ -333,10 +337,14 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               <Text style={styles.inputLabel}>Bench Press (kg)</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="60"
+                placeholder="60 (max 300kg)"
                 placeholderTextColor={colors.lightGray}
                 value={preferences.benchKg}
-                onChangeText={(value) => handleInputChange('benchKg', value)}
+                onChangeText={(value) => {
+                  const numValue = parseFloat(value) || 0;
+                  const limitedValue = Math.max(0, Math.min(300, numValue));
+                  handleInputChange('benchKg', limitedValue.toString());
+                }}
                 keyboardType="numeric"
               />
             </View>
@@ -344,10 +352,14 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               <Text style={styles.inputLabel}>Deadlift (kg)</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="100"
+                placeholder="100 (max 300kg)"
                 placeholderTextColor={colors.lightGray}
                 value={preferences.deadliftKg}
-                onChangeText={(value) => handleInputChange('deadliftKg', value)}
+                onChangeText={(value) => {
+                  const numValue = parseFloat(value) || 0;
+                  const limitedValue = Math.max(0, Math.min(300, numValue));
+                  handleInputChange('deadliftKg', limitedValue.toString());
+                }}
                 keyboardType="numeric"
               />
             </View>
