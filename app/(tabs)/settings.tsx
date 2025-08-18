@@ -230,6 +230,8 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
 
+          {/* Sign Out option commented out */}
+          {/*
           <TouchableOpacity
             style={styles.settingItem}
             onPress={handleLogout}
@@ -247,6 +249,7 @@ export default function SettingsScreen() {
             </View>
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
+          */}
 
           {/* 🚨 TESTING ONLY - Remove this entire TouchableOpacity before production */}
           <TouchableOpacity

@@ -104,6 +104,37 @@ export default function ProgramsScreen() {
           </View>
         )}
 
+        {/* Training Schedule */}
+        {generatedProgram && generatedProgram.trainingSchedule && (
+          <View style={styles.scheduleContainer}>
+            <Text style={styles.scheduleTitle}>Your Training Schedule</Text>
+            <View style={styles.scheduleRow}>
+              <View style={styles.scheduleColumn}>
+                <Text style={styles.scheduleLabel}>Workout Days:</Text>
+                <Text style={styles.scheduleText}>
+                  {generatedProgram.trainingSchedule.map((day: string) => 
+                    day.charAt(0).toUpperCase() + day.slice(1)
+                  ).join(', ')}
+                </Text>
+              </View>
+              <View style={styles.scheduleColumn}>
+                <Text style={styles.scheduleLabel}>Rest Days:</Text>
+                <Text style={styles.scheduleText}>
+                  {generatedProgram.restDays && generatedProgram.restDays.length > 0 
+                    ? generatedProgram.restDays.map((day: string) => 
+                        day.charAt(0).toUpperCase() + day.slice(1)
+                      ).join(', ')
+                    : 'Active Recovery'
+                  }
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.scheduleNote}>
+              💡 This is your suggested schedule. You can train on any day if needed!
+            </Text>
+          </View>
+        )}
+
         {/* Loading State */}
         {loading && (
           <LoadingState 
@@ -202,6 +233,43 @@ const styles = StyleSheet.create({
   bannerButtonText: {
     ...typography.bodySmall,
     color: colors.black,
+  },
+  // Schedule Styles
+  scheduleContainer: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+  },
+  scheduleTitle: {
+    ...typography.h5,
+    color: colors.white,
+    marginBottom: 16,
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    gap: 20,
+    marginBottom: 16,
+  },
+  scheduleColumn: {
+    flex: 1,
+  },
+  scheduleLabel: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  scheduleText: {
+    ...typography.body,
+    color: colors.white,
+    lineHeight: 20,
+  },
+  scheduleNote: {
+    ...typography.bodySmall,
+    color: colors.lighterGray,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
   emptyState: {
     backgroundColor: colors.darkGray,

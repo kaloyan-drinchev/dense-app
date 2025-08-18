@@ -29,9 +29,12 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
   });
   const { user } = useAuthStore();
 
-  // Calculate percentages
-  const currentWeekProgress = Math.round((currentDay / daysPerWeek) * 100);
-  const overallProgress = Math.round(((currentWeek - 1) * daysPerWeek + currentDay) / (totalWeeks * daysPerWeek) * 100);
+  // Calculate percentages based on completed workouts (start from 0)
+  const completedDaysThisWeek = Math.max(0, currentDay - 1); // Subtract 1 to start from 0
+  const totalCompletedWorkouts = Math.max(0, (currentWeek - 1) * daysPerWeek + currentDay - 1); // Subtract 1 to start from 0
+  
+  const currentWeekProgress = Math.round((completedDaysThisWeek / daysPerWeek) * 100);
+  const overallProgress = Math.round((totalCompletedWorkouts / (totalWeeks * daysPerWeek)) * 100);
 
   // Animation on component mount
   useEffect(() => {
@@ -95,7 +98,7 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
               <View style={styles.chartContent}>
                 <Text style={styles.percentageText}>{currentWeekProgress}%</Text>
                 <Text style={styles.chartLabel}>Week {currentWeek}</Text>
-                <Text style={styles.chartSubLabel}>Day {currentDay}/{daysPerWeek}</Text>
+                <Text style={styles.chartSubLabel}>{completedDaysThisWeek}/{daysPerWeek} done</Text>
               </View>
             )}
           </AnimatedCircularProgress>
@@ -118,8 +121,8 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
             {() => (
               <View style={styles.chartContent}>
                 <Text style={styles.percentageText}>{overallProgress}%</Text>
-                <Text style={styles.chartLabel}>Week {currentWeek}</Text>
-                <Text style={styles.chartSubLabel}>of {totalWeeks}</Text>
+                <Text style={styles.chartLabel}>{totalCompletedWorkouts}/{totalWeeks * daysPerWeek}</Text>
+                <Text style={styles.chartSubLabel}>workouts done</Text>
               </View>
             )}
           </AnimatedCircularProgress>

@@ -22,8 +22,10 @@ import {
   MaterialIcons as MaterialIcon,
 } from '@expo/vector-icons';
 import { WorkoutStartModal } from '@/components/WorkoutStartModal';
+import { WorkoutUnavailableModal } from '@/components/WorkoutUnavailableModal';
 import { WorkoutProgressCharts } from '@/components/WorkoutProgressCharts';
 import { calculateWorkoutProgress } from '@/utils/progress-calculator';
+import { checkWorkoutAvailability, formatAvailabilityDate, type WorkoutAvailability } from '@/utils/workout-availability';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -35,7 +37,7 @@ export default function HomeScreen() {
     useWorkoutStore();
   const { isWorkoutActive, timeElapsed, isRunning, updateTimeElapsed } = useTimerStore();
   const [currentTime, setCurrentTime] = useState(timeElapsed);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // State for generated program data
   const [generatedProgram, setGeneratedProgram] = useState<any>(null);
@@ -45,12 +47,23 @@ export default function HomeScreen() {
   const [userProgressData, setUserProgressData] = useState<any>(null);
   const [loadingProgress, setLoadingProgress] = useState(true);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
+  
+  // State for workout availability
+  const [workoutAvailability, setWorkoutAvailability] = useState<WorkoutAvailability | null>(null);
+  const [showUnavailableModal, setShowUnavailableModal] = useState(false);
 
   // Load user's generated program and progress
   useEffect(() => {
     loadGeneratedProgram();
     loadUserProgress();
   }, [user]);
+
+  // Check workout availability when data changes
+  useEffect(() => {
+    if (user?.id && generatedProgram && userProgressData) {
+      checkAvailability();
+    }
+  }, [user?.id, generatedProgram, userProgressData]);
 
   // Refresh progress when returning to Home to avoid stale day/workout
   useFocusEffect(
@@ -135,27 +148,83 @@ export default function HomeScreen() {
     }
   };
 
-  // Get today's workout based on current progress
+  const checkAvailability = async () => {
+    if (!user?.id || !generatedProgram || !userProgressData) return;
+    
+    try {
+      const availability = await checkWorkoutAvailability(
+        user.id,
+        generatedProgram,
+        userProgressData
+      );
+      setWorkoutAvailability(availability);
+      console.log('🔍 Workout availability checked:', availability);
+    } catch (error) {
+      console.error('❌ Failed to check workout availability:', error);
+    }
+  };
+
+  // Get workout to display (today's if not completed, next if completed)
   const getTodaysWorkout = () => {
     if (!generatedProgram || !userProgressData) return null;
     
-    const currentWorkoutIndex = userProgressData.currentWorkout - 1;
     const total = generatedProgram.weeklyStructure?.length || 0;
-    const safeIndex = Math.max(0, Math.min(currentWorkoutIndex, Math.max(0, total - 1)));
-    const workout = generatedProgram.weeklyStructure?.[safeIndex];
+    const currentWorkout = userProgressData.currentWorkout;
+    const isCompleted = workoutAvailability?.isCompletedToday;
     
-    return workout || null;
+    console.log('🔍 getTodaysWorkout Debug:', {
+      currentWorkout,
+      isCompleted,
+      total,
+      weeklyStructure: generatedProgram.weeklyStructure?.map((w: any) => w.name)
+    });
+    
+    // If today's workout is completed, show the current workout (which is already the next one)
+    if (isCompleted) {
+      // currentWorkout is already pointing to the next workout we should do
+      const nextWorkoutIndex = currentWorkout - 1; // -1 because array is 0-indexed
+      console.log('📅 Showing next workout at index:', nextWorkoutIndex);
+      return generatedProgram.weeklyStructure?.[nextWorkoutIndex] || null;
+    }
+    
+    // Otherwise show current workout
+    const currentWorkoutIndex = currentWorkout - 1; // currentWorkout is 1-indexed
+    console.log('📅 Showing current workout at index:', currentWorkoutIndex);
+    return generatedProgram.weeklyStructure?.[currentWorkoutIndex] || null;
   };
 
-  // Memoized today's workout to prevent multiple function calls
+  // Memoized workout to display (depends on completion status)
   const todaysWorkout = useMemo(() => {
     return getTodaysWorkout();
-  }, [generatedProgram, userProgressData]);
+  }, [generatedProgram, userProgressData, workoutAvailability]);
 
   // Calculate progress data for charts
   const progressData = useMemo(() => {
     return calculateWorkoutProgress(generatedProgram, userProgressData);
   }, [generatedProgram, userProgressData]);
+
+  // Check if today is a rest day
+  const isRestDay = () => {
+    if (!generatedProgram || !workoutAvailability) return false;
+    
+    // Get today's day name
+    const today = new Date();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const todayName = dayNames[today.getDay()];
+    
+    // Check if today is in the rest days
+    if (generatedProgram.restDays && generatedProgram.restDays.includes(todayName)) {
+      return true;
+    }
+    
+    // For older programs without restDays, check if not in training schedule
+    if (generatedProgram.trainingSchedule && !generatedProgram.trainingSchedule.includes(todayName)) {
+      return true;
+    }
+    
+    // Fallback: if we have workout availability and can start workout, probably not a rest day
+    return false;
+  };
 
   const handleEditProfile = () => {
     router.push('/profile');
@@ -169,10 +238,18 @@ export default function HomeScreen() {
     if (isWorkoutActive) {
       // Navigate directly to workout session if timer is active
       router.push('/workout-session');
-    } else {
-      // Navigate to workout session where the new modal will appear
-      router.push('/workout-session');
+      return;
     }
+
+    // Check if workout is available
+    if (workoutAvailability && !workoutAvailability.canStartWorkout) {
+      // Show unavailable modal
+      setShowUnavailableModal(true);
+      return;
+    }
+
+    // Workout is available, navigate to workout session
+    router.push('/workout-session');
   };
 
   // Update timer display continuously when workout is active
@@ -273,11 +350,13 @@ export default function HomeScreen() {
         {/* Today's Workout Preview */}
         {generatedProgram && userProgressData && (
           <View style={styles.todaysWorkout}>
-            <Text style={styles.sectionTitle}>Today's Workout</Text>
+            <Text style={styles.sectionTitle}>
+              {workoutAvailability?.isCompletedToday ? "Next Workout" : "Today's Workout"}
+            </Text>
             {todaysWorkout ? (
               <View style={styles.workoutCard}>
                 <LinearGradient
-                  colors={gradients.card}
+                  colors={gradients.card as [string, string, ...string[]]}
                   style={styles.workoutGradient}
                 >
                   <View style={styles.workoutHeader}>
@@ -304,7 +383,7 @@ export default function HomeScreen() {
                     onPress={handleStartWorkoutPress}
                   >
                     <LinearGradient
-                      colors={isWorkoutActive ? gradients.success : gradients.primaryButton}
+                      colors={(isWorkoutActive ? gradients.success : gradients.primaryButton) as [string, string, ...string[]]}
                       style={[
                         styles.startWorkoutButton,
                         isWorkoutActive && styles.workoutInProgressButton
@@ -316,6 +395,18 @@ export default function HomeScreen() {
                             Workout in Progress • {formatTimerTime(currentTime)}
                           </Text>
                         </>
+                      ) : workoutAvailability && !workoutAvailability.canStartWorkout ? (
+                        <View style={styles.unavailableButtonContent}>
+                          <Text style={styles.startWorkoutText}>
+                            {workoutAvailability.nextWorkoutName || 'Next Workout'}
+                          </Text>
+                          <Text style={styles.availabilitySubtext}>
+                            Available {workoutAvailability.nextAvailableDate ? 
+                              formatAvailabilityDate(workoutAvailability.nextAvailableDate) : 
+                              'Tomorrow'
+                            }
+                          </Text>
+                        </View>
                       ) : (
                         <>
                           <Text style={styles.startWorkoutText}>Start Workout</Text>
@@ -324,6 +415,17 @@ export default function HomeScreen() {
                       )}
                     </LinearGradient>
                   </TouchableOpacity>
+
+                  {/* Rest Day Note */}
+                  {isRestDay() && (
+                    <View style={styles.restDayNote}>
+                      <Icon name="moon" size={16} color={colors.secondary} />
+                      <Text style={styles.restDayNoteText}>
+                        <Text style={styles.restDayNoteTitle}>Rest Day: </Text>
+                        Recovery time! But feel free to train if you're feeling strong 💪
+                      </Text>
+                    </View>
+                  )}
                 </LinearGradient>
               </View>
             ) : (
@@ -347,7 +449,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/finished-workouts')}
             >
               <LinearGradient
-                colors={gradients.primaryButton}
+                colors={gradients.primaryButton as [string, string, ...string[]]}
                 style={styles.finishedWorkoutsButton}
               >
                 <Icon name="list" size={20} color={colors.black} />
@@ -377,6 +479,16 @@ export default function HomeScreen() {
         onCancel={handleCancelWorkout}
         workoutName={todaysWorkout?.name}
       />
+
+      {/* Workout Unavailable Modal */}
+      <WorkoutUnavailableModal
+        visible={showUnavailableModal}
+        onClose={() => setShowUnavailableModal(false)}
+        nextWorkoutName={workoutAvailability?.nextWorkoutName || null}
+        nextAvailableDate={workoutAvailability?.nextAvailableDate || null}
+        motivationalMessage={workoutAvailability?.motivationalMessage || ''}
+        isCompletedToday={workoutAvailability?.isCompletedToday || false}
+      />
     </SafeAreaView>
   );
 }
@@ -390,7 +502,7 @@ const WeightIcon = ({ size, color }: { size: number; color: string }) => (
       alignItems: 'center',
     }}
   >
-    <Text style={{ color, fontSize: size * 0.8, ...typography.timerSmall }}>⚖️</Text>
+    <Text style={{ color, fontSize: size * 0.8 }}>⚖️</Text>
   </View>
 );
 
@@ -508,10 +620,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
+    minHeight: 54,
   },
   startWorkoutText: {
     ...typography.button,
     color: colors.black,
+    fontWeight: 'bold',
+  },
+  availabilitySubtext: {
+    ...typography.bodySmall,
+    color: colors.black,
+    opacity: 0.8,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  unavailableButtonContent: {
+    alignItems: 'center',
+  },
+  restDayNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.secondary + '15',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.secondary,
+  },
+  restDayNoteText: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    flex: 1,
+    marginLeft: 8,
+    lineHeight: 18,
+  },
+  restDayNoteTitle: {
+    color: colors.secondary,
     fontWeight: 'bold',
   },
   workoutInProgressButton: {

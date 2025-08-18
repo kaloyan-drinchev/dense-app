@@ -92,7 +92,7 @@ export default function ExerciseDetailScreen() {
 
           <View style={styles.trackerContainer}>
             <Text style={styles.trackerTitle}>Track Your Sets</Text>
-            <ExerciseTracker exercise={exercise} />
+            <ExerciseTracker exercise={exercise} exerciseKey={exerciseId || exercise.id || exercise.name} />
           </View>
         </ScrollView>
       </View>

@@ -84,7 +84,7 @@ export default function WeekDetailScreen() {
           <View style={styles.infoCard}>
             <Text style={styles.infoTitle}>Week {week.weekNumber} Focus</Text>
             <Text style={styles.infoText}>
-              {activeProgram.type === 'bulking'
+              {activeProgram.type === 'full-body'
                 ? week.weekNumber <= 4
                   ? 'Building a foundation with moderate weights and higher reps to establish proper form and muscle endurance.'
                   : week.weekNumber <= 8

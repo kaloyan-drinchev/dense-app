@@ -41,8 +41,8 @@ export default function ProfileEditScreen() {
     profilePicture: userProfile?.profilePicture || '',
     height: userProfile?.height?.toString() || '',
     currentWeight: userProfile?.weight?.toString() || '',
-    targetWeight: userProfile?.targetWeight?.toString() || '',
-    bodyFat: userProfile?.bodyFat?.toString() || '',
+    targetWeight: '',
+    bodyFat: '',
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -124,8 +124,6 @@ export default function ProfileEditScreen() {
       const { updateUserProfile } = useWorkoutStore.getState();
       updateUserProfile({
         ...profileData,
-        experienceLevel: profile.experienceLevel,
-        availableDays: parseInt(profile.trainingDaysPerWeek) || 6,
       });
 
       Alert.alert('Success', 'Profile updated successfully!');

@@ -53,10 +53,12 @@ export interface WorkoutDay {
 export interface GeneratedProgram {
   programName: string;
   overview: string;
-  weeklyStructure: WorkoutDay[];
+  weeklyStructure: WorkoutDay[]; // Only workout days, no rest days
   totalWeeks: number;
   progressionNotes: string[];
   nutritionTips: string[];
+  trainingSchedule: string[]; // Days to train: ['monday', 'tuesday', 'thursday', etc.]
+  restDays: string[]; // Suggested rest days: ['wednesday', 'saturday']
 }
 
 // DENSE Exercise Database - Refined for Optimal Progress
@@ -213,30 +215,33 @@ export class ProgramGenerator {
     // 6. Create program overview
     const programDetails = this.createProgramDetails(responses, split);
     
+    // 7. Generate training schedule
+    const schedule = this.generateTrainingSchedule(responses.trainingDaysPerWeek, responses.preferredTrainingDays);
+    
     return {
       programName: programDetails.name,
       overview: programDetails.overview,
-      weeklyStructure,
+      weeklyStructure, // Only workout days, no rest days
       totalWeeks: responses.programDurationWeeks,
       progressionNotes: this.generateProgressionNotes(responses),
-      nutritionTips: this.generateNutritionTips(responses.bodyFatLevel)
+      nutritionTips: this.generateNutritionTips(responses.bodyFatLevel),
+      trainingSchedule: schedule.workoutDays,
+      restDays: schedule.restDays
     };
   }
   
   private static calculateTrainingSplit(daysPerWeek: number, recovery: string) {
     switch (daysPerWeek) {
       case 3:
-        return { type: 'ppl_once', days: ['push', 'pull', 'legs'], restDays: 2 };
+        return { type: 'ppl_once', days: ['push', 'pull', 'legs'] };
       case 4:
-        return recovery === 'fast_recovery' 
-          ? { type: 'ppl_plus_push', days: ['push', 'pull', 'legs', 'push'], restDays: 1 }
-          : { type: 'ppl_spaced', days: ['push', 'rest', 'pull', 'legs'], restDays: 1 };
+        return { type: 'ppl_plus_push', days: ['push', 'pull', 'legs', 'push'] };
       case 5:
-        return { type: 'ppl_plus_weak', days: ['push', 'pull', 'legs', 'push', 'pull'], restDays: 1 };
+        return { type: 'ppl_plus_weak', days: ['push', 'pull', 'legs', 'push', 'pull'] };
       case 6:
-        return { type: 'ppl_twice', days: ['push', 'pull', 'legs', 'push', 'pull', 'legs'], restDays: 0 };
+        return { type: 'ppl_twice', days: ['push', 'pull', 'legs', 'push', 'pull', 'legs'] };
       default:
-        return { type: 'ppl_once', days: ['push', 'pull', 'legs'], restDays: 2 };
+        return { type: 'ppl_once', days: ['push', 'pull', 'legs'] };
     }
   }
   
@@ -348,15 +353,11 @@ export class ProgramGenerator {
     experience: string
   ): WorkoutDay[] {
     const structure: WorkoutDay[] = [];
+    let workoutDayNumber = 1;
     
-    split.days.forEach((dayType: string, index: number) => {
+    split.days.forEach((dayType: string) => {
+      // Skip rest days (they should not exist in the new structure)
       if (dayType === 'rest') {
-        structure.push({
-          name: `Day ${index + 1}: Rest`,
-          type: 'rest',
-          exercises: [],
-          estimatedDuration: 0
-        });
         return;
       }
       
@@ -365,7 +366,7 @@ export class ProgramGenerator {
       
       switch (dayType) {
         case 'push':
-          dayName = `Day ${index + 1}: Push (Chest, Shoulders, Triceps)`;
+          dayName = `Day ${workoutDayNumber}: Push (Chest, Shoulders, Triceps)`;
           dayExercises = [
             ...this.convertToExercises(exercises.chest, volume.chest, 'compound'),
             ...this.convertToExercises(exercises.shoulders, volume.shoulders, 'compound'),
@@ -379,7 +380,7 @@ export class ProgramGenerator {
           break;
           
         case 'pull':
-          dayName = `Day ${index + 1}: Pull (Back, Biceps)`;
+          dayName = `Day ${workoutDayNumber}: Pull (Back, Biceps)`;
           dayExercises = [
             ...this.convertToExercises(exercises.back, volume.back, 'compound'),
             ...this.convertToExercises(exercises.biceps, volume.biceps, 'isolation'),
@@ -391,7 +392,7 @@ export class ProgramGenerator {
           break;
           
         case 'legs':
-          dayName = `Day ${index + 1}: Legs (Quads, Hamstrings, Glutes)`;
+          dayName = `Day ${workoutDayNumber}: Legs (Quads, Hamstrings, Glutes)`;
           dayExercises = [
             ...this.convertToExercises(exercises.quads, volume.quads, 'compound'),
             ...this.convertToExercises(exercises.hamstrings, volume.hamstrings, 'compound'),
@@ -412,6 +413,8 @@ export class ProgramGenerator {
         exercises: dayExercises,
         estimatedDuration: duration
       });
+      
+      workoutDayNumber++;
     });
     
     return structure;
@@ -523,5 +526,39 @@ export class ProgramGenerator {
       default:
         return baseNutrition;
     }
+  }
+
+  private static generateTrainingSchedule(daysPerWeek: number, preferredDays: string[]) {
+    const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    
+    // Use preferred days if available and matches training days count
+    if (preferredDays && preferredDays.length === daysPerWeek) {
+      const workoutDays = preferredDays;
+      const restDays = allDays.filter(day => !workoutDays.includes(day));
+      return { workoutDays, restDays };
+    }
+    
+    // Generate optimal schedule based on training days per week
+    let workoutDays: string[] = [];
+    
+    switch (daysPerWeek) {
+      case 3:
+        workoutDays = ['monday', 'wednesday', 'friday'];
+        break;
+      case 4:
+        workoutDays = ['monday', 'tuesday', 'thursday', 'friday'];
+        break;
+      case 5:
+        workoutDays = ['monday', 'tuesday', 'thursday', 'friday', 'saturday'];
+        break;
+      case 6:
+        workoutDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        break;
+      default:
+        workoutDays = ['monday', 'wednesday', 'friday'];
+    }
+    
+    const restDays = allDays.filter(day => !workoutDays.includes(day));
+    return { workoutDays, restDays };
   }
 }

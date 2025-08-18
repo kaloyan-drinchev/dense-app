@@ -15,6 +15,32 @@ import { typography } from '@/constants/typography';
 import { wizardResultsService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
 
+// Helper function to generate default schedules for old programs
+const generateDefaultSchedule = (trainingDays: number) => {
+  const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  let trainDays: string[] = [];
+  
+  switch (trainingDays) {
+    case 3:
+      trainDays = ['monday', 'wednesday', 'friday'];
+      break;
+    case 4:
+      trainDays = ['monday', 'tuesday', 'thursday', 'friday'];
+      break;
+    case 5:
+      trainDays = ['monday', 'tuesday', 'thursday', 'friday', 'saturday'];
+      break;
+    case 6:
+      trainDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      break;
+    default:
+      trainDays = ['monday', 'tuesday', 'thursday', 'friday'];
+  }
+  
+  const restDays = allDays.filter(day => !trainDays.includes(day));
+  return { trainDays, restDays };
+};
+
 const SingleProgramView = () => {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -39,6 +65,13 @@ const SingleProgramView = () => {
       if (wizardResults && wizardResults.generatedSplit) {
         const program = JSON.parse(wizardResults.generatedSplit);
         console.log('✅ Program loaded:', program.programName);
+        console.log('🗓️ Training schedule debug:', {
+          hasTrainingSchedule: !!program.trainingSchedule,
+          trainingSchedule: program.trainingSchedule,
+          hasRestDays: !!program.restDays,
+          restDays: program.restDays,
+          allKeys: Object.keys(program)
+        });
         setGeneratedProgram(program);
       } else {
         console.log('⚠️ No generated program found');
@@ -99,6 +132,76 @@ const SingleProgramView = () => {
               </View>
             </View>
           </View>
+
+          {/* Training Schedule Tip */}
+          {generatedProgram && (
+            <View style={styles.scheduleContainer}>
+              <View style={styles.scheduleContent}>
+                <Icon name="schedule" size={20} color={colors.primary} style={styles.scheduleIcon} />
+                <View style={styles.scheduleTextContainer}>
+                  <Text style={styles.scheduleTitle}>Training Schedule</Text>
+                  {generatedProgram.trainingSchedule ? (
+                    <View style={styles.daysContainer}>
+                      <View style={styles.dayTypeSection}>
+                        <Text style={styles.dayTypeLabel}>TRAIN</Text>
+                        <View style={styles.daysRow}>
+                          {generatedProgram.trainingSchedule.map((day: string) => (
+                            <View key={day} style={styles.trainDay}>
+                              <Text style={styles.trainDayText}>
+                                {day.slice(0, 3).toUpperCase()}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                      {generatedProgram.restDays && generatedProgram.restDays.length > 0 && (
+                        <View style={styles.dayTypeSection}>
+                          <Text style={styles.dayTypeLabel}>REST</Text>
+                          <View style={styles.daysRow}>
+                            {generatedProgram.restDays.map((day: string) => (
+                              <View key={day} style={styles.restDay}>
+                                <Text style={styles.restDayText}>
+                                  {day.slice(0, 3).toUpperCase()}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  ) : (
+                    <View style={styles.daysContainer}>
+                      <View style={styles.dayTypeSection}>
+                        <Text style={styles.dayTypeLabel}>TRAIN</Text>
+                        <View style={styles.daysRow}>
+                          {generateDefaultSchedule(generatedProgram.weeklyStructure?.length || 4).trainDays.map((day: string) => (
+                            <View key={day} style={styles.trainDay}>
+                              <Text style={styles.trainDayText}>
+                                {day.slice(0, 3).toUpperCase()}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                      <View style={styles.dayTypeSection}>
+                        <Text style={styles.dayTypeLabel}>REST</Text>
+                        <View style={styles.daysRow}>
+                          {generateDefaultSchedule(generatedProgram.weeklyStructure?.length || 4).restDays.map((day: string) => (
+                            <View key={day} style={styles.restDay}>
+                              <Text style={styles.restDayText}>
+                                {day.slice(0, 3).toUpperCase()}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </View>
+              <Text style={styles.scheduleNote}>💡 You can train any day if needed!</Text>
+            </View>
+          )}
 
           {/* Week Selector */}
           <View style={styles.weekSelector}>
@@ -261,6 +364,92 @@ const styles = StyleSheet.create({
   statLabel: {
     ...typography.bodySmall,
     color: colors.lightGray,
+  },
+  // Schedule styles
+  scheduleContainer: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+  },
+  scheduleContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  scheduleIcon: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  scheduleTextContainer: {
+    flex: 1,
+  },
+  scheduleTitle: {
+    ...typography.h5,
+    color: colors.white,
+    marginBottom: 4,
+  },
+  scheduleSubtitle: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    marginBottom: 2,
+  },
+  scheduleNote: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  daysContainer: {
+    marginTop: 12,
+  },
+  dayTypeSection: {
+    marginBottom: 12,
+  },
+  dayTypeLabel: {
+    ...typography.bodySmall,
+    color: colors.white,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  daysRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  trainDay: {
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    minWidth: 45,
+    alignItems: 'center',
+  },
+  trainDayText: {
+    ...typography.bodySmall,
+    color: colors.black,
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  restDay: {
+    backgroundColor: colors.mediumGray,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    minWidth: 45,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.lightGray,
+  },
+  restDayText: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    fontWeight: 'bold',
+    fontSize: 12,
   },
   weekSelector: {
     paddingVertical: 20,
