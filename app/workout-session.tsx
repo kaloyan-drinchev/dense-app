@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors, gradients } from '@/constants/colors';
+import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
@@ -21,6 +21,9 @@ import {
   Feather as Icon,
 } from '@expo/vector-icons';
 import { ExerciseCard } from '@/components/ExerciseCard';
+import { WorkoutOptionsModal } from '@/components/WorkoutOptionsModal';
+import { WorkoutPreviewModal } from '@/components/WorkoutPreviewModal';
+import { WorkoutNotStartedModal } from '@/components/WorkoutNotStartedModal';
 
 export default function WorkoutSessionScreen() {
   const router = useRouter();
@@ -28,6 +31,10 @@ export default function WorkoutSessionScreen() {
   const [generatedProgram, setGeneratedProgram] = useState<any>(null);
   const [userProgressData, setUserProgressData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showNotStartedModal, setShowNotStartedModal] = useState(false);
+  const [workoutStarted, setWorkoutStarted] = useState(false);
   const { 
     formattedTime, 
     isRunning, 
@@ -55,13 +62,17 @@ export default function WorkoutSessionScreen() {
   }, [user]);
 
   // Start workout timer when workout data is loaded
+  // Sync workoutStarted state with global timer state
   useEffect(() => {
-    if (todaysWorkout && !isWorkoutActive) {
-      const workoutId = `workout-${userProgressData?.currentWorkout || 1}`;
-      const workoutName = todaysWorkout.name || 'Today\'s Workout';
-      startWorkout(workoutId, workoutName);
+    setWorkoutStarted(isWorkoutActive);
+  }, [isWorkoutActive]);
+
+  // Show options modal when first entering the screen
+  useEffect(() => {
+    if (todaysWorkout && !isWorkoutActive && !workoutStarted && !showOptionsModal) {
+      setShowOptionsModal(true);
     }
-  }, [todaysWorkout, isWorkoutActive, userProgressData?.currentWorkout, startWorkout]);
+  }, [todaysWorkout, isWorkoutActive, workoutStarted, showOptionsModal]);
 
   // Reload when screen gains focus (coming back from tracker)
   useFocusEffect(
@@ -116,11 +127,7 @@ export default function WorkoutSessionScreen() {
     );
   };
 
-  const handleExercisePress = (exercise: any) => {
-    // Navigate to the workout-specific exercise tracker
-    const exerciseId = exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase();
-    router.push(`/workout-exercise-tracker?exerciseId=${exerciseId}`);
-  };
+
 
   // Parse exercise logs for status computation
   const weeklyWeightsData = (() => {
@@ -162,6 +169,39 @@ export default function WorkoutSessionScreen() {
       return getExerciseStatus(exId, ex.sets) === 'completed';
     });
   })();
+
+  // New modal handlers
+  const handleStartWorkoutPress = () => {
+    setShowOptionsModal(true);
+  };
+
+  const handleViewOption = () => {
+    setShowOptionsModal(false);
+    setShowPreviewModal(true);
+  };
+
+  const handleLetsGoOption = () => {
+    setShowOptionsModal(false);
+    handleStartWorkout();
+  };
+
+  const handleStartWorkout = () => {
+    setShowPreviewModal(false);
+    setWorkoutStarted(true);
+    startWorkout(
+      todaysWorkout?.id || 'today-workout', 
+      todaysWorkout?.name || "Today's Workout"
+    );
+  };
+
+  const handleExercisePress = (exerciseId: string) => {
+    if (!workoutStarted) {
+      setShowNotStartedModal(true);
+      return;
+    }
+    // Navigate to exercise tracker as usual
+    router.push(`/workout-exercise-tracker?exerciseId=${exerciseId}`);
+  };
 
   const handleFinishWorkout = async () => {
     if (!user?.id || !userProgressData) return;
@@ -352,26 +392,45 @@ export default function WorkoutSessionScreen() {
           <View style={styles.workoutHeader}>
             <Text style={styles.workoutName}>{todaysWorkout.name}</Text>
             
-            {/* Workout Timer */}
-            <View style={styles.timerContainer}>
-              <Text style={styles.timerText}>{formattedTime}</Text>
-              
-              <View style={styles.timerControls}>
-                <TouchableOpacity 
-                  style={[styles.timerButton, styles.resetButton]} 
-                  onPress={handleResetTimer}
-                >
-                  <Icon name="refresh-cw" size={16} color={colors.white} />
-                </TouchableOpacity>
+            {/* Workout Timer or Start Button */}
+            {workoutStarted ? (
+              <View style={styles.timerContainer}>
+                <Text style={styles.timerText}>{formattedTime}</Text>
                 
+                <View style={styles.timerControls}>
+                  <TouchableOpacity 
+                    style={[styles.timerButton, styles.resetButton]} 
+                    onPress={handleResetTimer}
+                  >
+                    <Icon name="refresh-cw" size={16} color={colors.white} />
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.timerButton, isRunning ? styles.pauseButton : styles.playButton]} 
+                    onPress={isRunning ? pauseTimer : resumeTimer}
+                  >
+                    <Icon name={isRunning ? "pause" : "play"} size={16} color={colors.black} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.startButtonContainer}>
                 <TouchableOpacity 
-                  style={[styles.timerButton, isRunning ? styles.pauseButton : styles.playButton]} 
-                  onPress={isRunning ? pauseTimer : resumeTimer}
+                  style={styles.startWorkoutButton}
+                  onPress={handleStartWorkoutPress}
                 >
-                  <Icon name={isRunning ? "pause" : "play"} size={16} color={colors.black} />
+                  <LinearGradient
+                    colors={['#00FF88', '#00CC6A']}
+                    style={styles.startWorkoutGradient}
+                  >
+                    <Icon name="play" size={24} color={colors.black} />
+                    <Text style={[styles.startWorkoutText, typography.button]}>
+                      Start Workout
+                    </Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
-            </View>
+            )}
             
             <View style={styles.workoutMeta}>
               <View style={styles.metaItem}>
@@ -413,7 +472,7 @@ export default function WorkoutSessionScreen() {
                   key={index}
                   exercise={exerciseWithId}
                   index={index}
-                  onPress={() => handleExercisePress(exerciseWithId)}
+                  onPress={() => handleExercisePress(exerciseWithId.id)}
                   status={getExerciseStatus(exerciseWithId.id, exerciseWithId.sets)}
                 />
               );
@@ -436,6 +495,39 @@ export default function WorkoutSessionScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Modals */}
+      <WorkoutOptionsModal
+        visible={showOptionsModal}
+        onClose={() => setShowOptionsModal(false)}
+        onView={handleViewOption}
+        onLetsGo={handleLetsGoOption}
+        workoutName={todaysWorkout?.name}
+      />
+
+      <WorkoutPreviewModal
+        visible={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        onStartWorkout={handleStartWorkout}
+        workoutName={todaysWorkout?.name}
+        exercises={todaysWorkout?.exercises?.map((exercise: any, index: number) => ({
+          id: exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase(),
+          name: exercise.name,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          restTime: exercise.restSeconds ? `${exercise.restSeconds}s` : undefined,
+        })) || []}
+        estimatedDuration={`${todaysWorkout?.estimatedDuration || 45} min`}
+      />
+
+      <WorkoutNotStartedModal
+        visible={showNotStartedModal}
+        onClose={() => setShowNotStartedModal(false)}
+        onStartWorkout={() => {
+          setShowNotStartedModal(false);
+          handleStartWorkoutPress();
+        }}
+      />
     </LinearGradient>
   );
 }
@@ -526,6 +618,26 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     backgroundColor: colors.mediumGray,
+  },
+  startButtonContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  startWorkoutButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  startWorkoutGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  startWorkoutText: {
+    color: colors.black,
+    fontSize: 18,
   },
   workoutMeta: {
     flexDirection: 'row',

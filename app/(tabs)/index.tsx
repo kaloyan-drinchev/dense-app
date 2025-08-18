@@ -163,7 +163,8 @@ export default function HomeScreen() {
       // Navigate directly to workout session if timer is active
       router.push('/workout-session');
     } else {
-      setShowWorkoutModal(true);
+      // Navigate to workout session where the new modal will appear
+      router.push('/workout-session');
     }
   };
 
