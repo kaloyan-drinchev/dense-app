@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { subscriptionService, SUBSCRIPTION_PLANS, type SubscriptionPlan } from '@/services/subscription-service';
@@ -70,8 +71,6 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
-    setIsProcessing(true);
-
     try {
       const result = await subscriptionService.purchasePlan(selectedPlan);
       
@@ -83,15 +82,18 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         Alert.alert(
           '🎉 Welcome to RORK DENSE Pro!',
           'Your subscription is now active. Enjoy unlimited access to your personalized workout programs!',
-          [{ text: 'Start Training', onPress: onSubscribed }]
+          [{ text: 'Start Training', onPress: () => {
+            setIsProcessing(true);
+            setTimeout(() => {
+              onSubscribed();
+            }, 100);
+          }}]
         );
       } else {
         Alert.alert('Payment Failed', result.error || 'Please try again.');
       }
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
-    } finally {
-      setIsProcessing(false);
     }
   };
 
@@ -113,7 +115,12 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         Alert.alert(
           'Purchases Restored!',
           'Your subscription has been restored successfully.',
-          [{ text: 'Continue', onPress: onSubscribed }]
+          [{ text: 'Continue', onPress: () => {
+            setIsRestoring(true);
+            setTimeout(() => {
+              onSubscribed();
+            }, 100);
+          }}]
         );
       } else {
         Alert.alert('No Purchases Found', 'No previous purchases were found to restore.');
@@ -263,13 +270,13 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
             disabled={isProcessing}
           >
             {isProcessing ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.black} />
             ) : (
               <>
                 <Text style={styles.subscribeButtonText}>
                   Start ${subscriptionService.getPlan(selectedPlan)?.monthlyPrice}/month
                 </Text>
-                <Icon name="arrow-right" size={20} color={colors.white} />
+                <Icon name="arrow-right" size={20} color={colors.black} />
               </>
             )}
           </TouchableOpacity>
@@ -299,6 +306,16 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
             🔒 Mock payments enabled for development. No actual charges will be made.
           </Text>
         </View>
+        
+        {/* Loading Overlay */}
+        {(isProcessing || isRestoring) && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>
+              {isProcessing ? 'Starting your journey...' : 'Loading...'}
+            </Text>
+          </View>
+        )}
       </SafeAreaView>
     </LinearGradient>
   );
@@ -332,14 +349,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    ...typography.h1,
     color: colors.white,
     textAlign: 'center',
     marginBottom: 12,
   },
   subtitle: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lighterGray,
     textAlign: 'center',
     lineHeight: 24,
@@ -422,9 +438,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   popularText: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: 'bold',
+    ...typography.caption,
+    color: colors.black,
     textAlign: 'center',
   },
   planHeader: {
@@ -453,9 +468,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   savingsText: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: '600',
+    ...typography.caption,
+    color: colors.black,
   },
   priceContainer: {
     marginBottom: 16,
@@ -562,9 +576,8 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   subscribeButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.white,
+    ...typography.button,
+    color: colors.black,
     marginRight: 8,
   },
   footerLinks: {
@@ -586,5 +599,21 @@ const styles = StyleSheet.create({
     color: colors.lightGray,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: colors.white,
+    fontSize: 16,
+    marginTop: 16,
+    ...typography.body,
   },
 });

@@ -59,6 +59,9 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   const [showSubscriptionScreen, setShowSubscriptionScreen] = useState(false);
   
   const [preferences, setPreferences] = useState<WizardPreferences>({
+    // Step 1: Name
+    name: '',
+
     // Step 2: Current Strength - Default to moderate beginner weights
     squatKg: '60',
     benchKg: '50',
@@ -93,6 +96,13 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
 
     switch (step.id) {
       case 'welcome':
+        return true;
+
+      case 'name':
+        if (!preferences.name.trim()) {
+          setValidationError('Please enter your name');
+          return false;
+        }
         return true;
 
       case 'current-strength':
@@ -172,12 +182,27 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     try {
       setIsGeneratingProgram(true);
       
-      // Safety check - ensure user is available
-      if (!user || !user.id) {
-        console.error('❌ Cannot complete wizard: User not available:', { user, userId: user?.id });
-        Alert.alert('Error', 'User not authenticated. Please restart the app.');
-        setIsGeneratingProgram(false);
-        return;
+      // Create user if not exists (with name from wizard)
+      let currentUser = user;
+      if (!currentUser || !currentUser.id) {
+        const { setupNewUser } = useAuthStore.getState();
+        const result = await setupNewUser(preferences.name);
+        
+        if (!result.success) {
+          console.error('❌ Failed to create user:', result.error);
+          Alert.alert('Error', 'Failed to create user. Please try again.');
+          setIsGeneratingProgram(false);
+          return;
+        }
+        
+        // Get the newly created user
+        currentUser = useAuthStore.getState().user;
+        if (!currentUser) {
+          console.error('❌ User creation failed: No user returned');
+          Alert.alert('Error', 'User creation failed. Please restart the app.');
+          setIsGeneratingProgram(false);
+          return;
+        }
       }
       
       // Simulate AI generation process
@@ -198,9 +223,9 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
       const generatedProgram = ProgramGenerator.generateProgram(wizardResponses);
       
       // Save to database
-      if (user && user.id) {
+      if (currentUser && currentUser.id) {
         await wizardResultsService.create({
-          userId: user.id,
+          userId: currentUser.id,
           trainingExperience: preferences.trainingExperience,
           bodyFatLevel: preferences.bodyFatLevel,
           trainingDaysPerWeek: preferences.trainingDaysPerWeek,
@@ -216,7 +241,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           deadliftKg: preferences.deadliftKg ? parseFloat(preferences.deadliftKg) : null,
         });
       } else {
-        console.error('❌ No user or user.id available:', { user, userId: user?.id });
+        console.error('❌ No user or user.id available:', { currentUser, userId: currentUser?.id });
         throw new Error('User not authenticated or missing ID');
       }
       
@@ -312,6 +337,23 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                 <Text style={styles.featureText}>Personalized recommendations</Text>
               </View>
             </View>
+          </View>
+        );
+
+      case 'name':
+        return (
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.nameInput}
+              value={preferences.name}
+              onChangeText={(value) => handleInputChange('name', value)}
+              placeholder="Enter your name"
+              placeholderTextColor={colors.lightGray}
+              autoFocus
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="next"
+            />
           </View>
         );
 
@@ -679,7 +721,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
             }}
           >
             <Text style={styles.checkProgramButtonText}>Check Your Program</Text>
-            <Icon name="arrow-right" size={20} color={colors.white} />
+            <Icon name="arrow-right" size={20} color={colors.black} />
           </TouchableOpacity>
           
           <TouchableOpacity 

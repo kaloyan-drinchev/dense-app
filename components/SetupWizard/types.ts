@@ -5,6 +5,9 @@ export interface WizardStep {
 }
 
 export interface WizardPreferences {
+  // Step 1: Name
+  name: string;
+
   // Step 2: Current Strength
   squatKg: string;
   benchKg: string;

@@ -38,6 +38,7 @@ interface WorkoutState {
     updates: Partial<ExerciseSet>
   ) => void;
   loadUserProgress: () => Promise<void>;
+  // 🚨 TESTING ONLY - Remove before production
   resetProgress: () => Promise<void>;
   clearUserProfile: () => void;
   testConnection: () => Promise<boolean>;
@@ -383,6 +384,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         }
       },
 
+      // 🚨 TESTING ONLY - Remove before production
       resetProgress: async () => {
         try {
           // Clear database progress data
@@ -394,6 +396,19 @@ export const useWorkoutStore = create<WorkoutState>()(
           await programService.deleteAll(); // Clear generated programs too
           
           console.log('🗑️ All progress data cleared from database');
+          
+          // 🚨 TESTING ONLY - Clear timer store data
+          const { useTimerStore } = await import('./timer-store');
+          await useTimerStore.getState().clearAllTimerData();
+          console.log('⏱️ Timer data cleared');
+          
+          // 🚨 TESTING ONLY - Clear workout store AsyncStorage data
+          try {
+            await AsyncStorage.removeItem('workout-storage');
+            console.log('🗑️ Workout AsyncStorage cleared');
+          } catch (storageError) {
+            console.error('❌ Failed to clear workout AsyncStorage:', storageError);
+          }
           
           // Clear in-memory state
           set({
@@ -411,6 +426,15 @@ export const useWorkoutStore = create<WorkoutState>()(
             userProgress: null,
             programs: [],
           });
+          
+          // 🚨 TESTING ONLY - Try to clear timer data even if other clearing fails
+          try {
+            const { useTimerStore } = await import('./timer-store');
+            await useTimerStore.getState().clearAllTimerData();
+            console.log('⏱️ Timer data cleared (fallback)');
+          } catch (timerError) {
+            console.error('❌ Failed to clear timer data:', timerError);
+          }
         }
       },
 

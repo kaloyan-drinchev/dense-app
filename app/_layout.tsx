@@ -23,8 +23,7 @@ import { Platform } from "react-native";
 import { initializeDatabase } from "@/db/migrations";
 import { useAuthStore } from "@/store/auth-store";
 import { useSubscriptionStore } from "@/store/subscription-store";
-import { AuthScreen } from "@/components/AuthScreen";
-import { BiometricSetupScreen } from "@/components/BiometricSetupScreen";
+
 import { SetupWizard } from "@/components/SetupWizard";
 import { SubscriptionScreen } from "@/components/SubscriptionScreen";
 import { AppUpdateManager } from "@/utils/app-updates";
@@ -56,7 +55,12 @@ export default function RootLayout() {
   
   const [dbInitialized, setDbInitialized] = useState(false);
   const [dbError, setDbError] = useState<Error | null>(null);
-  const { isAuthenticated, isFirstTime, checkAuthStatus, checkIfFirstTime } = useAuthStore();
+  const authStore = useAuthStore();
+  
+  // Debug: Check what functions are available
+  console.log('🔍 Auth store functions:', Object.keys(authStore));
+  
+  const { user, isFirstTime, checkUserStatus, checkIfFirstTime } = authStore;
 
   // Initialize database and check auth status on app startup
   useEffect(() => {
@@ -67,9 +71,18 @@ export default function RootLayout() {
         if (success) {
           console.log('✅ Database initialization completed');
           
-          // Check if user was previously authenticated and if it's first time
-          await checkAuthStatus();
-          await checkIfFirstTime();
+          // Check if user exists and if it's first time
+          if (typeof checkUserStatus === 'function') {
+            await checkUserStatus();
+          } else {
+            console.error('❌ checkUserStatus is not a function:', typeof checkUserStatus);
+          }
+          
+          if (typeof checkIfFirstTime === 'function') {
+            await checkIfFirstTime();
+          } else {
+            console.error('❌ checkIfFirstTime is not a function:', typeof checkIfFirstTime);
+          }
           
           // Check for app updates and show what's new
           const wasUpdated = await AppUpdateManager.checkForAppUpdate();
@@ -91,7 +104,7 @@ export default function RootLayout() {
     };
 
     setupApp();
-  }, [checkAuthStatus]);
+  }, [checkUserStatus]);
 
   useEffect(() => {
     if (error) {
@@ -122,85 +135,49 @@ export default function RootLayout() {
 }
 
 function AppNavigator() {
-  const { isAuthenticated, hasCompletedWizard, isFirstTime } = useAuthStore();
+  const { user, hasCompletedWizard, isFirstTime } = useAuthStore();
   const { hasActiveSubscription, checkSubscriptionStatus } = useSubscriptionStore();
-  const [showBiometricSetup, setShowBiometricSetup] = useState(isFirstTime);
-  const [showAuth, setShowAuth] = useState(!isAuthenticated && !isFirstTime);
   const [showWizard, setShowWizard] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
 
-  // Check subscription status when user is authenticated
+  // Check subscription status when user exists
   useEffect(() => {
-    if (isAuthenticated && !isFirstTime) {
+    if (user && !isFirstTime) {
       checkSubscriptionStatus();
     }
-  }, [isAuthenticated, isFirstTime]);
+  }, [user, isFirstTime]);
 
   // DEBUG: Log navigation state (only when navigation state changes)
   useEffect(() => {
     console.log('🧭 AppNavigator state:', {
-      isAuthenticated,
+      hasUser: !!user,
       hasCompletedWizard,
       isFirstTime,
       hasActiveSubscription: hasActiveSubscription(),
-      showBiometricSetup,
-      showAuth,
       showWizard,
       showSubscription,
-      willShow: showBiometricSetup ? 'BIOMETRIC_SETUP' : showAuth ? 'AUTH' : showWizard ? 'WIZARD' : showSubscription ? 'SUBSCRIPTION' : 'MAIN_APP'
+      willShow: showWizard ? 'WIZARD' : showSubscription ? 'SUBSCRIPTION' : 'MAIN_APP'
     });
-  }, [isAuthenticated, hasCompletedWizard, isFirstTime, showBiometricSetup, showAuth, showWizard, showSubscription]);
+  }, [user, hasCompletedWizard, isFirstTime, showWizard, showSubscription]);
 
-  // Update navigation state when authentication/first time state changes
+  // Update navigation state when user/first time state changes
   useEffect(() => {
-    if (isFirstTime) {
-      setShowBiometricSetup(true);
-      setShowAuth(false);
-      setShowWizard(false);
-      setShowSubscription(false);
-    } else if (!isAuthenticated) {
-      setShowBiometricSetup(false);
-      setShowAuth(true);
-      setShowWizard(false);
-      setShowSubscription(false);
-    } else if (isAuthenticated && !hasCompletedWizard) {
-      setShowBiometricSetup(false);
-      setShowAuth(false);
+    if (isFirstTime || !user || !hasCompletedWizard) {
+      // First time, no user, or hasn't completed wizard - show wizard
       setShowWizard(true);
       setShowSubscription(false);
-    } else if (isAuthenticated && hasCompletedWizard && !hasActiveSubscription()) {
+    } else if (user && hasCompletedWizard && !hasActiveSubscription()) {
       // User completed wizard but doesn't have active subscription
-      setShowBiometricSetup(false);
-      setShowAuth(false);
       setShowWizard(false);
       setShowSubscription(true);
     } else {
-      setShowBiometricSetup(false);
-      setShowAuth(false);
+      // User exists, completed wizard, has subscription - go to main app
       setShowWizard(false);
       setShowSubscription(false);
     }
-  }, [isAuthenticated, hasCompletedWizard, isFirstTime, hasActiveSubscription]);
+  }, [user, hasCompletedWizard, isFirstTime, hasActiveSubscription]);
 
-  // Show biometric setup for first-time users
-  if (showBiometricSetup) {
-    return (
-      <BiometricSetupScreen 
-        onComplete={() => setShowBiometricSetup(false)}
-      />
-    );
-  }
-
-  // Show auth screen if not authenticated (returning users)
-  if (showAuth) {
-    return (
-      <AuthScreen 
-        onComplete={() => setShowAuth(false)}
-      />
-    );
-  }
-
-  // Show wizard if authenticated but hasn't completed wizard
+  // Show wizard for first-time users or those who haven't completed it
   if (showWizard) {
     return (
       <SetupWizard 
@@ -219,7 +196,7 @@ function AppNavigator() {
     );
   }
 
-  // Show main app if authenticated, completed wizard, and has subscription
+  // Show main app if user exists, completed wizard, and has subscription
   return <RootLayoutNav />;
 }
 

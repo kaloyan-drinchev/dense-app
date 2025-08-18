@@ -76,6 +76,7 @@ export default function SettingsScreen() {
     router.push('/profile-edit');
   };
 
+  // 🚨 TESTING ONLY - Remove before production
   const handleResetProgress = () => {
     if (isResetting) return; // Prevent multiple resets
     
@@ -247,6 +248,7 @@ export default function SettingsScreen() {
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
 
+          {/* 🚨 TESTING ONLY - Remove this entire TouchableOpacity before production */}
           <TouchableOpacity
             style={[styles.settingItem, isResetting && styles.disabled]}
             onPress={isResetting ? undefined : handleResetProgress}

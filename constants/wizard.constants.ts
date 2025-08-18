@@ -11,6 +11,11 @@ export const steps: WizardStep[] = [
     subtitle: 'Let\'s create the perfect workout program for you'
   },
   {
+    id: 'name',
+    title: 'What\'s Your Name?',
+    subtitle: 'Let\'s personalize your fitness journey'
+  },
+  {
     id: 'current-strength',
     title: 'What\'s Your Starting Point?',
     subtitle: 'Tell us your current strength levels (optional)'

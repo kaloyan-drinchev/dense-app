@@ -1,5 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { colors } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 
 export const styles = StyleSheet.create({
   container: {
@@ -15,16 +16,14 @@ export const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...typography.h3,
     color: colors.white,
     textAlign: 'center',
     flex: 1,
   },
   stepCounter: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
-    fontWeight: '600',
   },
   progressContainer: {
     paddingHorizontal: 20,
@@ -74,7 +73,7 @@ export const styles = StyleSheet.create({
     marginBottom: 20,
   },
   generatingDescription: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
     textAlign: 'center',
     lineHeight: 24,
@@ -86,14 +85,13 @@ export const styles = StyleSheet.create({
     marginBottom: 40,
   },
   stepTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    ...typography.h2,
     color: colors.white,
     textAlign: 'center',
     marginBottom: 8,
   },
   stepSubtitle: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
     textAlign: 'center',
     lineHeight: 22,
@@ -108,9 +106,8 @@ export const styles = StyleSheet.create({
     marginTop: 20,
   },
   continueButtonText: {
-    fontSize: 16,
-    color: colors.white,
-    fontWeight: 'bold',
+    ...typography.button,
+    color: colors.black,
   },
   navigationContainer: {
     flexDirection: 'row',
@@ -129,9 +126,8 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButtonText: {
-    fontSize: 16,
+    ...typography.button,
     color: colors.white,
-    fontWeight: 'bold',
   },
   nextButton: {
     backgroundColor: colors.primary,
@@ -142,9 +138,8 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   nextButtonText: {
-    fontSize: 16,
-    color: colors.white,
-    fontWeight: 'bold',
+    ...typography.button,
+    color: colors.black,
   },
   placeholderButton: {
     minWidth: 100,
@@ -162,14 +157,13 @@ export const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   inlineProgramName: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    ...typography.h2,
     color: colors.white,
     textAlign: 'center',
     marginBottom: 8,
   },
   inlineProgramDescription: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lightGray,
     textAlign: 'center',
     marginBottom: 20,
@@ -185,12 +179,11 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    ...typography.timerMedium,
     color: colors.primary,
   },
   statLabel: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.lightGray,
   },
   workoutCard: {
@@ -200,13 +193,12 @@ export const styles = StyleSheet.create({
     marginBottom: 16,
   },
   workoutName: {
-    fontSize: 18,
-    fontWeight: '600',
+    ...typography.h4,
     color: colors.white,
     marginBottom: 4,
   },
   workoutDuration: {
-    fontSize: 14,
+    ...typography.timerSmall,
     color: colors.lightGray,
     marginBottom: 12,
   },
@@ -216,12 +208,11 @@ export const styles = StyleSheet.create({
     borderBottomColor: colors.mediumGray,
   },
   exerciseName: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.white,
-    fontWeight: '500',
   },
   exerciseDetails: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.primary,
   },
   finishButton: {
@@ -232,9 +223,8 @@ export const styles = StyleSheet.create({
     marginVertical: 20,
   },
   finishButtonText: {
-    fontSize: 16,
-    color: colors.white,
-    fontWeight: 'bold',
+    ...typography.button,
+    color: colors.black,
   },
   // Check Program Button Styles
   checkProgramContainer: {
@@ -252,14 +242,13 @@ export const styles = StyleSheet.create({
     marginBottom: 20,
   },
   checkProgramTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    ...typography.h1,
     color: colors.white,
     textAlign: 'center',
     marginBottom: 8,
   },
   checkProgramSubtitle: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
     textAlign: 'center',
     marginBottom: 30,
@@ -277,12 +266,11 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkProgramStatNumber: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    ...typography.timerMedium,
     color: colors.primary,
   },
   checkProgramStatLabel: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lightGray,
     marginTop: 4,
   },
@@ -298,9 +286,8 @@ export const styles = StyleSheet.create({
     marginBottom: 16,
   },
   checkProgramButtonText: {
-    fontSize: 18,
-    color: colors.white,
-    fontWeight: 'bold',
+    ...typography.button,
+    color: colors.black,
     marginRight: 8,
   },
   viewLaterButton: {
@@ -311,16 +298,15 @@ export const styles = StyleSheet.create({
     width: '100%',
   },
   viewLaterButtonText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
-    fontWeight: '500',
   },
   // Step Content Styles
   welcomeContent: {
     paddingBottom: 40,
   },
   welcomeText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
     textAlign: 'center',
     lineHeight: 24,
@@ -340,10 +326,9 @@ export const styles = StyleSheet.create({
     width: '100%',
   },
   featureText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.white,
     marginLeft: 12,
-    fontWeight: '500',
   },
   inputContainer: {
     width: '100%',
@@ -352,20 +337,31 @@ export const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.white,
     marginBottom: 8,
-    fontWeight: '500',
   },
   textInput: {
     backgroundColor: colors.darkGray,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 16,
+    ...typography.body,
     color: colors.white,
     borderWidth: 1,
     borderColor: colors.mediumGray,
+  },
+  nameInput: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    ...typography.h4,
+    color: colors.white,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    textAlign: 'center',
+    fontSize: 20,
   },
   optionsContainer: {
     width: '100%',
@@ -387,13 +383,12 @@ export const styles = StyleSheet.create({
     opacity: 0.5,
   },
   optionText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.white,
     textAlign: 'center',
-    fontWeight: '500',
   },
   selectedOptionText: {
-    color: colors.white,
+    color: colors.black,
     fontWeight: 'bold',
   },
   scheduleContainer: {
@@ -403,11 +398,10 @@ export const styles = StyleSheet.create({
     marginTop: 30,
   },
   daySelectionTitle: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.white,
     textAlign: 'center',
     marginBottom: 20,
-    fontWeight: '500',
   },
   daysGrid: {
     flexDirection: 'row',
@@ -432,17 +426,16 @@ export const styles = StyleSheet.create({
     opacity: 0.5,
   },
   dayText: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.white,
     textAlign: 'center',
-    fontWeight: '500',
   },
   selectedDayText: {
-    color: colors.white,
+    color: colors.black,
     fontWeight: 'bold',
   },
   priorityHint: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lightGray,
     textAlign: 'center',
     marginBottom: 20,
@@ -470,13 +463,12 @@ export const styles = StyleSheet.create({
     opacity: 0.5,
   },
   priorityText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.white,
     textAlign: 'center',
-    fontWeight: '500',
   },
   selectedPriorityText: {
-    color: colors.white,
+    color: colors.black,
     fontWeight: 'bold',
   },
   completeContent: {
@@ -484,7 +476,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   completeText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
     textAlign: 'center',
     lineHeight: 24,
@@ -497,9 +489,8 @@ export const styles = StyleSheet.create({
     width: '100%',
   },
   summaryTitle: {
-    fontSize: 18,
+    ...typography.h4,
     color: colors.white,
-    fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
   },
