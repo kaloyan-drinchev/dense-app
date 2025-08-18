@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 import {
   useNutritionStore,
   initializeNutritionGoals,
@@ -444,8 +445,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    ...typography.h1,
     color: colors.white,
   },
   dateButton: {
@@ -458,8 +458,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   dateText: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    ...typography.bodySmall,
     color: colors.white,
   },
   quickActions: {
@@ -481,8 +480,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quickActionText: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    ...typography.bodySmall,
     color: colors.white,
   },
   emptyContainer: {
@@ -492,13 +490,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.h4,
     color: colors.white,
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lighterGray,
     textAlign: 'center',
     marginBottom: 24,
@@ -522,8 +519,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   closeModalButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    ...typography.button,
     color: colors.white,
   },
 });

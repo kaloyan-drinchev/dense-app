@@ -15,6 +15,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
 import { colors } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LoadingState } from '@/components/LoadingState';
@@ -204,7 +205,7 @@ export default function SettingsScreen() {
 
           <View style={styles.settingItem}>
             <View style={styles.settingIcon}>
-              <Icon name="bell" size={20} color={colors.white} />
+              <Icon name="bell" size={20} color={colors.black} />
             </View>
             <View style={styles.settingContent}>
               <Text style={styles.settingTitle}>Workout Reminders</Text>
@@ -272,7 +273,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity style={styles.settingItem}>
             <View style={styles.settingIcon}>
-              <Icon name="info" size={20} color={colors.white} />
+              <Icon name="info" size={20} color={colors.black} />
             </View>
             <View style={styles.settingContent}>
               <Text style={styles.settingTitle}>App Version</Text>
@@ -282,7 +283,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity style={styles.settingItem}>
             <View style={styles.settingIcon}>
-              <Icon name="help-circle" size={20} color={colors.white} />
+              <Icon name="help-circle" size={20} color={colors.black} />
             </View>
             <View style={styles.settingContent}>
               <Text style={styles.settingTitle}>Help & Support</Text>
@@ -315,8 +316,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    ...typography.h1,
     color: colors.white,
   },
   profileCard: {
@@ -359,21 +359,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.h4,
     color: colors.white,
     marginBottom: 4,
   },
   profileDetails: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lighterGray,
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.h4,
     color: colors.white,
     marginBottom: 16,
     paddingLeft: 8,
@@ -399,13 +397,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    ...typography.body,
     color: colors.white,
     marginBottom: 4,
   },
   settingDescription: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lighterGray,
   },
   connectionTestContainer: {

@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: colors.white,
+    color: colors.black,
   },
   progressContainer: {
     marginBottom: 16,
