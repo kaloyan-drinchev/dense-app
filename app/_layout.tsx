@@ -1,5 +1,20 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFonts } from "expo-font";
+import { 
+  Exo2_400Regular,
+  Exo2_500Medium,
+  Exo2_600SemiBold,
+  Exo2_700Bold 
+} from '@expo-google-fonts/exo-2';
+import { 
+  ArchivoBlack_400Regular 
+} from '@expo-google-fonts/archivo-black';
+import {
+  Saira_400Regular,
+  Saira_500Medium,
+  Saira_600SemiBold,
+  Saira_700Bold
+} from '@expo-google-fonts/saira';
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
@@ -28,6 +43,15 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     ...FontAwesome.font,
+    Exo2_400Regular,
+    Exo2_500Medium,
+    Exo2_600SemiBold,
+    Exo2_700Bold,
+    ArchivoBlack_400Regular,
+    Saira_400Regular,
+    Saira_500Medium,
+    Saira_600SemiBold,
+    Saira_700Bold,
   });
   
   const [dbInitialized, setDbInitialized] = useState(false);
@@ -112,18 +136,20 @@ function AppNavigator() {
     }
   }, [isAuthenticated, isFirstTime]);
 
-  // DEBUG: Log navigation state
-  console.log('🧭 AppNavigator state:', {
-    isAuthenticated,
-    hasCompletedWizard,
-    isFirstTime,
-    hasActiveSubscription: hasActiveSubscription(),
-    showBiometricSetup,
-    showAuth,
-    showWizard,
-    showSubscription,
-    willShow: showBiometricSetup ? 'BIOMETRIC_SETUP' : showAuth ? 'AUTH' : showWizard ? 'WIZARD' : showSubscription ? 'SUBSCRIPTION' : 'MAIN_APP'
-  });
+  // DEBUG: Log navigation state (only when navigation state changes)
+  useEffect(() => {
+    console.log('🧭 AppNavigator state:', {
+      isAuthenticated,
+      hasCompletedWizard,
+      isFirstTime,
+      hasActiveSubscription: hasActiveSubscription(),
+      showBiometricSetup,
+      showAuth,
+      showWizard,
+      showSubscription,
+      willShow: showBiometricSetup ? 'BIOMETRIC_SETUP' : showAuth ? 'AUTH' : showWizard ? 'WIZARD' : showSubscription ? 'SUBSCRIPTION' : 'MAIN_APP'
+    });
+  }, [isAuthenticated, hasCompletedWizard, isFirstTime, showBiometricSetup, showAuth, showWizard, showSubscription]);
 
   // Update navigation state when authentication/first time state changes
   useEffect(() => {

@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/store/auth-store";
 import { colors } from "@/constants/colors";
+import { typography } from "@/constants/typography";
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather as Icon } from '@expo/vector-icons';
 import { LoadingState } from '@/components/LoadingState';
@@ -138,13 +139,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    ...typography.h1,
     color: colors.white,
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lighterGray,
   },
   // Progress Banner Styles
@@ -165,21 +165,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bannerTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.bodySmall,
     color: colors.white,
     opacity: 0.9,
     marginBottom: 4,
   },
   bannerProgramName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.h5,
     color: colors.white,
     marginBottom: 6,
   },
   bannerProgress: {
-    fontSize: 16,
-    fontWeight: '500',
+    ...typography.body,
     color: colors.white,
     opacity: 0.9,
   },
@@ -193,8 +190,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   bannerButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.bodySmall,
     color: colors.white,
   },
   emptyState: {
@@ -205,13 +201,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...typography.h4,
     color: colors.white,
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lighterGray,
     textAlign: 'center',
     lineHeight: 24,

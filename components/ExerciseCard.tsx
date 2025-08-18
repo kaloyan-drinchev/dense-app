@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { Exercise } from '@/types/workout';
 import { colors } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
 import { formatTime } from '@/utils/helpers';
 
@@ -107,20 +108,18 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   indexText: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    ...typography.bodySmall,
     color: colors.white,
   },
   titleContainer: {
     flex: 1,
   },
   title: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    ...typography.body,
     color: colors.white,
   },
   subtitle: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.lighterGray,
     marginTop: 2,
   },
@@ -131,9 +130,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.mediumGray,
   },
   statusText: {
+    ...typography.caption,
     color: colors.white,
-    fontSize: 12,
-    fontWeight: 'bold',
     textTransform: 'uppercase',
   },
   infoContainer: {
@@ -145,13 +143,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   infoLabel: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.lightGray,
     marginBottom: 4,
   },
   infoValue: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    ...typography.bodySmall,
     color: colors.white,
   },
   restContainer: {

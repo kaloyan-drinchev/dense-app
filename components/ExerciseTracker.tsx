@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { userProgressService } from '@/db/services';
 import { generateId } from '@/utils/helpers';
 import { Feather as Icon } from '@expo/vector-icons';
+import { typography } from '@/constants/typography';
 
 interface ExerciseTrackerProps {
   exercise: Exercise;
@@ -517,12 +518,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.h5,
     color: colors.white,
   },
   subtitle: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lighterGray,
     marginTop: 2,
   },
@@ -545,8 +545,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   unitButtonText: {
+    ...typography.caption,
     color: colors.white,
-    fontWeight: 'bold',
   },
   tableHeader: {
     flexDirection: 'row',
@@ -557,8 +557,7 @@ const styles = StyleSheet.create({
   },
   // removed saved banner styles
   headerText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+    ...typography.caption,
     color: colors.lightGray,
     textAlign: 'center',
   },
@@ -589,8 +588,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   setNumber: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    ...typography.timerSmall,
     color: colors.white,
   },
   inputContainer: {
@@ -612,11 +610,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   input: {
+    ...typography.timerSmall,
     flex: 1,
     textAlign: 'center',
     color: colors.white,
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   inputDisabled: {
     opacity: 0.5,
@@ -649,8 +646,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   secondaryButtonText: {
+    ...typography.button,
     color: colors.white,
-    fontWeight: 'bold',
   },
   disabledButton: {
     opacity: 0.5,
@@ -663,8 +660,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButtonText: {
+    ...typography.button,
     color: colors.white,
-    fontWeight: 'bold',
   },
   completeButton: {
     flex: 1,
@@ -674,8 +671,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   completeButtonText: {
+    ...typography.button,
     color: colors.white,
-    fontWeight: 'bold',
   },
   clearButton: {
     flex: 1,
@@ -700,8 +697,8 @@ const styles = StyleSheet.create({
     borderColor: colors.mediumGray,
   },
   readOnlyText: {
+    ...typography.caption,
     color: colors.lighterGray,
-    fontSize: 12,
     textAlign: 'center',
   },
 });

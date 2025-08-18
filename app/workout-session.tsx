@@ -6,11 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors } from '@/constants/colors';
+import { colors, gradients } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
 import { useWorkoutTimer } from '@/hooks/useWorkoutTimer';
@@ -25,18 +28,40 @@ export default function WorkoutSessionScreen() {
   const [generatedProgram, setGeneratedProgram] = useState<any>(null);
   const [userProgressData, setUserProgressData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const { formattedTime, startTimer, stopTimer, resetTimer } = useWorkoutTimer();
+  const { 
+    formattedTime, 
+    isRunning, 
+    isWorkoutActive,
+    startWorkout, 
+    pauseTimer, 
+    resumeTimer, 
+    resetTimer, 
+    completeWorkout 
+  } = useWorkoutTimer();
+
+  const getTodaysWorkout = () => {
+    if (!generatedProgram || !userProgressData) return null;
+    
+    const currentWorkoutIndex = userProgressData.currentWorkout - 1;
+    const workout = generatedProgram.weeklyStructure?.[currentWorkoutIndex];
+    
+    return workout || null;
+  };
+
+  const todaysWorkout = getTodaysWorkout();
 
   useEffect(() => {
     loadWorkoutData();
-    // Start timer when workout session begins
-    startTimer();
-    
-    // Cleanup timer when component unmounts
-    return () => {
-      stopTimer();
-    };
   }, [user]);
+
+  // Start workout timer when workout data is loaded
+  useEffect(() => {
+    if (todaysWorkout && !isWorkoutActive) {
+      const workoutId = `workout-${userProgressData?.currentWorkout || 1}`;
+      const workoutName = todaysWorkout.name || 'Today\'s Workout';
+      startWorkout(workoutId, workoutName);
+    }
+  }, [todaysWorkout, isWorkoutActive, userProgressData?.currentWorkout, startWorkout]);
 
   // Reload when screen gains focus (coming back from tracker)
   useFocusEffect(
@@ -69,13 +94,26 @@ export default function WorkoutSessionScreen() {
     }
   };
 
-  const getTodaysWorkout = () => {
-    if (!generatedProgram || !userProgressData) return null;
-    
-    const currentWorkoutIndex = userProgressData.currentWorkout - 1;
-    const workout = generatedProgram.weeklyStructure?.[currentWorkoutIndex];
-    
-    return workout || null;
+  const handleBackPress = () => {
+    router.back();
+  };
+
+  const handleResetTimer = () => {
+    Alert.alert(
+      'Reset Timer',
+      'Are you sure you want to reset the workout timer? This will restart your timer from 00:00.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: () => resetTimer(),
+        },
+      ]
+    );
   };
 
   const handleExercisePress = (exercise: any) => {
@@ -84,7 +122,6 @@ export default function WorkoutSessionScreen() {
     router.push(`/workout-exercise-tracker?exerciseId=${exerciseId}`);
   };
 
-  const todaysWorkout = getTodaysWorkout();
   // Parse exercise logs for status computation
   const weeklyWeightsData = (() => {
     try {
@@ -129,6 +166,9 @@ export default function WorkoutSessionScreen() {
   const handleFinishWorkout = async () => {
     if (!user?.id || !userProgressData) return;
     try {
+      // Complete the workout timer and get duration
+      const { duration } = completeWorkout();
+      
       const currentWorkoutIndex = userProgressData.currentWorkout - 1;
       const completedRaw = userProgressData.completedWorkouts || '[]';
       let completedArr: any[] = [];
@@ -137,6 +177,7 @@ export default function WorkoutSessionScreen() {
         date: new Date().toISOString(),
         workoutIndex: currentWorkoutIndex,
         workoutName: todaysWorkout?.name,
+        duration: duration, // Store workout duration
       });
       const nextWorkout = Math.min(
         (userProgressData.currentWorkout || 1) + 1,
@@ -148,8 +189,6 @@ export default function WorkoutSessionScreen() {
       });
       if (updated) {
         setUserProgressData(updated);
-        // Stop the timer when workout is finished
-        stopTimer();
         // Go back to Home after finishing workout
         router.replace('/(tabs)');
       }
@@ -262,7 +301,7 @@ export default function WorkoutSessionScreen() {
 
   if (loading) {
     return (
-      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+      <LinearGradient colors={['#000000', '#0A0A0A']} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>🔄 Loading your workout...</Text>
@@ -274,7 +313,7 @@ export default function WorkoutSessionScreen() {
 
   if (!todaysWorkout) {
     return (
-      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+      <LinearGradient colors={['#000000', '#0A0A0A']} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -300,10 +339,10 @@ export default function WorkoutSessionScreen() {
   }
 
   return (
-    <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+    <LinearGradient colors={['#000000', '#0A0A0A']} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
             <Icon name="arrow-left" size={24} color={colors.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Today's Workout</Text>
@@ -315,8 +354,23 @@ export default function WorkoutSessionScreen() {
             
             {/* Workout Timer */}
             <View style={styles.timerContainer}>
-              <Icon name="watch" size={20} color={colors.primary} />
               <Text style={styles.timerText}>{formattedTime}</Text>
+              
+              <View style={styles.timerControls}>
+                <TouchableOpacity 
+                  style={[styles.timerButton, styles.resetButton]} 
+                  onPress={handleResetTimer}
+                >
+                  <Icon name="refresh-cw" size={16} color={colors.white} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.timerButton, isRunning ? styles.pauseButton : styles.playButton]} 
+                  onPress={isRunning ? pauseTimer : resumeTimer}
+                >
+                  <Icon name={isRunning ? "pause" : "play"} size={16} color={colors.white} />
+                </TouchableOpacity>
+              </View>
             </View>
             
             <View style={styles.workoutMeta}>
@@ -429,15 +483,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   workoutName: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    ...typography.h3,
     color: colors.white,
     marginBottom: 16,
   },
   timerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     backgroundColor: 'rgba(58, 81, 153, 0.1)',
     borderRadius: 12,
     paddingVertical: 12,
@@ -447,12 +500,32 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(58, 81, 153, 0.3)',
   },
   timerText: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    ...typography.workoutTimer,
     color: colors.primary,
-    marginLeft: 12,
-    fontFamily: 'monospace',
-    letterSpacing: 2,
+    textAlign: 'left',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    lineHeight: 52,
+  },
+  timerControls: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  timerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playButton: {
+    backgroundColor: colors.success,
+  },
+  pauseButton: {
+    backgroundColor: colors.warning,
+  },
+  resetButton: {
+    backgroundColor: colors.darkGray,
   },
   workoutMeta: {
     flexDirection: 'row',
@@ -476,22 +549,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   progressText: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.primary,
-    fontWeight: '600',
   },
   exercisesSection: {
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.h3,
     color: colors.white,
     marginBottom: 16,
   },
 
   noExercisesText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
     textAlign: 'center',
     marginTop: 32,
@@ -504,9 +575,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   finishButtonText: {
+    ...typography.button,
     color: colors.white,
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   noWorkoutContainer: {
     flex: 1,

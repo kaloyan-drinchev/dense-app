@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
 
 interface WorkoutStartModalProps {
@@ -126,14 +127,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    ...typography.h3,
     color: colors.white,
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lighterGray,
     textAlign: 'center',
     marginBottom: 16,
@@ -149,13 +149,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(58, 81, 153, 0.3)',
   },
   workoutName: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.body,
     color: colors.primary,
     textAlign: 'center',
   },
   motivationText: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lightGray,
     textAlign: 'center',
     marginBottom: 24,
@@ -175,8 +174,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.button,
     color: colors.lightGray,
   },
   confirmButton: {
@@ -192,8 +190,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   confirmButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    ...typography.button,
     color: colors.white,
   },
 });

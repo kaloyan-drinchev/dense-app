@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Program } from '@/types/workout';
 import { colors, programColors } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
 
 interface ProgramCardProps {
@@ -95,8 +96,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    ...typography.h3,
     color: colors.white,
     flex: 1,
   },
@@ -106,12 +106,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   badgeText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+    ...typography.caption,
     color: colors.white,
   },
   description: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lighterGray,
     marginBottom: 16,
   },
@@ -121,8 +120,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   duration: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    ...typography.bodySmall,
     color: colors.white,
   },
   button: {
@@ -131,8 +129,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   buttonText: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    ...typography.bodySmall,
     color: colors.white,
   },
 });

@@ -1,23 +1,38 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { useTimerStore } from '@/store/timer-store';
 
 interface UseWorkoutTimerReturn {
   timeElapsed: number;
   formattedTime: string;
   isRunning: boolean;
-  startTimer: () => void;
-  stopTimer: () => void;
+  isWorkoutActive: boolean;
+  startWorkout: (workoutId: string, workoutName: string) => void;
+  pauseTimer: () => void;
+  resumeTimer: () => void;
   resetTimer: () => void;
+  completeWorkout: () => { duration: number };
 }
 
 export const useWorkoutTimer = (): UseWorkoutTimerReturn => {
-  const [timeElapsed, setTimeElapsed] = useState(0); // in seconds
-  const [isRunning, setIsRunning] = useState(false);
+  const {
+    timeElapsed,
+    isRunning,
+    isWorkoutActive,
+    startWorkout,
+    pauseTimer,
+    resumeTimer,
+    resetTimer: storeResetTimer,
+    completeWorkout,
+    updateTimeElapsed,
+  } = useTimerStore();
+
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Update timer every second when running
   useEffect(() => {
-    if (isRunning) {
+    if (isRunning && isWorkoutActive) {
       intervalRef.current = setInterval(() => {
-        setTimeElapsed(prev => prev + 1);
+        updateTimeElapsed();
       }, 1000);
     } else {
       if (intervalRef.current) {
@@ -31,23 +46,10 @@ export const useWorkoutTimer = (): UseWorkoutTimerReturn => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning]);
-
-  const startTimer = () => {
-    setIsRunning(true);
-  };
-
-  const stopTimer = () => {
-    setIsRunning(false);
-  };
+  }, [isRunning, isWorkoutActive, updateTimeElapsed]);
 
   const resetTimer = () => {
-    setIsRunning(false);
-    setTimeElapsed(0);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    storeResetTimer();
   };
 
   const formatTime = (seconds: number): string => {
@@ -66,8 +68,11 @@ export const useWorkoutTimer = (): UseWorkoutTimerReturn => {
     timeElapsed,
     formattedTime: formatTime(timeElapsed),
     isRunning,
-    startTimer,
-    stopTimer,
+    isWorkoutActive,
+    startWorkout,
+    pauseTimer,
+    resumeTimer,
     resetTimer,
+    completeWorkout,
   };
 };

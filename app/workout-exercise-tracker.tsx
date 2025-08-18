@@ -11,6 +11,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
 import { wizardResultsService } from '@/db/services';
 import { ExerciseTracker } from '@/components/ExerciseTracker';
@@ -260,13 +261,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   notesTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    ...typography.body,
     color: colors.white,
     marginBottom: 8,
   },
   notesText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lighterGray,
     lineHeight: 24,
   },

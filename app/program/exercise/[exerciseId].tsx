@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, ScrollView } from "react-native";
 import { useLocalSearchParams, Stack } from "expo-router";
 import { useWorkoutStore } from "@/store/workout-store";
 import { colors } from "@/constants/colors";
+import { typography } from "@/constants/typography";
 import { ExerciseTracker } from "@/components/ExerciseTracker";
 import { Image } from "expo-image";
 
@@ -178,7 +179,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   notesText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lighterGray,
     lineHeight: 24,
   },

@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 import { wizardResultsService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -203,8 +204,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...typography.h4,
     color: colors.white,
   },
   content: {
@@ -217,12 +217,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
     marginBottom: 8,
   },
   loadingSubtext: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lightGray,
     opacity: 0.7,
   },
@@ -230,14 +230,13 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   programName: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    ...typography.h1,
     color: colors.white,
     textAlign: 'center',
     marginBottom: 8,
   },
   programDescription: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
     textAlign: 'center',
     lineHeight: 24,
@@ -255,21 +254,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statNumber: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    ...typography.timerMedium,
     color: colors.primary,
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lightGray,
   },
   weekSelector: {
     paddingVertical: 20,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    ...typography.h4,
     color: colors.white,
     marginBottom: 16,
   },
@@ -290,13 +287,11 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   weekButtonText: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lightGray,
-    fontWeight: '500',
   },
   selectedWeekButtonText: {
     color: colors.primary,
-    fontWeight: '600',
   },
   weeklyWorkouts: {
     paddingBottom: 20,
@@ -314,27 +309,24 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.mediumGray,
   },
   workoutDay: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.primary,
-    fontWeight: '600',
     marginBottom: 4,
   },
   workoutName: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...typography.h4,
     color: colors.white,
     marginBottom: 4,
   },
   workoutDuration: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lightGray,
   },
   muscleGroupSection: {
     marginBottom: 16,
   },
   muscleGroupTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.body,
     color: colors.secondary,
     marginBottom: 12,
   },
@@ -350,18 +342,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   exerciseName: {
-    fontSize: 16,
-    fontWeight: '500',
+    ...typography.body,
     color: colors.white,
     marginBottom: 4,
   },
   exerciseDetails: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.primary,
     marginBottom: 4,
   },
   exerciseNotes: {
-    fontSize: 12,
+    ...typography.caption,
     color: colors.lightGray,
     fontStyle: 'italic',
   },
@@ -376,7 +367,7 @@ const styles = StyleSheet.create({
   },
   tipText: {
     flex: 1,
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lightGray,
     lineHeight: 20,
   },

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,13 +6,16 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
+import { useTimerStore } from '@/store/timer-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
-import { colors } from '@/constants/colors';
+import { colors, gradients, buttonStyles } from '@/constants/colors';
+import { typography } from '@/constants/typography';
 import { formatDate } from '@/utils/helpers';
 import {
   Feather as Icon,
@@ -28,6 +31,9 @@ export default function HomeScreen() {
   const { user } = useAuthStore();
   const { userProfile, userProgress, activeProgram, programs } =
     useWorkoutStore();
+  const { isWorkoutActive, timeElapsed, isRunning, updateTimeElapsed } = useTimerStore();
+  const [currentTime, setCurrentTime] = useState(timeElapsed);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // State for generated program data
   const [generatedProgram, setGeneratedProgram] = useState<any>(null);
@@ -153,7 +159,50 @@ export default function HomeScreen() {
   };
 
   const handleStartWorkoutPress = () => {
-    setShowWorkoutModal(true);
+    if (isWorkoutActive) {
+      // Navigate directly to workout session if timer is active
+      router.push('/workout-session');
+    } else {
+      setShowWorkoutModal(true);
+    }
+  };
+
+  // Update timer display continuously when workout is active
+  useEffect(() => {
+    if (isWorkoutActive) {
+      intervalRef.current = setInterval(() => {
+        updateTimeElapsed();
+      }, 1000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [isWorkoutActive, updateTimeElapsed]);
+
+  // Update current time when timeElapsed changes
+  useEffect(() => {
+    setCurrentTime(timeElapsed);
+  }, [timeElapsed]);
+
+  // Format timer for display
+  const formatTimerTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    } else {
+      return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
   };
 
   const handleConfirmWorkout = () => {
@@ -184,15 +233,17 @@ export default function HomeScreen() {
 
   const nextWorkout = getNextWorkout();
 
-  // Debug logging
-  console.log('🏠 Home render - State:', {
-    userEmail: user?.email,
-    hasGeneratedProgram: !!generatedProgram,
-    generatedProgramName: generatedProgram?.programName,
-    hasActiveProgram: !!activeProgram,
-    activeProgramName: activeProgram?.name,
-    loadingProgram
-  });
+  // Debug logging (only when loading changes to avoid timer spam)
+  useEffect(() => {
+    console.log('🏠 Home render - State:', {
+      hasGeneratedProgram: !!generatedProgram,
+      generatedProgramName: generatedProgram?.programName,
+      hasUserProgress: !!userProgressData,
+      currentWorkout: userProgressData?.currentWorkout || 0,
+      loadingProgram,
+      loadingProgress
+    });
+  }, [generatedProgram?.programName, userProgressData?.currentWorkout, loadingProgram, loadingProgress]);
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
@@ -200,7 +251,9 @@ export default function HomeScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
       >
-                <View style={styles.header}>
+
+
+        <View style={styles.header}>
           <Text style={styles.greeting}>
             Hey, {user?.name || 'there'}!
           </Text>
@@ -218,7 +271,7 @@ export default function HomeScreen() {
             {todaysWorkout ? (
               <View style={styles.workoutCard}>
                 <LinearGradient
-                  colors={['rgba(58, 81, 153, 0.8)', 'rgba(45, 65, 120, 0.9)']}
+                  colors={gradients.card}
                   style={styles.workoutGradient}
                 >
                   <View style={styles.workoutHeader}>
@@ -241,11 +294,29 @@ export default function HomeScreen() {
                   </View>
                   
                   <TouchableOpacity 
-                    style={styles.startWorkoutButton}
+                    style={styles.startWorkoutButtonContainer}
                     onPress={handleStartWorkoutPress}
                   >
-                    <Text style={styles.startWorkoutText}>Start Workout</Text>
-                    <Icon name="play" size={18} color={colors.white} />
+                    <LinearGradient
+                      colors={isWorkoutActive ? gradients.success : gradients.primaryButton}
+                      style={[
+                        styles.startWorkoutButton,
+                        isWorkoutActive && styles.workoutInProgressButton
+                      ]}
+                    >
+                      {isWorkoutActive ? (
+                        <>
+                          <Text style={styles.startWorkoutText}>
+                            Workout in Progress • {formatTimerTime(currentTime)}
+                          </Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.startWorkoutText}>Start Workout</Text>
+                          <Icon name="play" size={18} color={colors.black} />
+                        </>
+                      )}
+                    </LinearGradient>
                   </TouchableOpacity>
                 </LinearGradient>
               </View>
@@ -264,14 +335,19 @@ export default function HomeScreen() {
               </View>
             )}
             
-            {/* Finished Workouts Button */}
+            {/* Finished Workouts Button - With Glow Effect for Comparison */}
             <TouchableOpacity 
-              style={styles.finishedWorkoutsButton}
+              style={styles.finishedWorkoutsButtonContainer}
               onPress={() => router.push('/finished-workouts')}
             >
-              <Icon name="list" size={20} color={colors.primary} />
-              <Text style={styles.finishedWorkoutsButtonText}>View Finished Workouts</Text>
-              <Icon name="arrow-right" size={16} color={colors.lightGray} />
+              <LinearGradient
+                colors={gradients.primaryButton}
+                style={styles.finishedWorkoutsButton}
+              >
+                <Icon name="list" size={20} color={colors.black} />
+                <Text style={styles.finishedWorkoutsButtonText}>View Finished Workouts</Text>
+                <Icon name="arrow-right" size={16} color={colors.black} />
+              </LinearGradient>
             </TouchableOpacity>
 
 
@@ -299,14 +375,14 @@ const WeightIcon = ({ size, color }: { size: number; color: string }) => (
       alignItems: 'center',
     }}
   >
-    <Text style={{ color, fontSize: size * 0.8, fontWeight: 'bold' }}>⚖️</Text>
+    <Text style={{ color, fontSize: size * 0.8, ...typography.timerSmall }}>⚖️</Text>
   </View>
 );
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.dark,
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -320,13 +396,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   greeting: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    ...typography.h1,
     color: colors.white,
     marginBottom: 4,
   },
   date: {
-    fontSize: 16,
+    ...typography.body,
     color: colors.lightGray,
   },
   bannerButton: {
@@ -339,8 +414,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   bannerButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.bodySmall,
     color: colors.white,
   },
 
@@ -355,12 +429,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkText: {
+    ...typography.bodySmall,
     color: colors.primary,
-    fontWeight: '600',
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...typography.h2,
     color: colors.white,
     marginBottom: 16,
   },
@@ -378,13 +451,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   workoutName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.h3,
     color: colors.white,
     flex: 1,
   },
   workoutDuration: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.white,
     opacity: 0.8,
   },
@@ -392,27 +464,29 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   exercisePreviewTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.bodySmall,
     color: colors.white,
     marginBottom: 8,
     opacity: 0.9,
   },
   exercisePreviewItem: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.white,
     marginBottom: 4,
     opacity: 0.8,
   },
   exercisePreviewMore: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.white,
     fontStyle: 'italic',
     opacity: 0.7,
     marginTop: 4,
   },
+  startWorkoutButtonContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
   startWorkoutButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 12,
     paddingVertical: 16,
     flexDirection: 'row',
@@ -421,10 +495,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   startWorkoutText: {
-    fontSize: 16,
+    ...typography.button,
+    color: colors.black,
     fontWeight: 'bold',
-    color: colors.white,
   },
+  workoutInProgressButton: {
+    // LinearGradient handles the colors, so we just need any specific styling
+  },
+
+
+
   noWorkoutCard: {
     backgroundColor: colors.darkGray,
     borderRadius: 16,
@@ -432,31 +512,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   noWorkoutTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...typography.h3,
     color: colors.white,
     marginTop: 12,
     marginBottom: 8,
   },
   noWorkoutText: {
-    fontSize: 14,
+    ...typography.bodySmall,
     color: colors.lightGray,
     textAlign: 'center',
+  },
+  finishedWorkoutsButtonContainer: {
+    borderRadius: 12,
+    marginTop: 16,
+    // Glow effect for comparison
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   finishedWorkoutsButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.darkGray,
     borderRadius: 12,
     padding: 16,
-    marginTop: 16,
     gap: 12,
   },
   finishedWorkoutsButtonText: {
+    ...typography.body,
     flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.white,
+    color: colors.black,
+    fontWeight: 'bold',
   },
 
 });
+
