@@ -368,7 +368,7 @@ export default function WorkoutSessionScreen() {
                   style={[styles.timerButton, isRunning ? styles.pauseButton : styles.playButton]} 
                   onPress={isRunning ? pauseTimer : resumeTimer}
                 >
-                  <Icon name={isRunning ? "pause" : "play"} size={16} color={colors.white} />
+                  <Icon name={isRunning ? "pause" : "play"} size={16} color={colors.black} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -491,13 +491,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(58, 81, 153, 0.1)',
+    backgroundColor: colors.darkGray,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(58, 81, 153, 0.3)',
+    borderColor: colors.mediumGray,
   },
   timerText: {
     ...typography.workoutTimer,
@@ -519,13 +519,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   playButton: {
-    backgroundColor: colors.success,
+    backgroundColor: colors.primary,
   },
   pauseButton: {
-    backgroundColor: colors.warning,
+    backgroundColor: colors.primary,
   },
   resetButton: {
-    backgroundColor: colors.darkGray,
+    backgroundColor: colors.mediumGray,
   },
   workoutMeta: {
     flexDirection: 'row',

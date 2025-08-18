@@ -248,7 +248,7 @@ export const FoodEntryForm: React.FC<FoodEntryFormProps> = ({
       </ScrollView>
 
       <TouchableOpacity style={styles.addButton} onPress={handleAddFood}>
-        <Icon name="check" size={20} color={colors.white} />
+        <Icon name="check" size={20} color={colors.black} />
         <Text style={styles.addButtonText}>Add to Log</Text>
       </TouchableOpacity>
     </View>
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     color: colors.lighterGray,
   },
   selectedMealTypeText: {
-    color: colors.white,
+    color: colors.black,
     fontWeight: 'bold',
   },
   nutritionContainer: {
@@ -370,6 +370,6 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: colors.white,
+    color: colors.black,
   },
 });

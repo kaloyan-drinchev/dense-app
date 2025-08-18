@@ -235,7 +235,7 @@ export default function SettingsScreen() {
             <View
               style={[styles.settingIcon, { backgroundColor: colors.primary }]}
             >
-              <Icon name="log-out" size={20} color={colors.white} />
+              <Icon name="log-out" size={20} color={colors.black} />
             </View>
             <View style={styles.settingContent}>
               <Text style={styles.settingTitle}>Sign Out</Text>
@@ -254,7 +254,7 @@ export default function SettingsScreen() {
             <View
               style={[styles.settingIcon, { backgroundColor: colors.error }]}
             >
-              <Icon name="trash-2" size={20} color={colors.white} />
+              <Icon name="trash-2" size={20} color={colors.black} />
             </View>
             <View style={styles.settingContent}>
               <Text style={styles.settingTitle}>Reset Progress</Text>
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
   profileInitial: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: colors.white,
+    color: colors.black,
   },
   profileInfo: {
     flex: 1,

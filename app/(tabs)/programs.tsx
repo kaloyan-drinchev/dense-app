@@ -74,7 +74,7 @@ export default function ProgramsScreen() {
         {userProgressData && generatedProgram && (
           <View style={styles.progressBanner}>
             <LinearGradient
-              colors={['rgba(76, 175, 80, 0.8)', 'rgba(56, 142, 60, 0.9)']}
+              colors={['#000000', '#0A0A0A']}
               style={styles.bannerGradient}
             >
               <View style={styles.bannerContent}>
@@ -88,7 +88,7 @@ export default function ProgramsScreen() {
                 onPress={() => router.push('/single-program-view')}
               >
                 <Text style={styles.bannerButtonText}>View Program</Text>
-                <Icon name="arrow-right" size={16} color={colors.white} />
+                <Icon name="arrow-right" size={16} color={colors.black} />
               </TouchableOpacity>
             </LinearGradient>
           </View>
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   bannerButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   },
   bannerButtonText: {
     ...typography.bodySmall,
-    color: colors.white,
+    color: colors.black,
   },
   emptyState: {
     backgroundColor: colors.darkGray,

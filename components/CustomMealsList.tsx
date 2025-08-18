@@ -95,7 +95,7 @@ export const CustomMealsList: React.FC<CustomMealsListProps> = ({
       <View style={styles.header}>
         <Text style={styles.title}>Custom Meals</Text>
         <TouchableOpacity style={styles.addButton} onPress={onAddMeal}>
-          <Icon name="plus" size={16} color={colors.white} />
+          <Icon name="plus" size={16} color={colors.black} />
           <Text style={styles.addButtonText}>Create</Text>
         </TouchableOpacity>
       </View>
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: colors.white,
+    color: colors.black,
   },
   emptyContainer: {
     alignItems: 'center',

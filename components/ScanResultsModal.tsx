@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     color: colors.lighterGray,
   },
   selectedMealTypeText: {
-    color: colors.white,
+    color: colors.black,
     fontWeight: 'bold',
   },
   scrollView: {

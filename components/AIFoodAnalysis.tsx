@@ -142,7 +142,7 @@ export const AIFoodAnalysis: React.FC<AIFoodAnalysisProps> = ({
               style={styles.addButton}
               onPress={() => handleAddFood(item.food, item.amount)}
             >
-              <Icon name="check" size={16} color={colors.white} />
+              <Icon name="check" size={16} color={colors.black} />
               <Text style={styles.addButtonText}>Add</Text>
             </TouchableOpacity>
           </View>
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: colors.white,
+    color: colors.black,
   },
   cancelButton: {
     flexDirection: 'row',

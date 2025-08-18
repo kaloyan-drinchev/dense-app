@@ -451,7 +451,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
               disabled={!readyToComplete || readOnly}
             >
               {set.isCompleted ? (
-                <Icon name="check" size={20} color={colors.white} />
+                <Icon name="check" size={20} color={colors.black} />
               ) : null}
             </TouchableOpacity>
           </View>
@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
   },
   unitButtonText: {
     ...typography.caption,
-    color: colors.white,
+    color: colors.black,
   },
   tableHeader: {
     flexDirection: 'row',
@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     ...typography.button,
-    color: colors.white,
+    color: colors.black,
   },
   completeButton: {
     flex: 1,
@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
   },
   completeButtonText: {
     ...typography.button,
-    color: colors.white,
+    color: colors.black,
   },
   clearButton: {
     flex: 1,

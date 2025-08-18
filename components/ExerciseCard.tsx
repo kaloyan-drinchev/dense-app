@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   },
   indexText: {
     ...typography.bodySmall,
-    color: colors.white,
+    color: colors.black,
   },
   titleContainer: {
     flex: 1,

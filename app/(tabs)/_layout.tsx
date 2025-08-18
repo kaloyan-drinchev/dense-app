@@ -1,63 +1,18 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React from 'react';
 import { Tabs, useRouter } from 'expo-router';
-import { View, TouchableOpacity, StyleSheet, Text, Platform } from 'react-native';
-import { colors, gradients } from '@/constants/colors';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import { useChatStore } from '@/store/chat-store';
-import { useTimerStore } from '@/store/timer-store';
 
 export default function TabLayout() {
   const router = useRouter();
   const { hasNotifications } = useChatStore();
-  const { isWorkoutActive, timeElapsed, updateTimeElapsed } = useTimerStore();
-  const [currentTime, setCurrentTime] = useState(timeElapsed);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Update timer display continuously when workout is active
-  useEffect(() => {
-    if (isWorkoutActive) {
-      intervalRef.current = setInterval(() => {
-        updateTimeElapsed();
-      }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isWorkoutActive, updateTimeElapsed]);
-
-  // Update current time when timeElapsed changes
-  useEffect(() => {
-    setCurrentTime(timeElapsed);
-  }, [timeElapsed]);
 
   const openChat = () => {
     router.push('/ai-chat');
-  };
-
-  const goToWorkout = () => {
-    router.push('/workout-session');
-  };
-
-  // Format timer for display
-  const formatTimerTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    } else {
-      return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
   };
 
   return (
@@ -132,17 +87,7 @@ export default function TabLayout() {
       />
       </Tabs>
       
-      {/* Workout Timer Indicator */}
-      {isWorkoutActive && (
-        <TouchableOpacity
-          style={styles.timerIndicator}
-          onPress={goToWorkout}
-          activeOpacity={0.8}
-        >
-          <Icon name="clock" size={16} color={colors.white} />
-          <Text style={styles.timerIndicatorText}>{formatTimerTime(currentTime)}</Text>
-        </TouchableOpacity>
-      )}
+
 
       {/* Floating AI Assistant Button */}
       <TouchableOpacity
@@ -166,32 +111,7 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  timerIndicator: {
-    position: 'absolute',
-    top: 50, // Below the status bar
-    left: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(58, 81, 153, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    zIndex: 1000,
-    gap: 6,
-  },
-  timerIndicatorText: {
-    ...typography.timerSmall,
-    color: colors.white,
-    includeFontPadding: false,
-  },
+
   floatingButton: {
     position: 'absolute',
     bottom: 85, // 15px above the 70px tab bar
