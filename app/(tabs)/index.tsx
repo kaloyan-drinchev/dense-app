@@ -22,6 +22,8 @@ import {
   MaterialIcons as MaterialIcon,
 } from '@expo/vector-icons';
 import { WorkoutStartModal } from '@/components/WorkoutStartModal';
+import { WorkoutProgressCharts } from '@/components/WorkoutProgressCharts';
+import { calculateWorkoutProgress } from '@/utils/progress-calculator';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -150,6 +152,11 @@ export default function HomeScreen() {
     return getTodaysWorkout();
   }, [generatedProgram, userProgressData]);
 
+  // Calculate progress data for charts
+  const progressData = useMemo(() => {
+    return calculateWorkoutProgress(generatedProgram, userProgressData);
+  }, [generatedProgram, userProgressData]);
+
   const handleEditProfile = () => {
     router.push('/profile');
   };
@@ -263,8 +270,6 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-
-
         {/* Today's Workout Preview */}
         {generatedProgram && userProgressData && (
           <View style={styles.todaysWorkout}>
@@ -351,8 +356,17 @@ export default function HomeScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
-
           </View>
+        )}
+
+        {/* Progress Charts */}
+        {generatedProgram && userProgressData && (
+          <WorkoutProgressCharts
+            currentWeek={progressData.currentWeek}
+            currentDay={progressData.currentDay}
+            totalWeeks={progressData.totalWeeks}
+            daysPerWeek={progressData.daysPerWeek}
+          />
         )}
       </ScrollView>
 

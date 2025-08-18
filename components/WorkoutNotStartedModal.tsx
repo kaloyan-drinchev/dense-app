@@ -45,8 +45,16 @@ export const WorkoutNotStartedModal: React.FC<WorkoutNotStartedModalProps> = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
+      <TouchableOpacity 
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <TouchableOpacity 
+          style={styles.modalContainer}
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
+        >
           <LinearGradient
             colors={['#000000', '#0A0A0A']}
             style={styles.modalContent}
@@ -91,8 +99,8 @@ export const WorkoutNotStartedModal: React.FC<WorkoutNotStartedModalProps> = ({
               </TouchableOpacity>
             </View>
           </LinearGradient>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 };

@@ -53,8 +53,16 @@ export const WorkoutPreviewModal: React.FC<WorkoutPreviewModalProps> = ({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
+      <TouchableOpacity 
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <TouchableOpacity 
+          style={styles.modalContainer}
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
+        >
           <LinearGradient
             colors={['#000000', '#0A0A0A']}
             style={styles.modalContent}
@@ -116,8 +124,8 @@ export const WorkoutPreviewModal: React.FC<WorkoutPreviewModalProps> = ({
               </Text>
             </View>
           </LinearGradient>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 };

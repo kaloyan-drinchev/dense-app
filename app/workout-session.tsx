@@ -24,6 +24,7 @@ import { ExerciseCard } from '@/components/ExerciseCard';
 import { WorkoutOptionsModal } from '@/components/WorkoutOptionsModal';
 import { WorkoutPreviewModal } from '@/components/WorkoutPreviewModal';
 import { WorkoutNotStartedModal } from '@/components/WorkoutNotStartedModal';
+import { markTodayWorkoutCompleted } from '@/utils/workout-completion-tracker';
 
 export default function WorkoutSessionScreen() {
   const router = useRouter();
@@ -67,12 +68,8 @@ export default function WorkoutSessionScreen() {
     setWorkoutStarted(isWorkoutActive);
   }, [isWorkoutActive]);
 
-  // Show options modal when first entering the screen
-  useEffect(() => {
-    if (todaysWorkout && !isWorkoutActive && !workoutStarted && !showOptionsModal) {
-      setShowOptionsModal(true);
-    }
-  }, [todaysWorkout, isWorkoutActive, workoutStarted, showOptionsModal]);
+  // Don't automatically show options modal when entering the screen
+  // Modal will only show when user clicks "Start Workout" button in the workout session
 
   // Reload when screen gains focus (coming back from tracker)
   useFocusEffect(
@@ -194,6 +191,79 @@ export default function WorkoutSessionScreen() {
     );
   };
 
+  const handleStopWorkout = () => {
+    Alert.alert(
+      "Reset Today's Workout",
+      "This will reset your progress for today's workout. All completed exercises will be set back to pending state. Are you sure?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Reset Workout",
+          style: "destructive",
+          onPress: confirmResetWorkout
+        }
+      ]
+    );
+  };
+
+  const confirmResetWorkout = async () => {
+    try {
+      if (!user?.id || !userProgressData) return;
+
+      // Complete the workout timer to fully reset the timer state
+      completeWorkout();
+      
+      // Get current weekly weights (exercise data)
+      let weeklyWeights: any = {};
+      if (userProgressData.weeklyWeights) {
+        try {
+          weeklyWeights = JSON.parse(userProgressData.weeklyWeights);
+        } catch (error) {
+          weeklyWeights = {};
+        }
+      }
+
+      // Reset today's workout exercises in weeklyWeights
+      if (todaysWorkout?.exercises) {
+        todaysWorkout.exercises.forEach((exercise: any) => {
+          const exerciseId = exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase();
+          
+          // Reset exercise logs for today's workout
+          if (weeklyWeights.exerciseLogs && weeklyWeights.exerciseLogs[exerciseId]) {
+            weeklyWeights.exerciseLogs[exerciseId] = [];
+          }
+        });
+      }
+
+      // Update user progress with reset exercise data (keep week/workout position)
+      const resetProgress = await userProgressService.update(userProgressData.id, {
+        weeklyWeights: JSON.stringify(weeklyWeights), // Reset only today's exercise data
+      });
+
+      if (resetProgress) {
+        setUserProgressData(resetProgress);
+        
+        // Reset local component state
+        setWorkoutStarted(false);
+        setShowOptionsModal(false);
+        setShowPreviewModal(false);
+        setShowNotStartedModal(false);
+        
+        // Stay on the same page, don't open any modal
+      }
+    } catch (error) {
+      console.error('❌ Failed to reset workout:', error);
+      Alert.alert(
+        "Reset Failed",
+        "Something went wrong while resetting today's workout. Please try again.",
+        [{ text: "OK" }]
+      );
+    }
+  };
+
   const handleExercisePress = (exerciseId: string) => {
     if (!workoutStarted) {
       setShowNotStartedModal(true);
@@ -227,6 +297,10 @@ export default function WorkoutSessionScreen() {
         currentWorkout: nextWorkout,
         completedWorkouts: JSON.stringify(completedArr),
       });
+      
+      // Mark today's workout as completed in calendar
+      await markTodayWorkoutCompleted(user.id);
+      
       if (updated) {
         setUserProgressData(updated);
         // Go back to Home after finishing workout
@@ -411,6 +485,13 @@ export default function WorkoutSessionScreen() {
                   >
                     <Icon name={isRunning ? "pause" : "play"} size={16} color={colors.black} />
                   </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.timerButton, styles.stopButton]} 
+                    onPress={handleStopWorkout}
+                  >
+                    <Icon name="x" size={16} color={colors.white} />
+                  </TouchableOpacity>
                 </View>
               </View>
             ) : (
@@ -525,7 +606,7 @@ export default function WorkoutSessionScreen() {
         onClose={() => setShowNotStartedModal(false)}
         onStartWorkout={() => {
           setShowNotStartedModal(false);
-          handleStartWorkoutPress();
+          handleStartWorkout();
         }}
       />
     </LinearGradient>
@@ -618,6 +699,9 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     backgroundColor: colors.mediumGray,
+  },
+  stopButton: {
+    backgroundColor: colors.error,
   },
   startButtonContainer: {
     alignItems: 'center',

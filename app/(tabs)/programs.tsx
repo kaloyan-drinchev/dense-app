@@ -60,6 +60,16 @@ export default function ProgramsScreen() {
     }
   };
 
+  // Helper function to get completed workouts count
+  const getCompletedWorkoutsCount = () => {
+    try {
+      const completed = userProgressData?.completedWorkouts ? JSON.parse(userProgressData.completedWorkouts) : [];
+      return Array.isArray(completed) ? completed.length : 0;
+    } catch {
+      return 0;
+    }
+  };
+
 
 
   return (
@@ -80,7 +90,7 @@ export default function ProgramsScreen() {
               <View style={styles.bannerContent}>
                 <Text style={styles.bannerTitle}>Your Current Program</Text>
                 <Text style={styles.bannerProgramName}>{generatedProgram.displayTitle || generatedProgram.programName}</Text>
-                <Text style={styles.bannerProgress}>Week {userProgressData?.currentWeek || 1} • {userProgressData?.completedWorkouts?.length || 0} completed</Text>
+                <Text style={styles.bannerProgress}>Week {userProgressData?.currentWeek || 1} • {getCompletedWorkoutsCount()} completed</Text>
               </View>
               
               <TouchableOpacity 
