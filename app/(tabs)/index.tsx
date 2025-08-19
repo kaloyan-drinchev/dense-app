@@ -23,8 +23,7 @@ import {
 } from '@expo/vector-icons';
 import { WorkoutStartModal } from '@/components/WorkoutStartModal';
 import { WorkoutUnavailableModal } from '@/components/WorkoutUnavailableModal';
-import { WorkoutProgressCharts } from '@/components/WorkoutProgressCharts';
-import { calculateWorkoutProgress } from '@/utils/progress-calculator';
+
 import { checkWorkoutAvailability, formatAvailabilityDate, type WorkoutAvailability } from '@/utils/workout-availability';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -193,10 +192,7 @@ export default function HomeScreen() {
     return getTodaysWorkout();
   }, [generatedProgram, userProgressData, workoutAvailability]);
 
-  // Calculate progress data for charts
-  const progressData = useMemo(() => {
-    return calculateWorkoutProgress(generatedProgram, userProgressData);
-  }, [generatedProgram, userProgressData]);
+
 
   // Check if today is a rest day
   const isRestDay = () => {
@@ -456,15 +452,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Progress Charts */}
-        {generatedProgram && userProgressData && (
-          <WorkoutProgressCharts
-            currentWeek={progressData.currentWeek}
-            currentDay={progressData.currentDay}
-            totalWeeks={progressData.totalWeeks}
-            daysPerWeek={progressData.daysPerWeek}
-          />
-        )}
+
       </ScrollView>
 
       {/* Workout Start Modal */}

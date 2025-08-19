@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,234 +8,142 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '@/store/workout-store';
-import { colors } from '@/constants/colors';
-import { ProgressChart } from '@/components/ProgressChart';
-import { WeightLogger } from '@/components/WeightLogger';
-import { formatDate } from '@/utils/helpers';
+import { useAuthStore } from '@/store/auth-store';
+import { colors, gradients } from '@/constants/colors';
+import { typography } from '@/constants/typography';
+import { wizardResultsService, userProgressService } from '@/db/services';
+import { WorkoutProgressCharts } from '@/components/WorkoutProgressCharts';
+import { calculateWorkoutProgress } from '@/utils/progress-calculator';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 
 export default function ProgressScreen() {
-  const { userProgress, activeProgram } = useWorkoutStore();
-  const [selectedTab, setSelectedTab] = useState<'weight' | 'workouts'>(
-    'weight'
+  const { user } = useAuthStore();
+  const { userProfile, userProgress, activeProgram, programs } = useWorkoutStore();
+  
+  // State for generated program data
+  const [generatedProgram, setGeneratedProgram] = useState<any>(null);
+  const [loadingProgram, setLoadingProgram] = useState(true);
+  
+  // State for user progress tracking
+  const [userProgressData, setUserProgressData] = useState<any>(null);
+  const [loadingProgress, setLoadingProgress] = useState(true);
+
+  // Load generated program data
+  const loadGeneratedProgram = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoadingProgram(true);
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
+      if (wizardResults?.generatedSplit) {
+        const generatedProgram = JSON.parse(wizardResults.generatedSplit);
+        setGeneratedProgram(generatedProgram);
+      }
+    } catch (error) {
+      console.error('Error loading generated program:', error);
+    } finally {
+      setLoadingProgram(false);
+    }
+  }, [user?.id]);
+
+  // Load user progress data
+  const loadUserProgress = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoadingProgress(true);
+      const progress = await userProgressService.getByUserId(user.id);
+      if (progress) {
+        setUserProgressData(progress);
+      }
+    } catch (error) {
+      console.error('Error loading user progress:', error);
+    } finally {
+      setLoadingProgress(false);
+    }
+  }, [user?.id]);
+
+  // Load data on focus
+  useFocusEffect(
+    useCallback(() => {
+      loadGeneratedProgram();
+      loadUserProgress();
+    }, [loadGeneratedProgram, loadUserProgress])
   );
 
-  if (!userProgress || !activeProgram) {
+  // Calculate progress data for charts
+  const progressData = useMemo(() => {
+    return calculateWorkoutProgress(generatedProgram, userProgressData);
+  }, [generatedProgram, userProgressData]);
+
+  if (loadingProgram || loadingProgress) {
     return (
-      <SafeAreaView style={styles.container} edges={[]}>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>No Active Program</Text>
-          <Text style={styles.emptyText}>
-            Start a program to track your progress
-          </Text>
-        </View>
-      </SafeAreaView>
+      <View style={[styles.container, { backgroundColor: colors.dark }]}>
+        <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+          <View style={styles.loadingContainer} />
+        </SafeAreaView>
+      </View>
     );
   }
 
-  const completedWorkouts = userProgress.completedWorkouts;
-  const totalWorkoutsInProgram = activeProgram.weeks.reduce(
-    (total, week) => total + week.workouts.length,
-    0
-  );
-  const completionPercentage = Math.round(
-    (completedWorkouts.length / totalWorkoutsInProgram) * 100
-  );
+  if (!generatedProgram || !userProgressData) {
+    return (
+      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No Progress Data</Text>
+            <Text style={styles.emptyText}>
+              Start your first workout to track progress
+            </Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <View style={styles.header}>
-          <Text style={styles.title}>Your Progress</Text>
-          <Text style={styles.subtitle}>
-            Track your fitness journey with {activeProgram.name}
-          </Text>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryHeader}>
-            <Text style={styles.summaryTitle}>Program Summary</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {activeProgram.type.toUpperCase()}
-              </Text>
-            </View>
+    <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Your Progress</Text>
+            <Text style={styles.subtitle}>Track your workout journey and consistency</Text>
           </View>
 
-          <View style={styles.progressContainer}>
-            <Text style={styles.progressText}>
-              {completedWorkouts.length} of {totalWorkoutsInProgram} workouts
-              completed
-            </Text>
-            <View style={styles.progressBarContainer}>
-              <View
-                style={[
-                  styles.progressBar,
-                  { width: `${completionPercentage}%` },
-                ]}
-              />
-            </View>
-            <Text style={styles.progressPercentage}>
-              {completionPercentage}%
-            </Text>
-          </View>
-
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Icon name="calendar" size={20} color={colors.primary} />
-              <Text style={styles.statValue}>
-                Week {userProgress.currentWeek}
-              </Text>
-              <Text style={styles.statLabel}>Current Week</Text>
-            </View>
-
-            <View style={styles.statItem}>
-              <Icon name="check-circle" size={20} color={colors.success} />
-              <Text style={styles.statValue}>{completedWorkouts.length}</Text>
-              <Text style={styles.statLabel}>Workouts Done</Text>
-            </View>
-
-            <View style={styles.statItem}>
-              <Icon name="clock" size={20} color={colors.secondary} />
-              <Text style={styles.statValue}>
-                {userProgress.lastWorkoutDate
-                  ? formatDate(userProgress.lastWorkoutDate).split(',')[0]
-                  : 'N/A'}
-              </Text>
-              <Text style={styles.statLabel}>Last Workout</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              selectedTab === 'weight' && styles.activeTabButton,
-            ]}
-            onPress={() => setSelectedTab('weight')}
-          >
-            <Text
-              style={[
-                styles.tabButtonText,
-                selectedTab === 'weight' && styles.activeTabButtonText,
-              ]}
-            >
-              Weight
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              selectedTab === 'workouts' && styles.activeTabButton,
-            ]}
-            onPress={() => setSelectedTab('workouts')}
-          >
-            <Text
-              style={[
-                styles.tabButtonText,
-                selectedTab === 'workouts' && styles.activeTabButtonText,
-              ]}
-            >
-              Workouts
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {selectedTab === 'weight' ? (
-          <>
-            <WeightLogger />
-            <ProgressChart
-              userProgress={userProgress}
-            />
-          </>
-        ) : (
-          <View style={styles.workoutsContainer}>
-            <Text style={styles.sectionTitle}>Recent Workouts</Text>
-
-            {userProgress.completedWorkouts.length === 0 ? (
-              <View style={styles.emptyWorkouts}>
-                <Text style={styles.emptyWorkoutsText}>
-                  No completed workouts yet
-                </Text>
-              </View>
-            ) : (
-              userProgress.completedWorkouts
-                .slice(-5)
-                .reverse()
-                .map((workoutId) => {
-                  // Find the workout in the program
-                  let workout = null;
-                  for (const week of activeProgram.weeks) {
-                    const found = week.workouts.find((w) => w.id === workoutId);
-                    if (found) {
-                      workout = found;
-                      break;
-                    }
-                  }
-
-                  if (!workout) return null;
-
-                  return (
-                    <View key={workoutId} style={styles.workoutItem}>
-                      <View style={styles.workoutIcon}>
-                        <MaterialIcon
-                          name="fitness-center"
-                          size={20}
-                          color={colors.white}
-                        />
-                      </View>
-                      <View style={styles.workoutInfo}>
-                        <Text style={styles.workoutName}>{workout.name}</Text>
-                        <Text style={styles.workoutFocus}>
-                          {workout.focusArea}
-                        </Text>
-                      </View>
-                      <Icon
-                        name="check-circle"
-                        size={20}
-                        color={colors.success}
-                      />
-                    </View>
-                  );
-                })
-            )}
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+          {/* Progress Charts */}
+          <WorkoutProgressCharts
+            currentWeek={progressData.currentWeek}
+            currentDay={progressData.currentDay}
+            totalWeeks={progressData.totalWeeks}
+            daysPerWeek={progressData.daysPerWeek}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.dark,
+  },
+  safeArea: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
   },
-  contentContainer: {
-    paddingHorizontal: 16,  // Only left/right padding
-    paddingTop: 8,          // Minimal top padding
-    paddingBottom: 32,      // Keep bottom unchanged
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  header: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.lighterGray,
+  loadingText: {
+    ...typography.body,
+    color: colors.lightGray,
   },
   emptyContainer: {
     flex: 1,
@@ -244,157 +152,27 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...typography.h2,
     color: colors.white,
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 16,
-    color: colors.lighterGray,
+    ...typography.body,
+    color: colors.lightGray,
     textAlign: 'center',
   },
-  summaryCard: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
-  summaryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  title: {
+    ...typography.h1,
     color: colors.white,
-  },
-  badge: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.black,
-  },
-  progressContainer: {
-    marginBottom: 16,
-  },
-  progressText: {
-    fontSize: 14,
-    color: colors.lighterGray,
     marginBottom: 8,
   },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: colors.mediumGray,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 4,
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: colors.success,
-    borderRadius: 4,
-  },
-  progressPercentage: {
-    fontSize: 12,
-    color: colors.lighterGray,
-    alignSelf: 'flex-end',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: 12,
+  subtitle: {
+    ...typography.body,
     color: colors.lightGray,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: colors.mediumGray,
-  },
-  activeTabButton: {
-    borderBottomColor: colors.primary,
-  },
-  tabButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.lightGray,
-  },
-  activeTabButtonText: {
-    color: colors.white,
-  },
-  workoutsContainer: {
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 16,
-  },
-  emptyWorkouts: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
-  },
-  emptyWorkoutsText: {
-    fontSize: 16,
-    color: colors.lightGray,
-  },
-  workoutItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  workoutIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  workoutInfo: {
-    flex: 1,
-  },
-  workoutName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 4,
-  },
-  workoutFocus: {
-    fontSize: 14,
-    color: colors.lighterGray,
   },
 });
