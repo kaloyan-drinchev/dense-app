@@ -58,9 +58,7 @@ export const WorkoutCalendarHeatMap: React.FC<WorkoutCalendarHeatMapProps> = ({
     const startDay = firstDayOfMonth.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const daysInMonth = lastDayOfMonth.getDate();
 
-    console.log(`📅 Calendar Debug: ${monthNames[currentMonth]} ${currentYear}`);
-    console.log(`📅 First day of month: ${firstDayOfMonth.toDateString()}`);
-    console.log(`📅 Start day index: ${startDay} (0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat)`);
+
 
     const days = [];
     

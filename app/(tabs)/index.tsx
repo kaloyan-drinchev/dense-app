@@ -172,24 +172,19 @@ export default function HomeScreen() {
     const currentWorkout = userProgressData.currentWorkout;
     const isCompleted = workoutAvailability?.isCompletedToday;
     
-    console.log('🔍 getTodaysWorkout Debug:', {
-      currentWorkout,
-      isCompleted,
-      total,
-      weeklyStructure: generatedProgram.weeklyStructure?.map((w: any) => w.name)
-    });
+
     
     // If today's workout is completed, show the current workout (which is already the next one)
     if (isCompleted) {
       // currentWorkout is already pointing to the next workout we should do
       const nextWorkoutIndex = currentWorkout - 1; // -1 because array is 0-indexed
-      console.log('📅 Showing next workout at index:', nextWorkoutIndex);
+
       return generatedProgram.weeklyStructure?.[nextWorkoutIndex] || null;
     }
     
     // Otherwise show current workout
     const currentWorkoutIndex = currentWorkout - 1; // currentWorkout is 1-indexed
-    console.log('📅 Showing current workout at index:', currentWorkoutIndex);
+
     return generatedProgram.weeklyStructure?.[currentWorkoutIndex] || null;
   };
 

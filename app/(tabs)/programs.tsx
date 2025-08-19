@@ -90,7 +90,7 @@ export default function ProgramsScreen() {
               <View style={styles.bannerContent}>
                 <Text style={styles.bannerTitle}>Your Current Program</Text>
                 <Text style={styles.bannerProgramName}>{generatedProgram.displayTitle || generatedProgram.programName}</Text>
-                <Text style={styles.bannerProgress}>Week {userProgressData?.currentWeek || 1} • {getCompletedWorkoutsCount()} completed</Text>
+                <Text style={styles.bannerProgress}>Week {userProgressData?.currentWeek || 1}</Text>
               </View>
               
               <TouchableOpacity 

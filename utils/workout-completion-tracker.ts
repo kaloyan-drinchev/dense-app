@@ -24,7 +24,7 @@ export const getWorkoutCompletionData = async (userId: string): Promise<WorkoutC
     if (userProgress.completedWorkouts) {
       try {
         completedWorkouts = JSON.parse(userProgress.completedWorkouts);
-        console.log('📅 Calendar: Raw completed workouts:', completedWorkouts);
+
       } catch (error) {
         console.warn('Failed to parse completed workouts:', error);
         completedWorkouts = [];
@@ -68,10 +68,7 @@ export const getWorkoutCompletionData = async (userId: string): Promise<WorkoutC
     
     if ((hasTodayCalendarEntry || hasTodayDetailedEntry) && !completedDates.includes(today)) {
       completedDates.push(today);
-      console.log('📅 Calendar: Added today to completed dates:', today);
     }
-    
-    console.log('📅 Calendar: Final completed dates:', completedDates);
 
     return {
       completedDates,

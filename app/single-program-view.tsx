@@ -15,6 +15,77 @@ import { typography } from '@/constants/typography';
 import { wizardResultsService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
 
+// Helper function to format overview text as bullet points
+const formatOverviewAsBullets = (overview: string): string[] => {
+  // Split the overview into logical bullet points
+  const sentences = overview.split('. ');
+  const bullets = [];
+  
+  // First bullet: Main program description
+  if (sentences[0]) {
+    bullets.push(sentences[0] + (sentences[0].endsWith('.') ? '' : '.'));
+  }
+  
+  // Second bullet: Training frequency
+  if (sentences[1]) {
+    bullets.push(sentences[1] + (sentences[1].endsWith('.') ? '' : '.'));
+  }
+  
+  // Third bullet: Priority focus
+  if (sentences[2]) {
+    bullets.push(sentences[2] + (sentences[2].endsWith('.') ? '' : '.'));
+  }
+  
+  return bullets.filter(bullet => bullet.trim().length > 0);
+};
+
+// Helper function to render text with DENSE and random letters highlighted in green
+const renderTextWithHighlight = (text: string) => {
+  // First, handle DENSE highlighting
+  const parts = text.split(/(DENSE)/g);
+  
+  return parts.map((part, index) => {
+    if (part === 'DENSE') {
+      return (
+        <Text key={index} style={styles.highlightedText}>
+          {part}
+        </Text>
+      );
+    } else if (part.length > 0) {
+      // For non-DENSE parts, randomly highlight 2 letters
+      return renderRandomHighlights(part, index);
+    }
+    return part;
+  });
+};
+
+// Helper function to randomly highlight 2 letters in a text part
+const renderRandomHighlights = (text: string, partIndex: number) => {
+  // Get only letters (exclude spaces and punctuation)
+  const letters = text.split('').map((char, index) => ({ char, index }))
+    .filter(item => /[a-zA-Z]/.test(item.char));
+  
+  if (letters.length < 2) {
+    return text; // Not enough letters to highlight
+  }
+  
+  // Randomly select 2 different letter positions
+  const shuffled = [...letters].sort(() => Math.random() - 0.5);
+  const highlightIndices = new Set([shuffled[0].index, shuffled[1].index]);
+  
+  // Render text with highlighted letters
+  return text.split('').map((char, index) => {
+    if (highlightIndices.has(index)) {
+      return (
+        <Text key={`${partIndex}-${index}`} style={styles.highlightedText}>
+          {char}
+        </Text>
+      );
+    }
+    return char;
+  });
+};
+
 // Helper function to generate default schedules for old programs
 const generateDefaultSchedule = (trainingDays: number) => {
   const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -115,7 +186,16 @@ const SingleProgramView = () => {
           {/* Program Overview */}
           <View style={styles.programOverview}>
             <Text style={styles.programName}>{generatedProgram.programName}</Text>
-            <Text style={styles.programDescription}>{generatedProgram.overview}</Text>
+            <View style={styles.overviewBullets}>
+              {formatOverviewAsBullets(generatedProgram.overview).map((bullet, index) => (
+                <View key={index} style={styles.bulletPoint}>
+                  <Text style={styles.bulletDot}>•</Text>
+                  <Text style={styles.bulletText}>
+                    {renderTextWithHighlight(bullet)}
+                  </Text>
+                </View>
+              ))}
+            </View>
             
             <View style={styles.programStats}>
               <View style={styles.statItem}>
@@ -344,6 +424,33 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 24,
+  },
+  overviewBullets: {
+    marginBottom: 24,
+    paddingHorizontal: 16,
+  },
+  bulletPoint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  bulletDot: {
+    ...typography.body,
+    color: colors.primary,
+    marginRight: 12,
+    marginTop: 2,
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  bulletText: {
+    ...typography.body,
+    color: colors.lightGray,
+    flex: 1,
+    lineHeight: 22,
+  },
+  highlightedText: {
+    color: colors.primary,
+    fontWeight: 'bold',
   },
   programStats: {
     flexDirection: 'row',
