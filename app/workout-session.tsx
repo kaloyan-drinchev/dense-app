@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
-  Platform,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +25,7 @@ import { WorkoutOptionsModal } from '@/components/WorkoutOptionsModal';
 import { WorkoutPreviewModal } from '@/components/WorkoutPreviewModal';
 import { WorkoutNotStartedModal } from '@/components/WorkoutNotStartedModal';
 import { markTodayWorkoutCompleted } from '@/utils/workout-completion-tracker';
+import { ensureMinimumDuration } from '@/utils/workout-duration';
 
 export default function WorkoutSessionScreen() {
   const router = useRouter();
@@ -35,6 +36,8 @@ export default function WorkoutSessionScreen() {
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showNotStartedModal, setShowNotStartedModal] = useState(false);
+  const [showWorkoutConfirmModal, setShowWorkoutConfirmModal] = useState(false);
+  const [workoutCompletionData, setWorkoutCompletionData] = useState<{percentage: number, completed: number, total: number} | null>(null);
   const [workoutStarted, setWorkoutStarted] = useState(false);
   const { 
     formattedTime, 
@@ -127,45 +130,66 @@ export default function WorkoutSessionScreen() {
 
 
   // Parse exercise logs for status computation
-  const weeklyWeightsData = (() => {
+  const getWeeklyWeightsData = () => {
     try {
       return userProgressData?.weeklyWeights ? JSON.parse(userProgressData.weeklyWeights) : {};
     } catch {
       return {} as any;
     }
-  })();
+  };
 
   const getExerciseStatus = (
     exerciseId: string,
     plannedSets: number
   ): 'pending' | 'in-progress' | 'completed' => {
     const today = new Date().toISOString().slice(0, 10);
+    const weeklyWeightsData = getWeeklyWeightsData();
     const sessions = weeklyWeightsData?.exerciseLogs?.[exerciseId] as
       | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
       | undefined;
+    
     if (!sessions || sessions.length === 0) return 'pending';
+    
     const todaySession = sessions.find((s) => s.date === today);
     if (!todaySession || !todaySession.sets || todaySession.sets.length === 0) return 'pending';
-    // Treat a set as "touched" only if reps or weight > 0 (ignore isCompleted when values are zero)
-    const touchedSets = todaySession.sets.filter((s) => (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0);
-    if (touchedSets.length === 0) return 'pending';
-    // Count a set as completed only if marked done AND has non-zero values
-    const completedCount = todaySession.sets.filter(
-      (s) => !!s.isCompleted && (s.reps ?? 0) > 0 && (s.weightKg ?? 0) > 0
-    ).length;
-    const anyTouched = touchedSets.length > 0;
+    
+    // Count completed sets based on isCompleted flag (regardless of values)
+    const completedCount = todaySession.sets.filter((s) => !!s.isCompleted).length;
+    
+    // Treat a set as "touched" if it has values OR is marked as completed
+    const touchedSets = todaySession.sets.filter((s) => 
+      (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0 || s.isCompleted
+    );
+    
     const required = Math.max(0, plannedSets || 0);
+    
+    // If we have enough completed sets, mark as completed
     if (required > 0 && completedCount >= required) return 'completed';
-    return anyTouched ? 'in-progress' : 'pending';
+    
+    // If any sets are touched but not all are completed, mark as in-progress
+    if (touchedSets.length > 0) return 'in-progress';
+    
+    return 'pending';
   };
 
-  const allExercisesCompleted = (() => {
-    if (!todaysWorkout) return false;
-    return (todaysWorkout.exercises || []).every((ex: any) => {
+  // Calculate workout completion percentage
+  const calculateWorkoutProgress = () => {
+    if (!todaysWorkout?.exercises) return { percentage: 0, completed: 0, total: 0 };
+    
+    const exercises = todaysWorkout.exercises;
+    const completedCount = exercises.filter((ex: any) => {
       const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
       return getExerciseStatus(exId, ex.sets) === 'completed';
-    });
-  })();
+    }).length;
+    
+    const total = exercises.length;
+    const percentage = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+    
+    return { percentage, completed: completedCount, total };
+  };
+
+  const workoutProgress = calculateWorkoutProgress();
+  const allExercisesCompleted = workoutProgress.percentage === 100;
 
   // New modal handlers
   const handleStartWorkoutPress = () => {
@@ -269,11 +293,23 @@ export default function WorkoutSessionScreen() {
       setShowNotStartedModal(true);
       return;
     }
-    // Navigate to exercise tracker as usual
+    // Navigate to exercise tracker - no restrictions on order
     router.push(`/workout-exercise-tracker?exerciseId=${exerciseId}`);
   };
 
   const handleFinishWorkout = async () => {
+    if (!user?.id || !userProgressData) return;
+    
+    // Always show modal for confirmation or congratulations
+    setWorkoutCompletionData({ 
+      percentage: workoutProgress.percentage, 
+      completed: workoutProgress.completed, 
+      total: workoutProgress.total 
+    });
+    setShowWorkoutConfirmModal(true);
+  };
+
+  const completeWorkoutWithPercentage = async () => {
     if (!user?.id || !userProgressData) return;
     try {
       // Complete the workout timer and get duration
@@ -288,6 +324,7 @@ export default function WorkoutSessionScreen() {
         workoutIndex: currentWorkoutIndex,
         workoutName: todaysWorkout?.name,
         duration: duration, // Store workout duration
+        percentageSuccess: workoutProgress.percentage, // Store completion percentage
       });
       const nextWorkout = Math.min(
         (userProgressData.currentWorkout || 1) + 1,
@@ -304,112 +341,10 @@ export default function WorkoutSessionScreen() {
       if (updated) {
         setUserProgressData(updated);
         // Go back to Home after finishing workout
-        router.replace('/(tabs)');
+        router.back();
       }
     } catch (e) {
       console.error('❌ Failed to finish workout:', e);
-    }
-  };
-
-  // TESTING HELPERS
-  const upsertTodaySessionForExercise = (
-    dataObj: any,
-    exercise: any,
-    markCompleted: boolean
-  ) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const exerciseId = exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase();
-    const plannedSets = exercise.sets || 0;
-    if (!dataObj.exerciseLogs) dataObj.exerciseLogs = {};
-    if (!dataObj.exerciseLogs[exerciseId]) dataObj.exerciseLogs[exerciseId] = [];
-    const sessions: any[] = dataObj.exerciseLogs[exerciseId];
-    const todayIdx = sessions.findIndex((s) => s.date === today);
-    const todaySession = todayIdx >= 0 ? sessions[todayIdx] : null;
-    // Find last non-today session as fallback for values
-    const lastSession = [...sessions]
-      .filter((s) => s.date !== today)
-      .sort((a, b) => (a.date < b.date ? 1 : -1))[0];
-
-    // Parse default reps from exercise.reps if string like "8-12"
-    const parseDefaultReps = () => {
-      const r = exercise.reps;
-      if (typeof r === 'number') return r;
-      if (typeof r === 'string') {
-        const m = r.match(/(\d+)(?:\s*-\s*(\d+))?/);
-        if (m) return parseInt(m[1], 10);
-      }
-      return 10;
-    };
-    const defaultReps = parseDefaultReps();
-
-    const newSets = Array.from({ length: plannedSets }, (_, i) => {
-      const fromToday = todaySession?.sets?.[i];
-      const fromLast = lastSession?.sets?.[i];
-      const weightFallback = markCompleted ? 2.5 : 0;
-      const pickPositive = (a?: number, b?: number, fallback?: number) => {
-        if (typeof a === 'number' && a > 0) return a;
-        if (typeof b === 'number' && b > 0) return b;
-        return fallback ?? 0;
-      };
-      const repsFallback = defaultReps;
-      const weightKg = pickPositive(fromToday?.weightKg, fromLast?.weightKg, weightFallback);
-      const reps = pickPositive(fromToday?.reps, fromLast?.reps, repsFallback);
-      return {
-        setNumber: i + 1,
-        weightKg,
-        reps,
-        isCompleted: !!markCompleted,
-      };
-    });
-    const entry = { date: today, unit: (todaySession?.unit || lastSession?.unit || 'kg') as 'kg' | 'lb', sets: newSets };
-    if (todayIdx >= 0) sessions[todayIdx] = entry; else sessions.push(entry);
-  };
-
-  const handleMockAllCompleted = async () => {
-    if (!userProgressData || !todaysWorkout) return;
-    try {
-      let data: any = {};
-      try { data = userProgressData.weeklyWeights ? JSON.parse(userProgressData.weeklyWeights) : {}; } catch { data = {}; }
-      for (const ex of todaysWorkout.exercises || []) {
-        upsertTodaySessionForExercise(data, ex, true);
-      }
-      const updated = await userProgressService.update(userProgressData.id, {
-        weeklyWeights: JSON.stringify(data),
-      });
-      if (updated) {
-        setUserProgressData(updated);
-        // also recompute derived data by reloading progress from DB
-        const refreshed = await userProgressService.getByUserId(user?.id || '');
-        if (refreshed) setUserProgressData(refreshed);
-      }
-    } catch (e) {
-      console.error('❌ Mock complete all failed:', e);
-    }
-  };
-
-  const handleMockAllPending = async () => {
-    if (!userProgressData || !todaysWorkout) return;
-    try {
-      let data: any = {};
-      try { data = userProgressData.weeklyWeights ? JSON.parse(userProgressData.weeklyWeights) : {}; } catch { data = {}; }
-      for (const ex of todaysWorkout.exercises || []) {
-        // Pending: reset values to zero
-        const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
-        if (!data.exerciseLogs) data.exerciseLogs = {};
-        if (!data.exerciseLogs[exId]) data.exerciseLogs[exId] = [];
-        const today = new Date().toISOString().slice(0, 10);
-        const sessions: any[] = data.exerciseLogs[exId];
-        const idx = sessions.findIndex((s) => s.date === today);
-        const sets = Array.from({ length: ex.sets || 0 }, (_, i) => ({ setNumber: i + 1, weightKg: 0, reps: 0, isCompleted: false }));
-        const entry = { date: today, unit: 'kg' as const, sets };
-        if (idx >= 0) sessions[idx] = entry; else sessions.push(entry);
-      }
-      const updated = await userProgressService.update(userProgressData.id, {
-        weeklyWeights: JSON.stringify(data),
-      });
-      if (updated) setUserProgressData(updated);
-    } catch (e) {
-      console.error('❌ Mock pending all failed:', e);
     }
   };
 
@@ -516,7 +451,7 @@ export default function WorkoutSessionScreen() {
             <View style={styles.workoutMeta}>
               <View style={styles.metaItem}>
                 <Icon name="clock" size={16} color={colors.primary} />
-                <Text style={styles.metaText}>{todaysWorkout.estimatedDuration} min</Text>
+                <Text style={styles.metaText}>{ensureMinimumDuration(todaysWorkout.estimatedDuration)} min</Text>
               </View>
               <View style={styles.metaItem}>
                 <Icon name="target" size={16} color={colors.primary} />
@@ -560,17 +495,11 @@ export default function WorkoutSessionScreen() {
             }) || (
               <Text style={styles.noExercisesText}>No exercises found for today</Text>
             )}
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-              <TouchableOpacity style={[styles.finishButton, { backgroundColor: colors.primary }]} onPress={handleMockAllCompleted}>
-                <Text style={styles.finishButtonText}>Mock: All Completed</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.finishButton, { backgroundColor: colors.darkGray }]} onPress={handleMockAllPending}>
-                <Text style={styles.finishButtonText}>Mock: All Pending</Text>
-              </TouchableOpacity>
-            </View>
-            {allExercisesCompleted && (
+            {workoutStarted && (
               <TouchableOpacity style={styles.finishButton} onPress={handleFinishWorkout}>
-                <Text style={styles.finishButtonText}>Finish Workout</Text>
+                <Text style={styles.finishButtonText}>
+                  Finish Workout ({workoutProgress.percentage}%)
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -598,7 +527,7 @@ export default function WorkoutSessionScreen() {
           reps: exercise.reps,
           restTime: exercise.restSeconds ? `${exercise.restSeconds}s` : undefined,
         })) || []}
-        estimatedDuration={`${todaysWorkout?.estimatedDuration || 45} min`}
+        estimatedDuration={`${ensureMinimumDuration(todaysWorkout?.estimatedDuration)} min`}
       />
 
       <WorkoutNotStartedModal
@@ -609,6 +538,76 @@ export default function WorkoutSessionScreen() {
           handleStartWorkout();
         }}
       />
+
+      {/* Workout Completion Modal */}
+      {workoutCompletionData && (
+        <Modal
+          visible={showWorkoutConfirmModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowWorkoutConfirmModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowWorkoutConfirmModal(false)}
+          >
+            <View style={styles.modalContainer}>
+              <LinearGradient
+                colors={[colors.darkGray, colors.mediumGray]}
+                style={styles.modalContent}
+              >
+                {workoutCompletionData.percentage === 100 ? (
+                  <>
+                    <Text style={styles.modalTitle}>🎉 Amazing Work!</Text>
+                    <Text style={styles.modalDescription}>
+                      Outstanding! You've completed all {workoutCompletionData.total} exercises. You're crushing your fitness goals!
+                    </Text>
+                    
+                    <View style={styles.modalButtons}>
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.confirmButton, styles.singleButton]}
+                        onPress={() => {
+                          setShowWorkoutConfirmModal(false);
+                          completeWorkoutWithPercentage();
+                        }}
+                      >
+                        <Text style={styles.confirmButtonText}>Finish Workout</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.modalTitle}>Complete Workout?</Text>
+                    <Text style={styles.modalDescription}>
+                      You're at {workoutCompletionData.percentage}% completion ({workoutCompletionData.completed}/{workoutCompletionData.total} exercises). For better results do 100% next time!
+                    </Text>
+                    
+                    <View style={styles.modalButtons}>
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.cancelButton, styles.dualButton]}
+                        onPress={() => {
+                          setShowWorkoutConfirmModal(false);
+                          completeWorkoutWithPercentage();
+                        }}
+                      >
+                        <Text style={styles.cancelButtonText}>Yes, Finish</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
+                        onPress={() => setShowWorkoutConfirmModal(false)}
+                      >
+                        <Text style={styles.confirmButtonText}>Continue Workout</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </LinearGradient>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </LinearGradient>
   );
 }
@@ -772,7 +771,7 @@ const styles = StyleSheet.create({
   },
   finishButtonText: {
     ...typography.button,
-    color: colors.white,
+    color: colors.black,
   },
   noWorkoutContainer: {
     flex: 1,
@@ -803,5 +802,82 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.white,
+  },
+  
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  modalContainer: {
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalContent: {
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    ...typography.h3,
+    color: colors.white,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalDescription: {
+    ...typography.body,
+    color: colors.lightGray,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  modalButtons: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalButton: {
+    display: 'flex',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  cancelButton: {
+    backgroundColor: colors.mediumGray,
+  },
+  confirmButton: {
+    backgroundColor: colors.primary,
+  },
+  cancelButtonText: {
+    ...typography.button,
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  confirmButtonText: {
+    ...typography.button,
+    color: colors.black,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  singleButton: {
+    flex: 0,
+    minWidth: 120,
+    maxWidth: 200,
+  },
+  dualButton: {
+    flex: 0,
+    minWidth: 120,
+    maxWidth: 140,
   },
 });

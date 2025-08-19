@@ -14,6 +14,7 @@ import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { wizardResultsService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
+import { ensureMinimumDuration } from '@/utils/workout-duration';
 
 // Helper function to format overview text as bullet points
 const formatOverviewAsBullets = (overview: string): string[] => {
@@ -317,7 +318,7 @@ const SingleProgramView = () => {
                 <View style={styles.workoutHeader}>
                   <Text style={styles.workoutDay}>Day {index + 1}</Text>
                   <Text style={styles.workoutName}>{day.name}</Text>
-                  <Text style={styles.workoutDuration}>{day.estimatedDuration} min</Text>
+                  <Text style={styles.workoutDuration}>{ensureMinimumDuration(day.estimatedDuration)} min</Text>
                 </View>
                 
                 <View style={styles.muscleGroupSection}>

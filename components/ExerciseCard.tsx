@@ -50,7 +50,10 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
               : styles.statusPending,
           ]}
         >
-          <Text style={styles.statusText}>{statusLabel}</Text>
+          <Text style={[
+            styles.statusText,
+            status === 'completed' && styles.statusTextCompleted
+          ]}>{statusLabel}</Text>
         </View>
       </View>
 
@@ -133,6 +136,9 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.white,
     textTransform: 'uppercase',
+  },
+  statusTextCompleted: {
+    color: colors.black,
   },
   infoContainer: {
     flexDirection: 'row',

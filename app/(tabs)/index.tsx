@@ -26,6 +26,7 @@ import { WorkoutUnavailableModal } from '@/components/WorkoutUnavailableModal';
 import { StatGroup } from '@/components/StatGroup';
 
 import { checkWorkoutAvailability, formatAvailabilityDate, type WorkoutAvailability } from '@/utils/workout-availability';
+import { ensureMinimumDuration } from '@/utils/workout-duration';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -38,6 +39,8 @@ export default function HomeScreen() {
   const { isWorkoutActive, timeElapsed, isRunning, updateTimeElapsed } = useTimerStore();
   const [currentTime, setCurrentTime] = useState(timeElapsed);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+
   
   // State for generated program data
   const [generatedProgram, setGeneratedProgram] = useState<any>(null);
@@ -180,14 +183,30 @@ export default function HomeScreen() {
     if (isCompleted) {
       // currentWorkout is already pointing to the next workout we should do
       const nextWorkoutIndex = currentWorkout - 1; // -1 because array is 0-indexed
-
-      return generatedProgram.weeklyStructure?.[nextWorkoutIndex] || null;
+      const workout = generatedProgram.weeklyStructure?.[nextWorkoutIndex] || null;
+      
+      // Fix duration if too low
+      if (workout) {
+        return {
+          ...workout,
+          estimatedDuration: ensureMinimumDuration(workout.estimatedDuration)
+        };
+      }
+      return null;
     }
     
     // Otherwise show current workout
     const currentWorkoutIndex = currentWorkout - 1; // currentWorkout is 1-indexed
-
-    return generatedProgram.weeklyStructure?.[currentWorkoutIndex] || null;
+    const workout = generatedProgram.weeklyStructure?.[currentWorkoutIndex] || null;
+    
+    // Fix duration if too low
+    if (workout) {
+      return {
+        ...workout,
+        estimatedDuration: ensureMinimumDuration(workout.estimatedDuration)
+      };
+    }
+    return null;
   };
 
   // Memoized workout to display (depends on completion status)

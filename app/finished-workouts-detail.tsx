@@ -17,6 +17,7 @@ export default function FinishedWorkoutsDetailScreen() {
   const [program, setProgram] = useState<any>(null);
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, any[]>>({});
   const [workoutDuration, setWorkoutDuration] = useState<number | null>(null);
+  const [workoutPercentage, setWorkoutPercentage] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,8 +46,12 @@ export default function FinishedWorkoutsDetailScreen() {
               new Date(item.date).toISOString().split('T')[0] === new Date(date).toISOString().split('T')[0] &&
               item.workoutIndex === parseInt(workoutIndex || '0', 10)
             );
+            
             if (workoutEntry?.duration) {
               setWorkoutDuration(workoutEntry.duration);
+            }
+            if (workoutEntry?.percentageSuccess !== undefined) {
+              setWorkoutPercentage(workoutEntry.percentageSuccess);
             }
           } catch (error) {
             console.error('Error parsing completed workouts:', error);
@@ -75,12 +80,19 @@ export default function FinishedWorkoutsDetailScreen() {
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
           <View style={styles.workoutHeader}>
             <Text style={styles.dateText}>{new Date(String(date)).toLocaleString()}</Text>
-            {workoutDuration && (
-              <View style={styles.durationContainer}>
-                <Icon name="clock" size={16} color={colors.primary} />
-                <Text style={styles.durationText}>{formatDuration(workoutDuration)}</Text>
-              </View>
-            )}
+            <View style={styles.metaRow}>
+              {workoutDuration && (
+                <View style={styles.durationContainer}>
+                  <Icon name="clock" size={16} color={colors.primary} />
+                  <Text style={styles.durationText}>{formatDuration(workoutDuration)}</Text>
+                </View>
+              )}
+              {workoutPercentage !== null && (
+                <View style={styles.percentageContainer}>
+                  <Text style={styles.percentageText}>{workoutPercentage}% Complete</Text>
+                </View>
+              )}
+            </View>
           </View>
           {workout?.exercises?.map((ex: any, i: number) => {
             const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
@@ -135,6 +147,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     flex: 1,
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   durationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -147,6 +164,20 @@ const styles = StyleSheet.create({
   durationText: {
     fontSize: 14,
     color: colors.primary,
+    fontWeight: '600',
+  },
+  percentageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  percentageText: {
+    fontSize: 14,
+    color: colors.black,
     fontWeight: '600',
   },
 });

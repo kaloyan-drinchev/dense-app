@@ -16,6 +16,7 @@ type CompletedEntry = {
   workoutIndex: number;
   workoutName?: string;
   duration?: number; // in seconds
+  percentageSuccess?: number; // completion percentage
 };
 
 export default function FinishedWorkoutsScreen() {
@@ -26,10 +27,8 @@ export default function FinishedWorkoutsScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('🔍 Finished workouts useEffect triggered, user:', user?.id);
     const load = async () => {
       if (!user?.id) {
-        console.log('🔍 No user id, returning');
         setLoading(false);
         return;
       }
@@ -115,6 +114,8 @@ export default function FinishedWorkoutsScreen() {
                     <Text style={styles.entryTitle}>{`Day ${item.workoutIndex + 1} - ${workout?.name || item.workoutName || 'Workout'}`}</Text>
                     <View style={styles.entryMeta}>
                       <Text style={styles.entrySubtitle}>{new Date(item.date).toLocaleString()}</Text>
+                      <Text style={styles.entrySubtitle}>{item.percentageSuccess}%</Text>
+                      
                     </View>
                   </View>
                   <View style={styles.entryRight}>
@@ -176,6 +177,21 @@ const styles = StyleSheet.create({
   durationText: {
     ...typography.timerSmall,
     color: colors.primary,
+  },
+  metaDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  percentageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  percentageText: {
+    ...typography.timerSmall,
+    color: colors.primary,
+    fontWeight: '600',
   },
   entryRight: {
     backgroundColor: colors.primary,

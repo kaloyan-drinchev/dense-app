@@ -7,7 +7,9 @@ import {
   View,
   TouchableOpacity,
   TextInput,
+  Modal,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Exercise, ExerciseSet } from '@/types/workout';
 import { colors } from '@/constants/colors';
 import { useWorkoutStore } from '@/store/workout-store';
@@ -61,18 +63,17 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       }))
   );
 
-  // Previous session for PREV column
-  const [prevSessionSets, setPrevSessionSets] = useState<
-    Array<{ setNumber: number; weightKg: number; reps: number; isCompleted: boolean }>
-  >([]);
+
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [completionData, setCompletionData] = useState<{percentage: number, completed: number, total: number} | null>(null);
   const hasUserEditedRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSavingRef = useRef(false);
   const pendingSaveRef = useRef(false);
 
   useEffect(() => {
-    const loadPrev = async () => {
+    const loadSessionData = async () => {
       if (presetSession) {
         const limitedSets = presetSession.sets.slice(0, MAX_SETS);
         const hydrated: ExerciseSet[] = (limitedSets.length > 0
@@ -81,25 +82,29 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         ).map((s) => ({ id: generateId(), reps: s.reps, weight: s.weightKg, isCompleted: !!s.isCompleted }));
         setUnit(presetSession.unit || 'kg');
         setSets(hydrated);
-        setPrevSessionSets(presetSession.sets);
         return;
       }
+      
+      // Load current session data if not read-only
       if (!user?.id || !exerciseKey) return;
       try {
-        const last = await userProgressService.getLastExerciseSession(user.id, exerciseKey);
-        if (last?.sets) {
-          setPrevSessionSets(last.sets);
-          setUnit(last.unit || 'kg');
-          const limitedSets = last.sets.slice(0, MAX_SETS);
+        const lastSession = await userProgressService.getLastExerciseSession(user.id, exerciseKey);
+        if (lastSession?.sets) {
+          setUnit(lastSession.unit || 'kg');
+          const limitedSets = lastSession.sets.slice(0, MAX_SETS);
           const hydrated: ExerciseSet[] = (limitedSets.length > 0
             ? limitedSets
             : Array.from({ length: MIN_SETS }, () => ({ reps: 0, weightKg: 0, isCompleted: false }))
           ).map((s) => ({ id: generateId(), reps: s.reps, weight: s.weightKg, isCompleted: !!s.isCompleted }));
           setSets(hydrated);
         }
-      } catch (e) {}
+      } catch (e) {
+        // If no previous session found, start with empty sets
+        console.log('No previous session found, starting fresh');
+      }
     };
-    loadPrev();
+    
+    loadSessionData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, exerciseKey, presetSession?.unit, JSON.stringify(presetSession?.sets)]);
 
@@ -149,42 +154,29 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     return n / 2.2046226218;
   };
 
-  const handleSetComplete = (setId: string, isCompleted: boolean) => {
-    if (readOnly) return;
-    const index = sets.findIndex((s) => s.id === setId);
-    const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
-    const target = index >= 0 ? sets[index] : null;
-    const hasValues = !!target && (target.weight ?? 0) > 0 && (target.reps ?? 0) > 0;
-    if (!isEditable || !hasValues) return;
-    const updatedSets = sets.map((set) =>
-      set.id === setId ? { ...set, isCompleted } : set
-    );
-    setSets(updatedSets);
-    updateExerciseSet(exerciseKey, setId, { isCompleted });
-    hasUserEditedRef.current = true;
-    scheduleAutoSave();
-  };
-
   const handleWeightChange = (setId: string, weight: string) => {
     if (readOnly) return;
     const index = sets.findIndex((s) => s.id === setId);
-    const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
+    const isEditable = true; // Allow editing any set regardless of order
     if (!isEditable) return;
     const rawWeight = fromDisplayWeightToKg(weight);
     const numWeight = Math.max(0, Math.min(MAX_WEIGHT_KG, rawWeight));
     let updatedSets = sets.map((set) =>
       set.id === setId ? { ...set, weight: numWeight } : set
     );
-    // If values become zero, unmark done automatically
+    
+    // Auto-complete/uncomplete set based on values
     const target = updatedSets.find((s) => s.id === setId);
-    if (target && (target.weight ?? 0) <= 0 || (target?.reps ?? 0) <= 0) {
-      if (target && target.isCompleted) {
+    if (target) {
+      const shouldBeCompleted = (target.weight > 0 && target.reps > 0);
+      if (target.isCompleted !== shouldBeCompleted) {
         updatedSets = updatedSets.map((s) =>
-          s.id === setId ? { ...s, isCompleted: false } : s
+          s.id === setId ? { ...s, isCompleted: shouldBeCompleted } : s
         );
-        updateExerciseSet(exerciseKey, setId, { isCompleted: false });
+        updateExerciseSet(exerciseKey, setId, { isCompleted: shouldBeCompleted });
       }
     }
+    
     setSets(updatedSets);
     updateExerciseSet(exerciseKey, setId, { weight: numWeight });
     hasUserEditedRef.current = true;
@@ -194,23 +186,26 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const handleRepsChange = (setId: string, reps: string) => {
     if (readOnly) return;
     const index = sets.findIndex((s) => s.id === setId);
-    const isEditable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
+    const isEditable = true; // Allow editing any set regardless of order
     if (!isEditable) return;
     const rawReps = parseInt(reps) || 0;
     const numReps = Math.max(0, Math.min(MAX_REPS, rawReps));
     let updatedSets = sets.map((set) =>
       set.id === setId ? { ...set, reps: numReps } : set
     );
-    // If values become zero, unmark done automatically
+    
+    // Auto-complete/uncomplete set based on values
     const target = updatedSets.find((s) => s.id === setId);
-    if (target && (target.weight ?? 0) <= 0 || (target?.reps ?? 0) <= 0) {
-      if (target && target.isCompleted) {
+    if (target) {
+      const shouldBeCompleted = (target.weight > 0 && target.reps > 0);
+      if (target.isCompleted !== shouldBeCompleted) {
         updatedSets = updatedSets.map((s) =>
-          s.id === setId ? { ...s, isCompleted: false } : s
+          s.id === setId ? { ...s, isCompleted: shouldBeCompleted } : s
         );
-        updateExerciseSet(exerciseKey, setId, { isCompleted: false });
+        updateExerciseSet(exerciseKey, setId, { isCompleted: shouldBeCompleted });
       }
     }
+    
     setSets(updatedSets);
     updateExerciseSet(exerciseKey, setId, { reps: numReps });
     hasUserEditedRef.current = true;
@@ -284,19 +279,12 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       })),
     };
     try {
+      console.log(`💾 Saving exercise ${exerciseKey}:`, payload);
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
-      // Reload last to confirm persisted state and keep banner visible
-      try {
-        const last = await userProgressService.getLastExerciseSession(user.id, exerciseKey);
-        if (last?.sets) {
-          setPrevSessionSets(last.sets);
-        }
-      } catch (e) {
-        
-      }
+      console.log(`✅ Successfully saved ${exerciseKey}`);
       setSaveStatus('saved');
     } catch (e) {
-      
+      console.error(`❌ Failed to save ${exerciseKey}:`, e);
       setSaveStatus('error');
     } finally {
       isSavingRef.current = false;
@@ -318,11 +306,63 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
 
   const handleCompleteExercise = async () => {
     if (readOnly) return;
-    // Only allow completion when all sets are already marked done
-    if (!sets.every((s) => s.isCompleted)) return;
-    await handleSaveSession();
-    // Navigate back to Today's Workout
-    router.replace('/workout-session');
+    
+    // Calculate completion percentage
+    const completedSets = sets.filter(s => s.isCompleted).length;
+    const totalSets = sets.length;
+    const completionPercentage = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
+    
+    // Always show modal for confirmation or congratulations
+    setCompletionData({ percentage: completionPercentage, completed: completedSets, total: totalSets });
+    setShowConfirmModal(true);
+  };
+
+  const completeExercise = async () => {
+    console.log('🎯 Completing exercise - BEFORE:', sets.map(s => ({ reps: s.reps, weight: s.weight, isCompleted: s.isCompleted })));
+    
+    // Ensure all sets are marked as completed and have valid values
+    const updatedSets = sets.map((set) => {
+      // If set has no reps or weight, give it minimum valid values
+      const reps = set.reps > 0 ? set.reps : 1;
+      const weight = set.weight > 0 ? set.weight : 0;
+      
+      return {
+        ...set,
+        reps,
+        weight,
+        isCompleted: true, // Mark all sets as completed
+      };
+    });
+    
+    console.log('🎯 Completing exercise - AFTER:', updatedSets.map(s => ({ reps: s.reps, weight: s.weight, isCompleted: s.isCompleted })));
+    
+    // Update the sets state to reflect completion
+    setSets(updatedSets);
+    hasUserEditedRef.current = true;
+    
+    // Save the session with completed sets - use updatedSets directly
+    const payload = {
+      unit,
+      sets: updatedSets.map((s, idx) => ({
+        setNumber: idx + 1,
+        weightKg: s.weight ?? 0,
+        reps: s.reps ?? 0,
+        isCompleted: !!s.isCompleted,
+      })),
+    };
+    
+    try {
+      if (!user?.id) {
+        console.error('❌ No user ID available for saving');
+        return;
+      }
+      await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
+      console.log('✅ Successfully saved completed exercise with all sets marked as completed');
+    } catch (e) {
+      console.error('❌ Failed to save completed exercise:', e);
+    }
+    
+    router.back();
   };
 
   const handleClearAll = async () => {
@@ -368,11 +408,10 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         <Text style={[styles.headerText, styles.setColumn]}>SET</Text>
         <Text style={[styles.headerText, styles.weightColumn]}>WEIGHT ({unit})</Text>
         <Text style={[styles.headerText, styles.repsColumn]}>REPS</Text>
-        <Text style={[styles.headerText, styles.doneColumn]}>DONE</Text>
       </View>
 
       {sets.map((set, index) => {
-        const editable = index === 0 || sets.slice(0, index).every((s) => s.isCompleted);
+        const editable = true; // Allow editing any set regardless of order
         const readyToComplete = editable && (set.weight ?? 0) > 0 && (set.reps ?? 0) > 0;
         return (
           <View key={set.id} style={styles.setRow}>
@@ -439,35 +478,12 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                 </TouchableOpacity>
               </View>
             </View>
-
-            <TouchableOpacity
-              style={[
-                styles.doneColumn,
-                styles.doneButton,
-                set.isCompleted && styles.doneButtonActive,
-                (!readyToComplete) && styles.disabledButton,
-              ]}
-              onPress={() => handleSetComplete(set.id, !set.isCompleted)}
-              disabled={!readyToComplete || readOnly}
-            >
-              {set.isCompleted ? (
-                <Icon name="check" size={20} color={colors.black} />
-              ) : null}
-            </TouchableOpacity>
           </View>
         );
       })}
 
       {!readOnly && (
         <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[styles.secondaryButton, sets.length >= MAX_SETS && styles.disabledButton]}
-            onPress={handleAddSet}
-            disabled={sets.length >= MAX_SETS}
-          >
-            <Icon name="plus" size={16} color={colors.white} />
-            <Text style={styles.secondaryButtonText}>Add set</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.secondaryButton, sets.length <= MIN_SETS && styles.disabledButton]}
             onPress={() => handleRemoveSet()}
@@ -476,18 +492,22 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             <Icon name="minus" size={16} color={colors.white} />
             <Text style={styles.secondaryButtonText}>Remove last</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.secondaryButton, sets.length >= MAX_SETS && styles.disabledButton]}
+            onPress={handleAddSet}
+            disabled={sets.length >= MAX_SETS}
+          >
+            <Icon name="plus" size={16} color={colors.white} />
+            <Text style={styles.secondaryButtonText}>Add set</Text>
+          </TouchableOpacity>
         </View>
       )}
 
       {!readOnly && (
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={[
-              styles.completeButton,
-              !(sets.length > 0 && sets.every((s) => s.isCompleted)) && styles.disabledButton,
-            ]}
+            style={styles.completeButton}
             onPress={handleCompleteExercise}
-            disabled={!(sets.length > 0 && sets.every((s) => s.isCompleted))}
           >
             <Text style={styles.completeButtonText}>Complete Exercise</Text>
           </TouchableOpacity>
@@ -502,6 +522,80 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         </View>
       )}
 
+      {/* Confirmation Modal */}
+      {completionData && (
+        <Modal
+          visible={showConfirmModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowConfirmModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowConfirmModal(false)}
+          >
+            <View style={styles.modalContainer}>
+              <LinearGradient
+                colors={[colors.darkGray, colors.mediumGray]}
+                style={styles.modalContent}
+              >
+                {completionData.percentage === 100 ? (
+                  <>
+                    <Text style={styles.modalTitle}>🎉 Excellent Work!</Text>
+                    <Text style={styles.modalDescription}>
+                      Perfect! You've completed all {completionData.total} sets. Great job staying consistent with your training!
+                    </Text>
+                    
+                    <View style={styles.modalButtons}>
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.confirmButton, styles.singleButton]}
+                        onPress={() => {
+                          setShowConfirmModal(false);
+                          completeExercise();
+                        }}
+                      >
+                        <Text style={styles.confirmButtonText}>Continue</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.modalTitle}>Complete Exercise?</Text>
+                    <Text style={styles.modalDescription}>
+                      You've completed {completionData.completed} out of {completionData.total} sets ({completionData.percentage}%). 
+                      Skipping sets may reduce your training results. Are you sure you want to finish this exercise?
+                    </Text>
+                    
+                    <View style={styles.modalButtons}>
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.cancelButton, styles.dualButton]}
+                        onPress={() => {
+                          console.log('🔴 YES FINISH button clicked!');
+                          setShowConfirmModal(false);
+                          completeExercise();
+                        }}
+                      >
+                        <Text style={styles.cancelButtonText}>Yes, Finish</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
+                        onPress={() => {
+                          console.log('🟢 CONTINUE TRAINING button clicked!');
+                          setShowConfirmModal(false);
+                        }}
+                      >
+                        <Text style={styles.confirmButtonText}>Continue Training</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </LinearGradient>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
 
     </View>
   );
@@ -573,17 +667,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   weightColumn: {
-    width: '35%',
+    width: '42%',
     alignItems: 'center',
     marginHorizontal: 2,
   },
   repsColumn: {
-    width: '35%',
-    alignItems: 'center',
-    marginHorizontal: 2,
-  },
-  doneColumn: {
-    width: '15%',
+    width: '43%',
     alignItems: 'center',
     marginHorizontal: 2,
   },
@@ -591,6 +680,7 @@ const styles = StyleSheet.create({
     ...typography.timerSmall,
     color: colors.white,
   },
+
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -618,17 +708,7 @@ const styles = StyleSheet.create({
   inputDisabled: {
     opacity: 0.5,
   },
-  doneButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.mediumGray,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  doneButtonActive: {
-    backgroundColor: colors.success,
-  },
+
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -650,6 +730,9 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   disabledButton: {
+    opacity: 0.5,
+  },
+  disabledField: {
     opacity: 0.5,
   },
   primaryButton: {
@@ -700,5 +783,82 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.lighterGray,
     textAlign: 'center',
+  },
+  
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  modalContainer: {
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalContent: {
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    ...typography.h3,
+    color: colors.white,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalDescription: {
+    ...typography.body,
+    color: colors.lightGray,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  modalButtons: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalButton: {
+    display: 'flex',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  cancelButton: {
+    backgroundColor: colors.mediumGray,
+  },
+  confirmButton: {
+    backgroundColor: colors.primary,
+  },
+  cancelButtonText: {
+    ...typography.button,
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  confirmButtonText: {
+    ...typography.button,
+    color: colors.black,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  singleButton: {
+    flex: 0,
+    minWidth: 120,
+    maxWidth: 200,
+  },
+  dualButton: {
+    flex: 0,
+    minWidth: 120,
+    maxWidth: 140,
   },
 });
