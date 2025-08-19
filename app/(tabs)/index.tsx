@@ -23,6 +23,7 @@ import {
 } from '@expo/vector-icons';
 import { WorkoutStartModal } from '@/components/WorkoutStartModal';
 import { WorkoutUnavailableModal } from '@/components/WorkoutUnavailableModal';
+import { StatGroup } from '@/components/StatGroup';
 
 import { checkWorkoutAvailability, formatAvailabilityDate, type WorkoutAvailability } from '@/utils/workout-availability';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -46,6 +47,8 @@ export default function HomeScreen() {
   const [userProgressData, setUserProgressData] = useState<any>(null);
   const [loadingProgress, setLoadingProgress] = useState(true);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
+  
+
   
   // State for workout availability
   const [workoutAvailability, setWorkoutAvailability] = useState<WorkoutAvailability | null>(null);
@@ -194,6 +197,54 @@ export default function HomeScreen() {
 
 
 
+  // Calculate workout streak
+  const calculateWorkoutStreak = (completedWorkouts: any[], trainingSchedule: string[]) => {
+    if (!completedWorkouts || !trainingSchedule) return 0;
+
+    try {
+      // Get workout dates from detailed workout objects
+      const workoutDates = completedWorkouts
+        .filter(w => typeof w === 'object' && w.date && w.workoutName)
+        .map(w => new Date(w.date).toISOString().split('T')[0])
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime()); // Most recent first
+
+      if (workoutDates.length === 0) return 0;
+
+      const today = new Date().toISOString().split('T')[0];
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      
+      let streak = 0;
+      let checkDate = new Date();
+      
+      // Start from today and count backwards
+      for (let i = 0; i < 30; i++) { // Check last 30 days max
+        const dateStr = checkDate.toISOString().split('T')[0];
+        const dayName = dayNames[checkDate.getDay()];
+        
+        // Is this a scheduled training day?
+        const isTrainingDay = trainingSchedule.includes(dayName);
+        
+        if (isTrainingDay) {
+          // Check if workout was completed on this training day
+          if (workoutDates.includes(dateStr)) {
+            streak++;
+          } else {
+            // Missed a training day - streak breaks
+            break;
+          }
+        }
+        // Skip rest days (don't affect streak)
+        
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+      
+      return streak;
+    } catch (error) {
+      console.error('Error calculating streak:', error);
+      return 0;
+    }
+  };
+
   // Check if today is a rest day
   const isRestDay = () => {
     if (!generatedProgram || !workoutAvailability) return false;
@@ -289,6 +340,8 @@ export default function HomeScreen() {
   const handleCancelWorkout = () => {
     setShowWorkoutModal(false);
   };
+
+
 
   const handleContinueWorkout = () => {
     if (activeProgram && userProgress) {
@@ -434,6 +487,55 @@ export default function HomeScreen() {
               </View>
             )}
             
+            {/* Progress Stats */}
+            <StatGroup 
+              stats={[
+                {
+                  value: userProgressData ? Math.ceil((Date.now() - new Date(userProgressData.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0,
+                  label: 'Journey Days',
+                  infoTitle: 'Journey Days',
+                  infoDescription: 'Total number of days since you started your fitness program. This tracks your overall commitment and shows how long you\'ve been on your journey!'
+                },
+                {
+                  value: userProgressData && generatedProgram ? 
+                    (() => {
+                      try {
+                        const completed = typeof userProgressData.completedWorkouts === 'string' ? 
+                          JSON.parse(userProgressData.completedWorkouts) : 
+                          userProgressData.completedWorkouts;
+                        return calculateWorkoutStreak(completed, generatedProgram.trainingSchedule || []);
+                      } catch {
+                        return 0;
+                      }
+                    })() : 0,
+                  label: 'Streak',
+                  infoTitle: 'Workout Streak ',
+                  infoDescription: 'Number of consecutive training days where you completed your workouts. Rest days don\'t break your streak - only missed training days do. Keep it going! 🔥'
+                },
+                {
+                  value: userProgressData && userProgressData.completedWorkouts ? 
+                    (() => {
+                      try {
+                        const completed = typeof userProgressData.completedWorkouts === 'string' ? 
+                          JSON.parse(userProgressData.completedWorkouts) : 
+                          userProgressData.completedWorkouts;
+                        // Only count detailed workout objects, not simple calendar entries
+                        const detailedWorkouts = completed.filter((item: any) => 
+                          typeof item === 'object' && item.date && item.workoutName
+                        );
+                        return detailedWorkouts.length;
+                      } catch (error) {
+                        console.log('🚨 Error in workout counting:', error);
+                        return 0;
+                      }
+                    })() : 0,
+                  label: 'Finished Workouts',
+                  infoTitle: 'Finished Workouts',
+                  infoDescription: 'Total number of workout sessions you\'ve completed successfully. Each finished workout brings you closer to your fitness goals! 💪'
+                }
+              ]}
+            />
+            
             {/* Finished Workouts Button - With Glow Effect for Comparison */}
             <TouchableOpacity 
               style={styles.finishedWorkoutsButtonContainer}
@@ -472,6 +574,8 @@ export default function HomeScreen() {
         motivationalMessage={workoutAvailability?.motivationalMessage || ''}
         isCompletedToday={workoutAvailability?.isCompletedToday || false}
       />
+
+
     </SafeAreaView>
   );
 }
@@ -619,6 +723,48 @@ const styles = StyleSheet.create({
   },
   unavailableButtonContent: {
     alignItems: 'center',
+  },
+
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 400,
+  },
+  infoModalContent: {
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  infoModalTitle: {
+    ...typography.h2,
+    color: colors.white,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  infoModalDescription: {
+    ...typography.body,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  infoModalButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  infoModalButtonText: {
+    ...typography.button,
+    color: colors.black,
+    fontWeight: 'bold',
   },
   restDayNote: {
     flexDirection: 'row',

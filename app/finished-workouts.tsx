@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { userProgressService, wizardResultsService } from '@/db/services';
 import { ExerciseTracker } from '@/components/ExerciseTracker';
 import { Feather as Icon } from '@expo/vector-icons';
+import { formatDuration } from '@/utils/format-duration';
 
 type CompletedEntry = {
   date: string; // ISO
@@ -24,24 +25,11 @@ export default function FinishedWorkoutsScreen() {
   const [program, setProgram] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Format duration for display
-  const formatDuration = (seconds?: number): string => {
-    if (!seconds || seconds === 0) return '';
-    
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    } else {
-      return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-  };
-
   useEffect(() => {
+    console.log('🔍 Finished workouts useEffect triggered, user:', user?.id);
     const load = async () => {
-      if (!user?.email) {
+      if (!user?.id) {
+        console.log('🔍 No user id, returning');
         setLoading(false);
         return;
       }
@@ -49,9 +37,34 @@ export default function FinishedWorkoutsScreen() {
         const progress = await userProgressService.getByUserId(user.id);
         if (progress?.completedWorkouts) {
           let arr: CompletedEntry[] = [];
-          try { arr = JSON.parse(progress.completedWorkouts as unknown as string) || []; } catch { arr = []; }
-          arr.sort((a, b) => (a.date < b.date ? 1 : -1));
-          setEntries(arr);
+          try { 
+            const completedData = JSON.parse(progress.completedWorkouts as unknown as string) || [];
+            console.log('🔍 Finished workouts raw data:', completedData);
+            
+            // Filter only detailed workout objects (not calendar entries)
+            console.log('🔍 Checking each item:');
+            completedData.forEach((item: any, index: number) => {
+              console.log(`Item ${index}:`, item, 'Type:', typeof item);
+              if (typeof item === 'object') {
+                console.log(`  - has date: ${!!item.date}`);
+                console.log(`  - has workoutIndex: ${item.workoutIndex !== undefined}`);
+                console.log(`  - has workoutName: ${!!item.workoutName}`);
+              }
+            });
+            
+            arr = completedData.filter((item: any) => 
+              typeof item === 'object' && 
+              item.date && 
+              (item.workoutIndex !== undefined || item.workoutName)
+            );
+            console.log('🔍 Filtered workout entries:', arr);
+            
+            arr.sort((a, b) => (a.date < b.date ? 1 : -1));
+            setEntries(arr);
+          } catch { 
+            arr = []; 
+            setEntries([]);
+          }
         } else {
           setEntries([]);
         }
@@ -66,7 +79,7 @@ export default function FinishedWorkoutsScreen() {
       }
     };
     load();
-  }, [user?.email]);
+  }, [user?.id]);
 
   return (
     <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
@@ -86,6 +99,8 @@ export default function FinishedWorkoutsScreen() {
           ) : entries.length === 0 ? (
             <View style={styles.centerBox}>
               <Text style={styles.emptyText}>No finished workouts yet</Text>
+              <Text style={styles.debugText}>Debug: entries.length = {entries.length}</Text>
+              <Text style={styles.debugText}>Debug: user.id = {user?.id}</Text>
             </View>
           ) : (
             entries.map((item, idx) => {
@@ -100,16 +115,10 @@ export default function FinishedWorkoutsScreen() {
                     <Text style={styles.entryTitle}>{`Day ${item.workoutIndex + 1} - ${workout?.name || item.workoutName || 'Workout'}`}</Text>
                     <View style={styles.entryMeta}>
                       <Text style={styles.entrySubtitle}>{new Date(item.date).toLocaleString()}</Text>
-                      {item.duration && (
-                        <View style={styles.durationContainer}>
-                          <Icon name="clock" size={12} color={colors.primary} />
-                          <Text style={styles.durationText}>{formatDuration(item.duration)}</Text>
-                        </View>
-                      )}
                     </View>
                   </View>
                   <View style={styles.entryRight}>
-                    <Icon name="arrow-right" size={18} color={colors.white} />
+                    <Icon name="arrow-right" size={18} color={colors.black} />
                   </View>
                 </TouchableOpacity>
               );
@@ -138,6 +147,7 @@ const styles = StyleSheet.create({
   centerBox: { padding: 24, alignItems: 'center' },
   loadingText: { ...typography.body, color: colors.white },
   emptyText: { ...typography.body, color: colors.lightGray },
+  debugText: { ...typography.bodySmall, color: colors.secondary, textAlign: 'center', marginTop: 8 },
   entryCard: {
     backgroundColor: colors.darkGray,
     borderRadius: 12,
@@ -160,20 +170,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(58, 81, 153, 0.2)',
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     paddingVertical: 2,
-    borderRadius: 8,
   },
   durationText: {
     ...typography.timerSmall,
     color: colors.primary,
   },
   entryRight: {
-    backgroundColor: colors.success,
+    backgroundColor: colors.primary,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   badgeText: { ...typography.timerTiny, color: colors.white },
 });

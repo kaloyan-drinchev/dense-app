@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
 import { ExerciseTracker } from '@/components/ExerciseTracker';
 import { Feather as Icon } from '@expo/vector-icons';
+import { formatDuration } from '@/utils/format-duration';
 
 export default function FinishedWorkoutsDetailScreen() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function FinishedWorkoutsDetailScreen() {
   const { date, workoutIndex } = useLocalSearchParams<{ date: string; workoutIndex: string }>();
   const [program, setProgram] = useState<any>(null);
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, any[]>>({});
+  const [workoutDuration, setWorkoutDuration] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,6 +33,24 @@ export default function FinishedWorkoutsDetailScreen() {
             const ww = JSON.parse(progress.weeklyWeights as unknown as string);
             setExerciseLogs(ww.exerciseLogs || {});
           } catch {}
+        }
+        
+        // Get workout duration from completed workouts
+        if (progress?.completedWorkouts && date) {
+          try {
+            const completedData = JSON.parse(progress.completedWorkouts as unknown as string) || [];
+            const workoutEntry = completedData.find((item: any) => 
+              typeof item === 'object' && 
+              item.date && 
+              new Date(item.date).toISOString().split('T')[0] === new Date(date).toISOString().split('T')[0] &&
+              item.workoutIndex === parseInt(workoutIndex || '0', 10)
+            );
+            if (workoutEntry?.duration) {
+              setWorkoutDuration(workoutEntry.duration);
+            }
+          } catch (error) {
+            console.error('Error parsing completed workouts:', error);
+          }
         }
       } finally {
         setLoading(false);
@@ -53,7 +73,15 @@ export default function FinishedWorkoutsDetailScreen() {
         </View>
 
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
-          <Text style={styles.dateText}>{new Date(String(date)).toLocaleString()}</Text>
+          <View style={styles.workoutHeader}>
+            <Text style={styles.dateText}>{new Date(String(date)).toLocaleString()}</Text>
+            {workoutDuration && (
+              <View style={styles.durationContainer}>
+                <Icon name="clock" size={16} color={colors.primary} />
+                <Text style={styles.durationText}>{formatDuration(workoutDuration)}</Text>
+              </View>
+            )}
+          </View>
           {workout?.exercises?.map((ex: any, i: number) => {
             const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
             const sessions = exerciseLogs[exId] || [];
@@ -96,7 +124,31 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: colors.white, flex: 1 },
   scrollView: { flex: 1 },
   contentContainer: { padding: 16, paddingBottom: 24 },
-  dateText: { color: colors.lighterGray, marginBottom: 8 },
+  workoutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  dateText: { 
+    color: colors.lighterGray, 
+    fontSize: 16,
+    flex: 1,
+  },
+  durationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.darkGray,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  durationText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+  },
 });
 
 
