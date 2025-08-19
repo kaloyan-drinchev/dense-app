@@ -461,14 +461,24 @@ export class ProgramGenerator {
     
     exercises.forEach(ex => {
       const workingSets = ex.sets;
-      const warmupTime = ex.warmupSets ? (ex.warmupSets.length * 2) : 0; // 2min per warmup
-      const workingSetTime = workingSets * 1.5; // 1.5min per working set
+      const warmupTime = ex.warmupSets ? (ex.warmupSets.length * 2.5) : 0; // 2.5min per warmup
+      const workingSetTime = workingSets * 2.5; // 2.5min per working set (including exercise execution)
       const restTime = (workingSets - 1) * (ex.restSeconds / 60); // Rest between sets
+      const setupTime = 1; // 1min setup/transition time per exercise
       
-      totalTime += warmupTime + workingSetTime + restTime;
+      totalTime += warmupTime + workingSetTime + restTime + setupTime;
     });
     
-    return Math.round(totalTime);
+    // Ensure minimum 45 minutes, maximum 60 minutes
+    const calculatedTime = Math.round(totalTime);
+    
+    if (calculatedTime < 45) {
+      return 45; // Set minimum to 45 minutes
+    } else if (calculatedTime > 60) {
+      return 60; // Cap at 60 minutes
+    }
+    
+    return calculatedTime;
   }
   
   private static filterByDifficulty(exercises: any[], targetDifficulty: string) {
