@@ -6,8 +6,7 @@
     "start": "expo start --tunnel",
     "start-web": "expo start --web",
     "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "@expo-google-fonts/archivo-black": "^0.4.0",
