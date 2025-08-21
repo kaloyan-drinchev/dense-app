@@ -19,8 +19,7 @@ import { FoodSearchBar } from '@/components/FoodSearchBar';
 import { FoodEntryForm } from '@/components/FoodEntryForm';
 import { NutritionSummary } from '@/components/NutritionSummary';
 import { MealSection } from '@/components/MealSection';
-import { VoiceInputModal } from '@/components/VoiceInputModal';
-import { AIFoodAnalysis } from '@/components/AIFoodAnalysis';
+
 import { FoodScanModal } from '@/components/FoodScanModal';
 import { ScanResultsModal } from '@/components/ScanResultsModal';
 import { CustomMealsList } from '@/components/CustomMealsList';
@@ -43,10 +42,7 @@ export default function NutritionScreen() {
   );
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [showFoodForm, setShowFoodForm] = useState(false);
-  const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
-  const [voiceInput, setVoiceInput] = useState('');
-  const [showAIAnalysis, setShowAIAnalysis] = useState(false);
   const [scanResults, setScanResults] = useState<
     Array<{ food: FoodItem; amount: number }>
   >([]);
@@ -107,17 +103,8 @@ export default function NutritionScreen() {
     }
   };
 
-  const handleVoiceInput = () => {
-    setShowVoiceModal(true);
-  };
-
   const handleScanFood = () => {
     setShowScanModal(true);
-  };
-
-  const handleVoiceResult = (text: string) => {
-    setVoiceInput(text);
-    setShowAIAnalysis(true);
   };
 
   const handleScanResult = (
@@ -139,43 +126,7 @@ export default function NutritionScreen() {
     );
   };
 
-  const handleAddFoodFromAI = (
-    food: FoodItem,
-    amount: number,
-    mealType: MealType
-  ) => {
-    // Create a food entry and add it to the log
-    const entry = {
-      id: `${Date.now()}`,
-      foodId: food.id,
-      name: food.name,
-      amount,
-      unit: food.servingUnit,
-      mealType,
-      timestamp: new Date().toISOString(),
-      nutrition: {
-        calories: Math.round(food.nutritionPer100g.calories * (amount / 100)),
-        protein: parseFloat(
-          (food.nutritionPer100g.protein * (amount / 100)).toFixed(1)
-        ),
-        carbs: parseFloat(
-          (food.nutritionPer100g.carbs * (amount / 100)).toFixed(1)
-        ),
-        fat: parseFloat(
-          (food.nutritionPer100g.fat * (amount / 100)).toFixed(1)
-        ),
-      },
-    };
 
-    addFoodEntry(selectedDate, entry);
-
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-
-    // Close the AI analysis
-    setShowAIAnalysis(false);
-  };
 
   const handleAddCustomMeal = () => {
     setSelectedCustomMeal(null);
@@ -219,17 +170,10 @@ export default function NutritionScreen() {
 
         <FoodSearchBar
           onSelectFood={handleSelectFood}
-          onVoiceInput={handleVoiceInput}
           onScanFood={handleScanFood}
         />
 
-        {showAIAnalysis && voiceInput ? (
-          <AIFoodAnalysis
-            voiceInput={voiceInput}
-            onAddFood={handleAddFoodFromAI}
-            onCancel={() => setShowAIAnalysis(false)}
-          />
-        ) : null}
+
 
         <NutritionSummary dailyLog={dailyLog} />
 
@@ -242,13 +186,7 @@ export default function NutritionScreen() {
             <Text style={styles.quickActionText}>Custom Meals</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={handleVoiceInput}
-          >
-            <Icon name="mic" size={18} color={colors.white} />
-            <Text style={styles.quickActionText}>Voice</Text>
-          </TouchableOpacity>
+
 
           <TouchableOpacity
             style={styles.quickActionButton}
@@ -332,7 +270,7 @@ export default function NutritionScreen() {
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>No foods logged yet</Text>
             <Text style={styles.emptyText}>
-              Search for foods or use voice/camera input to log your meals
+              Search for foods or use camera input to log your meals
             </Text>
           </View>
         )}
@@ -357,12 +295,7 @@ export default function NutritionScreen() {
         </View>
       </Modal>
 
-      {/* Voice Input Modal */}
-      <VoiceInputModal
-        visible={showVoiceModal}
-        onClose={() => setShowVoiceModal(false)}
-        onVoiceResult={handleVoiceResult}
-      />
+
 
       {/* Food Scan Modal */}
       <FoodScanModal
@@ -378,7 +311,36 @@ export default function NutritionScreen() {
         onClose={() => setShowScanResults(false)}
         scanResults={scanResults}
         mealType={scanMealType}
-        onAddFood={handleAddFoodFromAI}
+        onAddFood={(food, amount, mealType) => {
+          // Create a food entry and add it to the log
+          const entry = {
+            id: `${Date.now()}`,
+            foodId: food.id,
+            name: food.name,
+            amount,
+            unit: food.servingUnit,
+            mealType,
+            timestamp: new Date().toISOString(),
+            nutrition: {
+              calories: Math.round(food.nutritionPer100g.calories * (amount / 100)),
+              protein: parseFloat(
+                (food.nutritionPer100g.protein * (amount / 100)).toFixed(1)
+              ),
+              carbs: parseFloat(
+                (food.nutritionPer100g.carbs * (amount / 100)).toFixed(1)
+              ),
+              fat: parseFloat(
+                (food.nutritionPer100g.fat * (amount / 100)).toFixed(1)
+              ),
+            },
+          };
+
+          addFoodEntry(selectedDate, entry);
+
+          if (Platform.OS !== 'web') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+        }}
       />
 
       {/* Custom Meals Modal */}

@@ -16,13 +16,11 @@ import { COMMON_FOODS } from '@/mocks/foods';
 
 interface FoodSearchBarProps {
   onSelectFood: (food: FoodItem) => void;
-  onVoiceInput: () => void;
   onScanFood: () => void;
 }
 
 export const FoodSearchBar: React.FC<FoodSearchBarProps> = ({
   onSelectFood,
-  onVoiceInput,
   onScanFood,
 }) => {
   const [query, setQuery] = useState('');
@@ -73,13 +71,9 @@ export const FoodSearchBar: React.FC<FoodSearchBarProps> = ({
             placeholder="Search for a food..."
             placeholderTextColor={colors.lightGray}
           />
-          {query.length > 0 ? (
+          {query.length > 0 && (
             <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
               <Icon name="x" size={20} color={colors.lightGray} />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={onVoiceInput} style={styles.voiceButton}>
-              <Icon name="mic" size={20} color={colors.primary} />
             </TouchableOpacity>
           )}
         </View>
@@ -158,9 +152,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   clearButton: {
-    padding: 8,
-  },
-  voiceButton: {
     padding: 8,
   },
   scanButton: {

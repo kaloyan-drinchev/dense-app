@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Men's 12-Week Workout Programs",
-    "slug": "mens-12-week-workout-programs",
+    "name": "DENSE",
+    "slug": "dense",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "dense",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.rork.mens-12-week-workout-programs",
+      "bundleIdentifier": "app.dense",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan food barcodes for nutrition tracking."
       }
@@ -25,7 +25,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.mens-12-week-workout-programs",
+      "package": "app.dense",
       "permissions": ["CAMERA"]
     },
     "web": {
