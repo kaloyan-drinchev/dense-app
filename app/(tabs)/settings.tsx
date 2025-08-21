@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
+import { useSubscriptionStore } from '@/store/subscription-store';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
@@ -25,6 +26,12 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { userProfile, resetProgress } = useWorkoutStore();
   const { user, logout } = useAuthStore();
+  const { 
+    checkSubscriptionStatus, 
+    getSubscriptionInfo, 
+    hasActiveSubscription,
+    isLoading: isSubscriptionLoading 
+  } = useSubscriptionStore();
   const [notifications, setNotifications] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
 
@@ -65,6 +72,13 @@ export default function SettingsScreen() {
     }, [user?.email])
   );
 
+  // Check subscription status when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      checkSubscriptionStatus();
+    }, [checkSubscriptionStatus])
+  );
+
   const handleNotificationsToggle = () => {
     setNotifications(!notifications);
     if (Platform.OS !== 'web') {
@@ -74,6 +88,46 @@ export default function SettingsScreen() {
 
   const handleEditProfile = () => {
     router.push('/profile-edit');
+  };
+
+  const handleManageSubscription = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    const subscriptionInfo = getSubscriptionInfo();
+    
+    if (subscriptionInfo.isActive) {
+      Alert.alert(
+        'Manage Subscription',
+        `Current Plan: ${subscriptionInfo.planName}\nExpires: ${subscriptionInfo.expiryDate ? new Date(subscriptionInfo.expiryDate).toLocaleDateString() : 'Unknown'}\n\nNote: This is a mock subscription. In a real app, this would redirect to App Store/Play Store subscription management.`,
+        [
+          { text: 'OK', style: 'default' },
+          { 
+            text: 'View Plans', 
+            onPress: () => {
+              // In a real app, this might navigate to subscription screen
+              Alert.alert('Coming Soon', 'Plan comparison will be available in a future update.');
+            }
+          }
+        ]
+      );
+    } else {
+      Alert.alert(
+        'No Active Subscription',
+        'You don\'t have an active subscription. Would you like to subscribe?',
+        [
+          { text: 'Later', style: 'cancel' },
+          { 
+            text: 'Subscribe', 
+            onPress: () => {
+              // Navigate to subscription screen
+              Alert.alert('Coming Soon', 'Subscription flow will be available in a future update.');
+            }
+          }
+        ]
+      );
+    }
   };
 
   // 🚨 TESTING ONLY - Remove before production
@@ -201,6 +255,63 @@ export default function SettingsScreen() {
           <Icon name="chevron-right" size={24} color={colors.lightGray} />
         </TouchableOpacity>
 
+        {/* Subscription Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Subscription</Text>
+          
+          {isSubscriptionLoading ? (
+            <View style={styles.settingItem}>
+              <LoadingState text="Loading subscription..." />
+            </View>
+          ) : (
+            (() => {
+              const subscriptionInfo = getSubscriptionInfo();
+              const isActive = hasActiveSubscription();
+              
+              return (
+                <TouchableOpacity
+                  style={styles.settingItem}
+                  onPress={handleManageSubscription}
+                >
+                  <View
+                    style={[
+                      styles.settingIcon, 
+                      { backgroundColor: isActive ? colors.success : colors.warning }
+                    ]}
+                  >
+                    <Icon 
+                      name={isActive ? "check-circle" : "alert-circle"} 
+                      size={20} 
+                      color={colors.black} 
+                    />
+                  </View>
+                  <View style={styles.settingContent}>
+                    <Text style={styles.settingTitle}>
+                      {isActive ? subscriptionInfo.planName || 'Pro Plan' : 'No Active Plan'}
+                    </Text>
+                    <Text style={styles.settingDescription}>
+                      {isActive 
+                        ? subscriptionInfo.daysLeft !== null
+                          ? subscriptionInfo.daysLeft > 0
+                            ? `${subscriptionInfo.daysLeft} days remaining`
+                            : 'Expires today'
+                          : 'Active subscription'
+                        : 'Tap to subscribe'
+                      }
+                    </Text>
+                    {isActive && subscriptionInfo.expiryDate && (
+                      <Text style={styles.subscriptionDetails}>
+                        Expires: {new Date(subscriptionInfo.expiryDate).toLocaleDateString()}
+                      </Text>
+                    )}
+                  </View>
+                  <Icon name="chevron-right" size={20} color={colors.lightGray} />
+                </TouchableOpacity>
+              );
+            })()
+          )}
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
 
@@ -276,6 +387,22 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About</Text>
 
+
+          <TouchableOpacity 
+            style={styles.settingItem}
+            onPress={() => router.push('/about-us')}
+          >
+            <View style={styles.settingIcon}>
+              <Icon name="users" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>About Us</Text>
+              <Text style={styles.settingDescription}>Meet the team behind DENSE</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          
           <TouchableOpacity style={styles.settingItem}>
             <View style={styles.settingIcon}>
               <Icon name="info" size={20} color={colors.black} />
@@ -409,6 +536,11 @@ const styles = StyleSheet.create({
   settingDescription: {
     ...typography.bodySmall,
     color: colors.lighterGray,
+  },
+  subscriptionDetails: {
+    ...typography.caption,
+    color: colors.lightGray,
+    marginTop: 2,
   },
   connectionTestContainer: {
     backgroundColor: colors.darkGray,

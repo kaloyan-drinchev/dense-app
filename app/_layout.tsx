@@ -279,6 +279,12 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="about-us" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
         name="profile-edit" 
         options={{ 
           headerShown: false,
