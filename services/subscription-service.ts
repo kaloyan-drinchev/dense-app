@@ -21,6 +21,7 @@ export interface SubscriptionStatus {
   endDate: string | null;
   autoRenew: boolean;
   platform: 'ios' | 'android' | 'mock';
+  subscriptionStatus: 'active' | 'cancelled' | 'expired';
 }
 
 export interface SubscriptionHistory {
@@ -67,14 +68,35 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     ]
   },
   {
+    id: 'sixmonths',
+    name: '6-Month Pro',
+    duration: 6,
+    price: 35.99,
+    monthlyPrice: 6.00,
+    originalPrice: 47.94,
+    savings: 11.95,
+    savingsPercentage: 25,
+    features: [
+      'Everything in Monthly Pro',
+      'Extended progress tracking',
+      'Priority support',
+      'Advanced analytics'
+    ],
+    bonusFeatures: [
+      '💰 Save $11.95',
+      '🎯 Perfect for goal setting',
+      '📊 Extended analytics'
+    ]
+  },
+  {
     id: 'yearly',
     name: 'Annual Pro',
     duration: 12,
-    price: 49.99,
-    monthlyPrice: 4.17,
+    price: 47.99,
+    monthlyPrice: 4.00,
     originalPrice: 95.88,
-    savings: 45.89,
-    savingsPercentage: 48,
+    savings: 47.89,
+    savingsPercentage: 50,
     features: [
       'Everything in Monthly Pro',
       'Priority support',
@@ -83,8 +105,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Early access to new features'
     ],
     bonusFeatures: [
-      '💰 Save $45.89 per year',
-      '🎁 4+ months free',
+      '💰 Save $47.89 per year',
+      '🎁 5+ months free',
       '⚡ Priority AI responses',
       '🔓 Beta feature access'
     ],
@@ -134,7 +156,8 @@ export const subscriptionService = {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         autoRenew: true,
-        platform: 'mock'
+        platform: 'mock',
+        subscriptionStatus: 'active'
       };
 
       // Save subscription
@@ -195,6 +218,7 @@ export const subscriptionService = {
               subscription.startDate = newStartDate.toISOString();
               subscription.endDate = newEndDate.toISOString();
               subscription.isActive = true; // Keep active after renewal
+              subscription.subscriptionStatus = 'active'; // Reset to active on renewal
               
               // Save updated subscription
               await AsyncStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subscription));
@@ -207,6 +231,7 @@ export const subscriptionService = {
               // Plan not found, expire subscription
               console.log('❌ Auto-renewal failed: Plan not found');
               subscription.isActive = false;
+              subscription.subscriptionStatus = 'expired';
               await AsyncStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subscription));
               
               // Stop any running workout timer
@@ -280,7 +305,8 @@ export const subscriptionService = {
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
             autoRenew: true,
-            platform: 'mock'
+            platform: 'mock',
+            subscriptionStatus: 'active'
           };
           
           await AsyncStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subscription));
@@ -509,19 +535,57 @@ export const subscriptionService = {
     }
   },
 
-  async setSubscriptionEndDate(daysFromNow: number): Promise<boolean> {
+  async setSubscriptionEndDate(daysFromNow: number, disableAutoRenew: boolean = false): Promise<boolean> {
     try {
+      console.log('🔧 setSubscriptionEndDate called with daysFromNow:', daysFromNow);
       const subscription = await this.getSubscriptionStatus();
+      console.log('🔧 Current subscription before update:', subscription);
+      
       if (subscription) {
         const newEndDate = new Date();
         newEndDate.setDate(newEndDate.getDate() + daysFromNow);
         subscription.endDate = newEndDate.toISOString();
         
+        console.log('🔧 New end date will be:', newEndDate.toISOString());
+        
+        // Set subscription status based on daysFromNow
+        if (daysFromNow < 0) {
+          // Already expired
+          subscription.subscriptionStatus = 'expired';
+          subscription.isActive = false;
+          // Disable auto-renewal if specified (for testing)
+          if (disableAutoRenew) {
+            subscription.autoRenew = false;
+            console.log('🔴 Subscription set to expired (auto-renewal DISABLED for testing)');
+          } else {
+            console.log('🔴 Subscription set to expired');
+          }
+        } else if (daysFromNow > 0) {
+          // Cancelled but still has time remaining
+          subscription.subscriptionStatus = 'cancelled';
+          subscription.isActive = true; // Still active until expiry
+          console.log(`🟡 Subscription set to cancelled (${daysFromNow} days remaining)`);
+        } else {
+          // daysFromNow === 0, expires today
+          subscription.subscriptionStatus = 'cancelled';
+          subscription.isActive = true;
+          console.log('🟡 Subscription set to cancelled (expires today)');
+        }
+        
+        console.log('🔧 Subscription after update:', subscription);
+        
         await AsyncStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subscription));
-        console.log(`✅ Subscription end date set to ${newEndDate.toLocaleDateString()}`);
+        console.log(`✅ Subscription saved to AsyncStorage`);
+        
+        // Verify it was saved correctly
+        const verifySubscription = await AsyncStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
+        console.log('🔧 Verification - subscription from storage:', verifySubscription ? JSON.parse(verifySubscription) : null);
+        
         return true;
+      } else {
+        console.log('❌ No subscription found to update');
+        return false;
       }
-      return false;
     } catch (error) {
       console.error('❌ Error setting subscription end date:', error);
       return false;
@@ -689,6 +753,47 @@ export const subscriptionService = {
       return trial.isActive;
     } catch (error) {
       console.error('❌ Error checking premium access:', error);
+      return false;
+    }
+  },
+
+  // Get subscription status type (active, cancelled, expired)
+  async getSubscriptionStatusType(): Promise<'active' | 'cancelled' | 'expired' | 'none'> {
+    try {
+      const subscription = await this.getSubscriptionStatus();
+      console.log('🔧 getSubscriptionStatusType - raw subscription:', subscription);
+      
+      if (!subscription) {
+        console.log('🔧 getSubscriptionStatusType - no subscription found, returning "none"');
+        return 'none';
+      }
+      
+      // Handle legacy subscriptions that might not have subscriptionStatus field
+      if (!subscription.subscriptionStatus) {
+        console.log('🔧 getSubscriptionStatusType - legacy subscription, using isActive:', subscription.isActive);
+        // Determine status based on existing logic
+        if (subscription.isActive) {
+          return 'active';
+        } else {
+          return 'expired';
+        }
+      }
+      
+      console.log('🔧 getSubscriptionStatusType - returning status:', subscription.subscriptionStatus);
+      return subscription.subscriptionStatus;
+    } catch (error) {
+      console.error('❌ Error getting subscription status type:', error);
+      return 'none';
+    }
+  },
+
+  // Check if subscription is cancelled (but may still be active until expiry)
+  async isSubscriptionCancelled(): Promise<boolean> {
+    try {
+      const statusType = await this.getSubscriptionStatusType();
+      return statusType === 'cancelled';
+    } catch (error) {
+      console.error('❌ Error checking if subscription is cancelled:', error);
       return false;
     }
   },

@@ -15,6 +15,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
 import { useSubscriptionStore } from '@/store/subscription-store';
+import { subscriptionService } from '@/services/subscription-service';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
@@ -30,7 +31,10 @@ export default function SettingsScreen() {
     getDaysUntilExpiry, 
     getSubscriptionInfo,
     isTrialActive,
-    getTrialDaysRemaining
+    getTrialDaysRemaining,
+    setSubscriptionEndDate,
+    triggerNavigationRefresh,
+    refreshSubscriptionStatus
   } = useSubscriptionStore();
   const [notifications, setNotifications] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
@@ -193,14 +197,27 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleSubscriptionPress = () => {
+  const handleSubscriptionPress = async () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    // Debug: Check raw subscription status from service
+    try {
+      const rawStatus = await subscriptionService.getSubscriptionStatus();
+      const statusType = await subscriptionService.getSubscriptionStatusType();
+      console.log('🔍 Debug - Raw subscription status:', rawStatus);
+      console.log('🔍 Debug - Status type:', statusType);
+    } catch (error) {
+      console.error('🔍 Debug - Error getting status:', error);
     }
 
     const subscriptionInfo = getSubscriptionInfo();
     const daysLeft = getDaysUntilExpiry();
     const trialActive = isTrialActive();
+
+    console.log('🔍 Debug - Subscription info from store:', subscriptionInfo);
+    console.log('🔍 Debug - Days left:', daysLeft);
 
     let title = '';
     let message = '';
@@ -222,6 +239,134 @@ export default function SettingsScreen() {
     }
 
     Alert.alert(title, message, [{ text: 'Got it', style: 'default' }]);
+  };
+
+  const handleCancelSubscription = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    Alert.alert(
+      '🧪 Testing: Cancel Subscription',
+      'This will set your subscription status to cancelled with 3 days remaining. Continue?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Set Cancelled',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Set subscription end date to 3 days from now
+              const success = await setSubscriptionEndDate(3);
+              
+              if (success) {
+                // Force refresh subscription status in store
+                await refreshSubscriptionStatus();
+                
+                if (Platform.OS !== 'web') {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+                
+                // Small delay to ensure store has updated
+                setTimeout(() => {
+                  // Trigger navigation refresh to update app state
+                  triggerNavigationRefresh();
+                }, 100);
+                
+                Alert.alert(
+                  '✅ Subscription Cancelled',
+                  'Your subscription is now set to cancelled status with 3 days remaining. You should see the reminder message now.',
+                  [{ text: 'OK' }]
+                );
+              } else {
+                Alert.alert(
+                  'Error',
+                  'Failed to cancel subscription. Please try again.',
+                  [{ text: 'OK' }]
+                );
+              }
+            } catch (error) {
+              Alert.alert(
+                'Error',
+                'Failed to cancel subscription. Please try again.',
+                [{ text: 'OK' }]
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSetExpired = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    Alert.alert(
+      '🧪 Testing: Set Expired',
+      'This will immediately expire your subscription. You will be forced to the subscription screen. Continue?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Set Expired',
+          style: 'destructive',
+          onPress: async () => {
+            console.log('🚨 SET EXPIRED BUTTON CLICKED!');
+            try {
+              // Set subscription end date to yesterday (expired)
+              console.log('🚨 Step 1: Calling setSubscriptionEndDate(-1)...');
+                                      const success = await setSubscriptionEndDate(-1, true); // Disable auto-renewal for testing
+              console.log('🚨 Step 1 result:', success);
+              
+              if (success) {
+                // Force refresh subscription status in store
+                console.log('🚨 Step 2: Calling refreshSubscriptionStatus...');
+                await refreshSubscriptionStatus();
+                console.log('🚨 Step 2 completed');
+                
+                if (Platform.OS !== 'web') {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+                
+                // Small delay to ensure store has updated
+                console.log('🚨 Step 3: Waiting 100ms then triggering navigation refresh...');
+                setTimeout(() => {
+                  // Trigger navigation refresh to immediately redirect to subscription screen
+                  console.log('🚨 Step 3: Calling triggerNavigationRefresh...');
+                  triggerNavigationRefresh();
+                }, 100);
+                
+                Alert.alert(
+                  '✅ Subscription Expired',
+                  'Your subscription is now expired. You will be redirected to the subscription screen.',
+                  [{ text: 'OK' }]
+                );
+              } else {
+                console.log('🚨 ERROR: setSubscriptionEndDate returned false');
+                Alert.alert(
+                  'Error',
+                  'Failed to expire subscription. Please try again.',
+                  [{ text: 'OK' }]
+                );
+              }
+            } catch (error) {
+              Alert.alert(
+                'Error',
+                'Failed to expire subscription. Please try again.',
+                [{ text: 'OK' }]
+              );
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -339,6 +484,38 @@ export default function SettingsScreen() {
               </Text>
             </View>
             {!isResetting && <Icon name="chevron-right" size={20} color={colors.lightGray} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.settingItem} 
+            onPress={handleCancelSubscription}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.warning }]}>
+              <Icon name="x-circle" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>🧪 Cancel Subscription</Text>
+              <Text style={styles.settingDescription}>
+                <Text>Set subscription to cancelled (3 days remaining)</Text>
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.settingItem} 
+            onPress={handleSetExpired}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
+              <Icon name="clock" size={20} color={colors.white} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>🧪 Set Expired</Text>
+              <Text style={styles.settingDescription}>
+                <Text>Set subscription to expired (immediate)</Text>
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
         </View>
 

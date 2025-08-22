@@ -40,13 +40,15 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     hasActiveSubscription,
     canStartTrial,
     startFreeTrial,
-    isTrialActive 
+    isTrialActive,
+    getDaysUntilExpiry
   } = useSubscriptionStore();
   const [selectedPlan, setSelectedPlan] = useState<string>('yearly'); // Default to popular Annual Pro plan
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isStartingTrial, setIsStartingTrial] = useState(false);
   const [canUserStartTrial, setCanUserStartTrial] = useState(false);
+  const [isCancelledWithTimeLeft, setIsCancelledWithTimeLeft] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Check if user has active subscription to show X button
@@ -66,6 +68,24 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 
     checkTrialEligibility();
   }, [canStartTrial]);
+
+  // Check if user has cancelled subscription with time remaining
+  useEffect(() => {
+    const checkCancelledStatus = async () => {
+      try {
+        const isCancelled = await subscriptionService.isSubscriptionCancelled();
+        const daysLeft = getDaysUntilExpiry();
+        
+        // Show X button if cancelled and has time remaining
+        setIsCancelledWithTimeLeft(isCancelled && daysLeft !== null && daysLeft > 0);
+      } catch (error) {
+        console.error('Error checking cancelled status:', error);
+        setIsCancelledWithTimeLeft(false);
+      }
+    };
+
+    checkCancelledStatus();
+  }, [getDaysUntilExpiry]);
 
   const handleCancel = () => {
     if (Platform.OS !== 'web') {
@@ -304,8 +324,8 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         >
           {/* Header */}
           <View style={styles.header}>
-            {/* X Button - Only show if user has active subscription */}
-            {userHasActiveSubscription && onCancel && (
+            {/* X Button - Show if user has active subscription OR cancelled with time remaining */}
+            {(userHasActiveSubscription || isCancelledWithTimeLeft) && onCancel && (
               <TouchableOpacity 
                 style={styles.closeButton}
                 onPress={handleCancel}
@@ -348,7 +368,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 
           {/* Benefits */}
           <View style={styles.benefitsContainer}>
-            <Text style={styles.benefitsTitle}>Why RORK DENSE Pro?</Text>
+            <Text style={styles.benefitsTitle}>Why DENSE Pro?</Text>
             <View style={styles.benefitRow}>
               <Icon name="target" size={20} color={colors.primary} />
               <Text style={styles.benefitText}>AI-powered program generation</Text>
@@ -384,7 +404,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
                   <Text style={styles.trialButtonText}>
                     Start 7-Day Free Trial
                   </Text>
-                  <Icon name="gift" size={20} color={colors.white} />
+                  <Icon name="gift" size={20} color={colors.black} />
                 </>
               )}
             </TouchableOpacity>
@@ -748,7 +768,7 @@ const styles = StyleSheet.create({
   },
   trialButtonText: {
     ...typography.button,
-    color: colors.white,
+    color: colors.black,
     marginRight: 8,
     fontWeight: '600',
   },

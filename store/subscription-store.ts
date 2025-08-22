@@ -40,7 +40,7 @@ interface SubscriptionState {
 
   // Testing methods
   forceAutoRenewal: () => Promise<{ success: boolean; message: string }>;
-  setSubscriptionEndDate: (daysFromNow: number) => Promise<boolean>;
+  setSubscriptionEndDate: (daysFromNow: number, disableAutoRenew?: boolean) => Promise<boolean>;
 
   // Trial methods
   getTrialStatus: () => Promise<TrialStatus>;
@@ -58,6 +58,9 @@ interface SubscriptionState {
   // Testing methods for trial
   clearTrialData: () => Promise<void>;
   expireTrial: () => Promise<{ success: boolean; message: string }>;
+  
+  // Navigation refresh trigger
+  triggerNavigationRefresh: () => void;
 }
 
 export const useSubscriptionStore = create<SubscriptionState>()(
@@ -106,6 +109,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
 
       // Refresh subscription status (force refresh)
       refreshSubscriptionStatus: async () => {
+        console.log('🔄 Starting subscription status refresh...');
         set({ isLoading: true, error: null, hasCheckedStatus: false });
 
         try {
@@ -113,14 +117,26 @@ export const useSubscriptionStore = create<SubscriptionState>()(
             subscriptionService.getSubscriptionStatus(),
             subscriptionService.getTrialStatus()
           ]);
+          
+          console.log('🔄 New subscription status from service:', status);
+          console.log('🔄 New trial status from service:', trialStatus);
+          
           set({ 
             subscriptionStatus: status,
             trialStatus: trialStatus,
             isLoading: false, 
             hasCheckedStatus: true 
           });
-          console.log('Subscription status refreshed:', status);
-          console.log('Trial status refreshed:', trialStatus);
+          
+          console.log('✅ Store updated with new subscription status');
+          
+          // Log the current store state after update
+          const currentState = get();
+          console.log('🔄 Current store state after refresh:', {
+            subscriptionStatus: currentState.subscriptionStatus,
+            trialStatus: currentState.trialStatus
+          });
+          
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to refresh subscription';
           set({ 
@@ -245,9 +261,30 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           return false; // Active trial = don't block
         }
         
-        // Then check subscription
-        if (!subscriptionStatus || !subscriptionStatus.endDate) {
+        // Then check subscription using new status system
+        if (!subscriptionStatus) {
           return true; // No subscription and no trial = block
+        }
+        
+        // Use new subscription status field if available
+        if (subscriptionStatus.subscriptionStatus) {
+          const shouldBlock = subscriptionStatus.subscriptionStatus === 'expired';
+          
+          // If access should be blocked, stop any running workout
+          if (shouldBlock) {
+            // Dynamically import to avoid circular dependencies
+            import('@/store/timer-store').then(({ useTimerStore }) => {
+              const { stopWorkoutOnExpiration } = useTimerStore.getState();
+              stopWorkoutOnExpiration();
+            }).catch(console.error);
+          }
+          
+          return shouldBlock;
+        }
+        
+        // Fallback to old logic for legacy subscriptions without status field
+        if (!subscriptionStatus.endDate) {
+          return true; // No end date = block
         }
         
         const endDate = new Date(subscriptionStatus.endDate);
@@ -320,8 +357,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         return await subscriptionService.forceAutoRenewal();
       },
 
-      setSubscriptionEndDate: async (daysFromNow: number) => {
-        const success = await subscriptionService.setSubscriptionEndDate(daysFromNow);
+      setSubscriptionEndDate: async (daysFromNow: number, disableAutoRenew?: boolean) => {
+        const success = await subscriptionService.setSubscriptionEndDate(daysFromNow, disableAutoRenew);
         if (success) {
           // Refresh status to reflect new end date
           const { refreshSubscriptionStatus } = get();
@@ -414,6 +451,12 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           await refreshSubscriptionStatus();
         }
         return result;
+      },
+
+      // Navigation refresh trigger - will be overridden by app layout
+      triggerNavigationRefresh: () => {
+        // This will be set by the app layout to trigger navigation refresh
+        console.log('🔄 Navigation refresh triggered');
       },
     }),
     {

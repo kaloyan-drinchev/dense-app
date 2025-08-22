@@ -24,10 +24,12 @@ import { Platform, View, Text, ActivityIndicator } from "react-native";
 import { initializeDatabase } from "@/db/migrations";
 import { useAuthStore } from "@/store/auth-store";
 import { useSubscriptionStore } from "@/store/subscription-store";
+import { subscriptionService } from "@/services/subscription-service";
 
 
 import { SetupWizard } from "@/components/SetupWizard";
 import { SubscriptionScreen } from "@/components/SubscriptionScreen";
+import { SubscriptionReminderModal } from "@/components/SubscriptionReminderModal";
 
 import { AppUpdateManager } from "@/utils/app-updates";
 
@@ -145,11 +147,39 @@ function AppNavigator() {
     refreshSubscriptionStatus, 
     shouldBlockAccess,
     isLoading: isSubscriptionLoading,
-    hasCheckedStatus
+    hasCheckedStatus,
+    getDaysUntilExpiry,
+    triggerNavigationRefresh
   } = useSubscriptionStore();
   const [showWizard, setShowWizard] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderDaysLeft, setReminderDaysLeft] = useState(0);
+  const [navigationRefresh, setNavigationRefresh] = useState(0);
 
+
+  // Set up navigation refresh function
+  useEffect(() => {
+    // Override the triggerNavigationRefresh function in the store
+    const originalTrigger = triggerNavigationRefresh;
+    useSubscriptionStore.setState({
+      triggerNavigationRefresh: () => {
+        console.log('🚨 NAVIGATION REFRESH TRIGGERED!');
+        setNavigationRefresh(prev => {
+          const newValue = prev + 1;
+          console.log('🚨 Navigation refresh counter:', prev, '->', newValue);
+          return newValue;
+        });
+      }
+    });
+
+    // Cleanup
+    return () => {
+      useSubscriptionStore.setState({
+        triggerNavigationRefresh: originalTrigger
+      });
+    };
+  }, []);
 
   // Check subscription status when user exists
   useEffect(() => {
@@ -157,6 +187,42 @@ function AppNavigator() {
       checkSubscriptionStatus();
     }
   }, [user, isFirstTime, checkSubscriptionStatus]);
+
+  // Check for cancelled subscription and show reminder modal
+  useEffect(() => {
+    const checkForCancelledSubscription = async () => {
+      if (user && !isFirstTime && hasCheckedStatus) {
+        try {
+          const isCancelled = await subscriptionService.isSubscriptionCancelled();
+          
+          if (isCancelled) {
+            const daysLeft = getDaysUntilExpiry();
+            if (daysLeft !== null && daysLeft >= 0) {
+              setReminderDaysLeft(daysLeft);
+              setShowReminderModal(true);
+              console.log(`🟡 Showing reminder for cancelled subscription (${daysLeft} days left)`);
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error checking cancelled subscription:', error);
+        }
+      }
+    };
+
+    checkForCancelledSubscription();
+  }, [user, isFirstTime, hasCheckedStatus, getDaysUntilExpiry]);
+
+  // Handle reminder modal actions
+  const handleReminderRenew = () => {
+    setShowReminderModal(false);
+    setShowSubscription(true);
+    console.log('🔄 User clicked Renew from reminder modal');
+  };
+
+  const handleReminderCancel = () => {
+    setShowReminderModal(false);
+    console.log('⏭️ User dismissed reminder modal');
+  };
 
 
 
@@ -175,29 +241,56 @@ function AppNavigator() {
 
   // Update navigation state when user/first time state changes - CRITICAL: Wait for subscription check
   useEffect(() => {
-    // 🔒 SECURITY: Don't make navigation decisions until subscription status is loaded
-    if (user && !isFirstTime && !hasCheckedStatus) {
-      // Still loading subscription status - don't navigate yet to prevent bypass
-      console.log('Waiting for subscription status to load before navigation...');
-      return;
-    }
+    const updateNavigationState = async () => {
+      // 🔒 SECURITY: Don't make navigation decisions until subscription status is loaded
+      if (user && !isFirstTime && !hasCheckedStatus) {
+        // Still loading subscription status - don't navigate yet to prevent bypass
+        console.log('Waiting for subscription status to load before navigation...');
+        return;
+      }
 
-    if (isFirstTime || !user || !hasCompletedWizard) {
-      // First time, no user, or hasn't completed wizard - show wizard
-      setShowWizard(true);
-      setShowSubscription(false);
-    } else if (user && hasCompletedWizard && shouldBlockAccess()) {
-      // User completed wizard but subscription access should be blocked
-      console.log('Access blocked - showing subscription screen');
-      setShowWizard(false);
-      setShowSubscription(true);
-    } else {
-      // User exists, completed wizard, has subscription or trial - go to main app
-      console.log('Access granted - showing main app');
-      setShowWizard(false);
-      setShowSubscription(false);
-    }
-  }, [user, hasCompletedWizard, isFirstTime, shouldBlockAccess, hasCheckedStatus]);
+      if (isFirstTime || !user || !hasCompletedWizard) {
+        // First time, no user, or hasn't completed wizard - show wizard
+        setShowWizard(true);
+        setShowSubscription(false);
+        return;
+      }
+
+      // Check subscription status type for navigation decisions
+      try {
+        const statusType = await subscriptionService.getSubscriptionStatusType();
+        const rawStatus = await subscriptionService.getSubscriptionStatus();
+        
+        console.log('🔍 Navigation Debug - Status type:', statusType);
+        console.log('🔍 Navigation Debug - Raw status:', rawStatus);
+        
+        if (statusType === 'expired' || statusType === 'none') {
+          // Force expired or no subscription users to subscription screen
+          console.log(`🚫 Access blocked - user status: ${statusType}`);
+          setShowWizard(false);
+          setShowSubscription(true);
+        } else {
+          // Active or cancelled users get main app access
+          // (cancelled users will also see reminder modal separately)
+          console.log(`✅ Access granted - user status: ${statusType}`);
+          setShowWizard(false);
+          setShowSubscription(false);
+        }
+      } catch (error) {
+        console.error('❌ Error checking subscription status for navigation:', error);
+        // Fallback to old logic if error
+        if (shouldBlockAccess()) {
+          setShowWizard(false);
+          setShowSubscription(true);
+        } else {
+          setShowWizard(false);
+          setShowSubscription(false);
+        }
+      }
+    };
+
+    updateNavigationState();
+  }, [user, hasCompletedWizard, isFirstTime, hasCheckedStatus, shouldBlockAccess, navigationRefresh]);
 
   // Show loading while checking subscription status to prevent bypass
   if (user && !isFirstTime && !hasCheckedStatus) {
@@ -247,7 +340,13 @@ function AppNavigator() {
     <>
       <RootLayoutNav />
       
-
+      {/* Subscription Reminder Modal */}
+      <SubscriptionReminderModal
+        visible={showReminderModal}
+        daysRemaining={reminderDaysLeft}
+        onRenew={handleReminderRenew}
+        onCancel={handleReminderCancel}
+      />
     </>
   );
 }
