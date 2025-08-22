@@ -32,7 +32,7 @@ export default function WeekDetailScreen() {
   }
 
   const handleWorkoutPress = (workoutId: string) => {
-    router.push(`/program/workout/${workoutId}`);
+    router.push(`/program/workout/${workoutId}` as any);
   };
 
   const completedWorkouts = week.workouts.filter(w => w.isCompleted).length;

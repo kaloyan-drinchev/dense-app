@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
 import { useTimerStore } from '@/store/timer-store';
+import { useSubscriptionStore } from '@/store/subscription-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
 import { colors, gradients, buttonStyles } from '@/constants/colors';
 import { typography } from '@/constants/typography';
@@ -24,6 +25,8 @@ import {
 import { WorkoutStartModal } from '@/components/WorkoutStartModal';
 import { WorkoutUnavailableModal } from '@/components/WorkoutUnavailableModal';
 import { StatGroup } from '@/components/StatGroup';
+
+
 
 import { checkWorkoutAvailability, formatAvailabilityDate, type WorkoutAvailability } from '@/utils/workout-availability';
 import { ensureMinimumDuration } from '@/utils/workout-duration';
@@ -37,6 +40,7 @@ export default function HomeScreen() {
   const { userProfile, userProgress, activeProgram, programs } =
     useWorkoutStore();
   const { isWorkoutActive, timeElapsed, isRunning, updateTimeElapsed } = useTimerStore();
+  const { shouldBlockAccess } = useSubscriptionStore();
   const [currentTime, setCurrentTime] = useState(timeElapsed);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -365,7 +369,7 @@ export default function HomeScreen() {
   const handleContinueWorkout = () => {
     if (activeProgram && userProgress) {
       const weekId = activeProgram.weeks[userProgress.currentWeek - 1].id;
-      router.push(`/program/week/${weekId}`);
+      router.push(`/program/week/${weekId}` as any);
     }
   };
 
@@ -395,6 +399,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
@@ -485,7 +490,7 @@ export default function HomeScreen() {
                       <Icon name="moon" size={16} color={colors.secondary} />
                       <Text style={styles.restDayNoteText}>
                         <Text style={styles.restDayNoteTitle}>Rest Day: </Text>
-                        Recovery time! But feel free to train if you're feeling strong 💪
+                        <Text>Recovery time! But feel free to train if you're feeling strong 💪</Text>
                       </Text>
                     </View>
                   )}

@@ -54,7 +54,7 @@ export const WeekCard: React.FC<WeekCardProps> = ({
           <View
             style={[
               styles.progressBar,
-              { width: `${progressPercentage}%` },
+                                { width: `${progressPercentage}%` },
               week.isCompleted && styles.completedProgressBar,
             ]}
           />

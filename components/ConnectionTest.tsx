@@ -155,7 +155,7 @@ const ConnectionTest: React.FC = () => {
       }
       
       // Get user profile from database
-      const dbProfile = await userProfileService.getById(currentUser.email);
+      const dbProfile = await userProfileService.getById(currentUser.id || '');
       
       if (dbProfile) {
         Alert.alert(

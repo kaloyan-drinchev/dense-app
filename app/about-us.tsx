@@ -25,7 +25,7 @@ export default function AboutUsScreen() {
     router.back();
   };
 
-  const handleContactPress = (type: 'email' | 'website' | 'linkedin') => {
+  const handleContactPress = (type: 'email' | 'website' | 'instagram') => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -33,14 +33,14 @@ export default function AboutUsScreen() {
     let url = '';
     switch (type) {
       case 'email':
-        url = 'mailto:hello@rorkdense.com';
+        url = 'mailto:martylazarov99@gmail.com';
         break;
-      case 'website':
-        url = 'https://rorkdense.com';
-        break;
-      case 'linkedin':
-        url = 'https://linkedin.com/company/rorkdense';
-        break;
+        case 'website':
+          url = 'https://lazarovtwins.com';
+          break;
+        case 'instagram':
+          url = 'https://instagram.com/lazarov_twins';
+          break;
     }
 
     Linking.openURL(url).catch(err => {
@@ -97,7 +97,10 @@ export default function AboutUsScreen() {
               <Text style={styles.memberInitials}>VL</Text>
             </View>
             <View style={styles.memberInfo}>
-              <Text style={styles.memberName}>Vladi Lazarov</Text>
+              <View style={styles.memberNameWithIcon}>
+                <Text style={styles.memberName}>Vladi Lazarov</Text>
+                <Icon name="award" size={20} color="#FFD700" style={styles.goldMedalIcon} />
+              </View>
               <Text style={styles.memberRole}>Co-Founder & CFO</Text>
               <Text style={styles.memberDescription}>
                 Financial strategist with expertise in business development. 
@@ -110,7 +113,10 @@ export default function AboutUsScreen() {
               <Text style={styles.memberInitials}>ML</Text>
             </View>
             <View style={styles.memberInfo}>
-              <Text style={styles.memberName}>Marty Lazarov</Text>
+              <View style={styles.memberNameWithIcon}>
+                <Text style={styles.memberName}>Marty Lazarov</Text>
+                <Icon name="award" size={20} color="#FFD700" style={styles.goldMedalIcon} />
+              </View>
               <Text style={styles.memberRole}>Co-Founder & CEO</Text>
               <Text style={styles.memberDescription}>
                 Visionary leader with a passion for revolutionizing fitness through technology. 
@@ -124,7 +130,10 @@ export default function AboutUsScreen() {
               <Text style={styles.memberInitials}>SM</Text>
             </View>
             <View style={styles.memberInfo}>
-              <Text style={styles.memberName}>Svetlin Mitev</Text>
+              <View style={styles.memberNameWithIcon}>
+                <Text style={styles.memberName}>Svetlin Mitev</Text>
+                <Icon name="award" size={20} color="#FFD700" style={styles.goldMedalIcon} />
+              </View>
               <Text style={styles.memberRole}>Co-Founder, COO & Marketing Director</Text>
               <Text style={styles.memberDescription}>
                 Bachelor's in Business Marketing with expertise in digital growth strategies and brand development. 
@@ -138,7 +147,10 @@ export default function AboutUsScreen() {
               <Text style={styles.memberInitials}>KD</Text>
             </View>
             <View style={styles.memberInfo}>
-              <Text style={styles.memberName}>Kaloyan Drinchev</Text>
+              <View style={styles.memberNameWithIcon}>
+                <Text style={styles.memberName}>Kaloyan Drinchev</Text>
+                <Icon name="monitor" size={20} color={colors.primary} style={styles.goldMedalIcon} />
+              </View>
               <Text style={styles.memberRole}>Co-Founder & CTO</Text>
               <Text style={styles.memberDescription}>
                 Senior software engineer with expertise in AI and machine learning. 
@@ -206,7 +218,7 @@ export default function AboutUsScreen() {
               onPress={() => handleContactPress('email')}
             >
               <Icon name="mail" size={20} color={colors.primary} />
-              <Text style={styles.contactText}>hello@rorkdense.com</Text>
+              <Text style={styles.contactText}>Mail the CEO</Text>
               <Icon name="external-link" size={16} color={colors.lightGray} />
             </TouchableOpacity>
 
@@ -215,16 +227,15 @@ export default function AboutUsScreen() {
               onPress={() => handleContactPress('website')}
             >
               <Icon name="globe" size={20} color={colors.primary} />
-              <Text style={styles.contactText}>www.rorkdense.com</Text>
+              <Text style={styles.contactText}>Check our website</Text>
               <Icon name="external-link" size={16} color={colors.lightGray} />
             </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.contactItem}
-              onPress={() => handleContactPress('linkedin')}
+              onPress={() => handleContactPress('instagram')}
             >
-              <Icon name="linkedin" size={20} color={colors.primary} />
-              <Text style={styles.contactText}>LinkedIn</Text>
+              <Icon name="instagram" size={20} color={colors.primary} />
+              <Text style={styles.contactText}>Lazarov Twins</Text>
               <Icon name="external-link" size={16} color={colors.lightGray} />
             </TouchableOpacity>
           </View>
@@ -236,7 +247,7 @@ export default function AboutUsScreen() {
             Made with ❤️ for the fitness community
           </Text>
           <Text style={styles.footerCopyright}>
-            © 2024 RORK DENSE. All rights reserved.
+            © 2025 DENSE. All rights reserved.
           </Text>
         </View>
       </ScrollView>
@@ -351,6 +362,14 @@ const styles = StyleSheet.create({
     ...typography.h4,
     color: colors.white,
     marginBottom: 4,
+  },
+  memberNameWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  goldMedalIcon: {
+    marginLeft: 8,
   },
   memberRole: {
     ...typography.bodySmall,

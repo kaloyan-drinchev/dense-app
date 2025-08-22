@@ -14,26 +14,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
-import { useSubscriptionStore } from '@/store/subscription-store';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { LoadingState } from '@/components/LoadingState';
 // import ConnectionTest from '@/components/ConnectionTest';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { userProfile, resetProgress } = useWorkoutStore();
   const { user, logout } = useAuthStore();
-  const { 
-    checkSubscriptionStatus, 
-    getSubscriptionInfo, 
-    hasActiveSubscription,
-    isLoading: isSubscriptionLoading 
-  } = useSubscriptionStore();
   const [notifications, setNotifications] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
+
 
   // Reload profile when screen comes into focus
   useFocusEffect(
@@ -72,12 +65,7 @@ export default function SettingsScreen() {
     }, [user?.email])
   );
 
-  // Check subscription status when screen comes into focus
-  useFocusEffect(
-    React.useCallback(() => {
-      checkSubscriptionStatus();
-    }, [checkSubscriptionStatus])
-  );
+
 
   const handleNotificationsToggle = () => {
     setNotifications(!notifications);
@@ -90,45 +78,7 @@ export default function SettingsScreen() {
     router.push('/profile-edit');
   };
 
-  const handleManageSubscription = () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    
-    const subscriptionInfo = getSubscriptionInfo();
-    
-    if (subscriptionInfo.isActive) {
-      Alert.alert(
-        'Manage Subscription',
-        `Current Plan: ${subscriptionInfo.planName}\nExpires: ${subscriptionInfo.expiryDate ? new Date(subscriptionInfo.expiryDate).toLocaleDateString() : 'Unknown'}\n\nNote: This is a mock subscription. In a real app, this would redirect to App Store/Play Store subscription management.`,
-        [
-          { text: 'OK', style: 'default' },
-          { 
-            text: 'View Plans', 
-            onPress: () => {
-              // In a real app, this might navigate to subscription screen
-              Alert.alert('Coming Soon', 'Plan comparison will be available in a future update.');
-            }
-          }
-        ]
-      );
-    } else {
-      Alert.alert(
-        'No Active Subscription',
-        'You don\'t have an active subscription. Would you like to subscribe?',
-        [
-          { text: 'Later', style: 'cancel' },
-          { 
-            text: 'Subscribe', 
-            onPress: () => {
-              // Navigate to subscription screen
-              Alert.alert('Coming Soon', 'Subscription flow will be available in a future update.');
-            }
-          }
-        ]
-      );
-    }
-  };
+
 
   // 🚨 TESTING ONLY - Remove before production
   const handleResetProgress = () => {
@@ -174,6 +124,8 @@ export default function SettingsScreen() {
     );
   };
 
+
+
   const handleLogout = () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -205,31 +157,20 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
-      {isResetting && (
-        <View style={styles.loadingOverlay}>
-          <LoadingState text="Resetting all data..." />
-        </View>
-      )}
-      <ScrollView
-        style={[styles.scrollView, isResetting && styles.disabled]}
+      <ScrollView 
+        style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
-        scrollEnabled={!isResetting}
+        showsVerticalScrollIndicator={false}
       >
+        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Settings</Text>
         </View>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Developer</Text>
-          
-          {/* Backend Connection Test - Commented out for now */}
-          {/* <View style={styles.connectionTestContainer}>
-            <ConnectionTest />
-          </View> */}
-        </View>
 
+        {/* Profile Card */}
         <TouchableOpacity style={styles.profileCard} onPress={handleEditProfile}>
           <View style={styles.profileAvatar}>
-            {userProfile?.profilePicture && userProfile.profilePicture !== 'placeholder_avatar' ? (
+            {userProfile?.profilePicture ? (
               <Image 
                 source={{ uri: userProfile.profilePicture }} 
                 style={styles.profileAvatarImage}
@@ -237,120 +178,110 @@ export default function SettingsScreen() {
             ) : (
               <View style={styles.profileAvatarPlaceholder}>
                 <Text style={styles.profileInitial}>
-                  {user?.name ? user.name[0].toUpperCase() : userProfile?.name ? userProfile.name[0].toUpperCase() : '?'}
+                  {user?.name && user.name.length > 0 ? user.name[0].toUpperCase() : 'U'}
                 </Text>
               </View>
             )}
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>
-              {user?.name || userProfile?.name || 'Set up your profile'}
-            </Text>
+            <Text style={styles.profileName}>{user?.name || 'User'}</Text>
             <Text style={styles.profileDetails}>
-              {user?.email || (userProfile && userProfile.weight && userProfile.height && userProfile.age)
-                ? user?.email || `${userProfile?.weight} kg • ${userProfile?.height} cm • ${userProfile?.age} years`
-                : 'Tap to complete your profile'}
+              {String(userProfile?.weight || 0)} kg • {String(userProfile?.height || 0)} cm 
             </Text>
           </View>
-          <Icon name="chevron-right" size={24} color={colors.lightGray} />
+          <Icon name="chevron-right" size={20} color={colors.lightGray} />
         </TouchableOpacity>
 
-        {/* Subscription Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Subscription</Text>
-          
-          {isSubscriptionLoading ? (
-            <View style={styles.settingItem}>
-              <LoadingState text="Loading subscription..." />
-            </View>
-          ) : (
-            (() => {
-              const subscriptionInfo = getSubscriptionInfo();
-              const isActive = hasActiveSubscription();
-              
-              return (
-                <TouchableOpacity
-                  style={styles.settingItem}
-                  onPress={handleManageSubscription}
-                >
-                  <View
-                    style={[
-                      styles.settingIcon, 
-                      { backgroundColor: isActive ? colors.success : colors.warning }
-                    ]}
-                  >
-                    <Icon 
-                      name={isActive ? "check-circle" : "alert-circle"} 
-                      size={20} 
-                      color={colors.black} 
-                    />
-                  </View>
-                  <View style={styles.settingContent}>
-                    <Text style={styles.settingTitle}>
-                      {isActive ? subscriptionInfo.planName || 'Pro Plan' : 'No Active Plan'}
-                    </Text>
-                    <Text style={styles.settingDescription}>
-                      {isActive 
-                        ? subscriptionInfo.daysLeft !== null
-                          ? subscriptionInfo.daysLeft > 0
-                            ? `${subscriptionInfo.daysLeft} days remaining`
-                            : 'Expires today'
-                          : 'Active subscription'
-                        : 'Tap to subscribe'
-                      }
-                    </Text>
-                    {isActive && subscriptionInfo.expiryDate && (
-                      <Text style={styles.subscriptionDetails}>
-                        Expires: {new Date(subscriptionInfo.expiryDate).toLocaleDateString()}
-                      </Text>
-                    )}
-                  </View>
-                  <Icon name="chevron-right" size={20} color={colors.lightGray} />
-                </TouchableOpacity>
-              );
-            })()
-          )}
-        </View>
 
+
+        {/* Preferences */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
-
+          
           <View style={styles.settingItem}>
-            <View style={styles.settingIcon}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
               <Icon name="bell" size={20} color={colors.black} />
             </View>
             <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Workout Reminders</Text>
+              <Text style={styles.settingTitle}>Notifications</Text>
               <Text style={styles.settingDescription}>
-                Receive notifications for your workouts
+                Workout reminders and updates
               </Text>
             </View>
             <Switch
               value={notifications}
               onValueChange={handleNotificationsToggle}
-              trackColor={{
-                false: colors.mediumGray,
-                true: colors.primaryLight,
-              }}
-              thumbColor={notifications ? colors.primary : colors.lightGray}
+              trackColor={{ false: colors.lightGray, true: colors.primary }}
+              thumbColor={colors.white}
             />
           </View>
         </View>
 
-        
+        {/* About */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
+              <Icon name="help-circle" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Help & Support</Text>
+              <Text style={styles.settingDescription}>
+                Get help and contact support
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={() => router.push('/about-us')}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.warning }]}>
+              <Icon name="info" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>About DENSE</Text>
+              <Text style={styles.settingDescription}>
+                Version 1.0.0 • Terms & Privacy
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Developer & Testing Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Developer & Testing</Text>
+
+          {/* Connection Test Component */}
+          {/* <View style={styles.connectionTestContainer}>
+            <ConnectionTest />
+          </View> */}
+
+          <TouchableOpacity 
+            style={[styles.settingItem, isResetting && styles.disabled]} 
+            onPress={handleResetProgress}
+            disabled={isResetting}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
+              <Icon name="trash-2" size={20} color={colors.white} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>🚨 Reset All Progress</Text>
+              <Text style={styles.settingDescription}>
+                Clear all data and return to setup
+              </Text>
+            </View>
+            {!isResetting && <Icon name="chevron-right" size={20} color={colors.lightGray} />}
+          </TouchableOpacity>
+        </View>
+
+        {/* Account */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
-
-          {/* Sign Out option commented out */}
-          {/*
-          <TouchableOpacity
-            style={styles.settingItem}
-            onPress={handleLogout}
-          >
-            <View
-              style={[styles.settingIcon, { backgroundColor: colors.primary }]}
-            >
-              <Icon name="log-out" size={20} color={colors.black} />
+          
+          <TouchableOpacity style={styles.settingItem} onPress={handleLogout}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
+              <Icon name="log-out" size={20} color={colors.white} />
             </View>
             <View style={styles.settingContent}>
               <Text style={styles.settingTitle}>Sign Out</Text>
@@ -360,73 +291,20 @@ export default function SettingsScreen() {
             </View>
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
-          */}
-
-          {/* 🚨 TESTING ONLY - Remove this entire TouchableOpacity before production */}
-          <TouchableOpacity
-            style={[styles.settingItem, isResetting && styles.disabled]}
-            onPress={isResetting ? undefined : handleResetProgress}
-            disabled={isResetting}
-          >
-            <View
-              style={[styles.settingIcon, { backgroundColor: colors.error }]}
-            >
-              <Icon name="trash-2" size={20} color={colors.black} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Reset Progress</Text>
-              <Text style={styles.settingDescription}>
-                Clear all data and return to setup screen
-              </Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={colors.lightGray} />
-          </TouchableOpacity>
         </View>
 
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-
-
-          <TouchableOpacity 
-            style={styles.settingItem}
-            onPress={() => router.push('/about-us')}
-          >
-            <View style={styles.settingIcon}>
-              <Icon name="users" size={20} color={colors.black} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>About Us</Text>
-              <Text style={styles.settingDescription}>Meet the team behind DENSE</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={colors.lightGray} />
-          </TouchableOpacity>
-
-          
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}>
-              <Icon name="info" size={20} color={colors.black} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>App Version</Text>
-              <Text style={styles.settingDescription}>1.0.0</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingIcon}>
-              <Icon name="help-circle" size={20} color={colors.black} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Help & Support</Text>
-              <Text style={styles.settingDescription}>
-                Get assistance with the app
-              </Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={colors.lightGray} />
-          </TouchableOpacity>
-        </View>
       </ScrollView>
+
+      {/* Loading Overlay */}
+      {isResetting && (
+        <View style={styles.loadingOverlay}>
+          <View style={{ backgroundColor: colors.darkGray, padding: 20, borderRadius: 12 }}>
+            <Text style={{ color: colors.white }}>Resetting progress...</Text>
+          </View>
+        </View>
+      )}
+
+
     </SafeAreaView>
   );
 }
@@ -561,5 +439,157 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.5,
+  },
+  
+  // Enhanced Subscription Styles - Spotify Style
+  renewalInfoCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  renewalInfoCardExpanded: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    elevation: 4,
+    shadowColor: colors.primary,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  renewalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  renewalTitle: {
+    ...typography.body,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginLeft: 8,
+  },
+  renewalDate: {
+    ...typography.h3,
+    color: colors.white,
+    marginBottom: 4,
+  },
+  renewalNote: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  tapHint: {
+    ...typography.caption,
+    color: colors.lighterGray,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  historySection: {
+    marginTop: 16,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  historyTitle: {
+    ...typography.body,
+    fontWeight: 'bold',
+    color: colors.lightGray,
+  },
+  historyList: {
+    paddingTop: 8,
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  historyDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+    marginRight: 12,
+  },
+  historyContent: {
+    flex: 1,
+  },
+  historyPlan: {
+    ...typography.bodySmall,
+    color: colors.white,
+    fontWeight: '500',
+  },
+  historyDate: {
+    ...typography.caption,
+    color: colors.lightGray,
+  },
+
+  // Cancellation styles
+  cancellationCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warning,
+  },
+  cancellationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cancellationTitle: {
+    ...typography.body,
+    fontWeight: 'bold',
+    color: colors.warning,
+    marginLeft: 8,
+  },
+  cancellationDate: {
+    ...typography.h4,
+    color: colors.white,
+    marginBottom: 4,
+  },
+  cancellationNote: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  reactivateButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  reactivateButtonText: {
+    ...typography.button,
+    color: colors.black,
+    fontWeight: 'bold',
+  },
+  cancelButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  cancelButtonText: {
+    ...typography.bodySmall,
+    color: colors.error,
+    fontWeight: 'bold',
   },
 });

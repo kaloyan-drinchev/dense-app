@@ -22,6 +22,7 @@ interface WorkoutTimerState {
   completeWorkout: () => { duration: number };
   updateTimeElapsed: () => void;
   setTimeElapsed: (seconds: number) => void;
+  stopWorkoutOnExpiration: () => void;
   // 🚨 TESTING ONLY - Remove before production
   clearAllTimerData: () => Promise<void>;
 }
@@ -134,6 +135,25 @@ export const useTimerStore = create<WorkoutTimerState>()(
 
       setTimeElapsed: (seconds: number) => {
         set({ timeElapsed: seconds });
+      },
+
+      // Stop workout when subscription expires
+      stopWorkoutOnExpiration: () => {
+        const state = get();
+        if (state.isWorkoutActive) {
+          console.log('🚫 Stopping workout due to subscription expiration');
+          
+          // Stop and reset the timer completely
+          set({
+            isWorkoutActive: false,
+            isRunning: false,
+            timeElapsed: 0,
+            workoutStartTime: null,
+            lastPauseTime: null,
+            currentWorkoutId: null,
+            workoutName: null,
+          });
+        }
       },
 
       // 🚨 TESTING ONLY - Remove before production

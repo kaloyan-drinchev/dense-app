@@ -16,25 +16,66 @@ import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { subscriptionService, SUBSCRIPTION_PLANS, type SubscriptionPlan } from '@/services/subscription-service';
+import { useSubscriptionStore } from '@/store/subscription-store';
 
 interface SubscriptionScreenProps {
   onSubscribed: () => void;
   onSkip?: () => void;
   showSkipOption?: boolean;
   programPreview?: any;
+  onCancel?: () => void; // New prop for handling cancel with X button
 }
 
 export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ 
   onSubscribed, 
   onSkip,
   showSkipOption = false,
-  programPreview 
+  programPreview,
+  onCancel 
 }) => {
-  const [selectedPlan, setSelectedPlan] = useState<string>('sixmonth'); // Default to popular plan
+  const { 
+    isResubscription, 
+    getSubscriptionCount, 
+    refreshSubscriptionStatus, 
+    hasActiveSubscription,
+    canStartTrial,
+    startFreeTrial,
+    isTrialActive 
+  } = useSubscriptionStore();
+  const [selectedPlan, setSelectedPlan] = useState<string>('yearly'); // Default to popular Annual Pro plan
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isStartingTrial, setIsStartingTrial] = useState(false);
+  const [canUserStartTrial, setCanUserStartTrial] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
-  const planRefs = useRef<{ [key: string]: View | null }>({});
+
+  // Check if user has active subscription to show X button
+  const userHasActiveSubscription = hasActiveSubscription();
+
+  // Check if user can start trial on component mount
+  useEffect(() => {
+    const checkTrialEligibility = async () => {
+      try {
+        const canStart = await canStartTrial();
+        setCanUserStartTrial(canStart);
+      } catch (error) {
+        console.error('Error checking trial eligibility:', error);
+        setCanUserStartTrial(false);
+      }
+    };
+
+    checkTrialEligibility();
+  }, [canStartTrial]);
+
+  const handleCancel = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    if (onCancel) {
+      onCancel();
+    }
+  };
 
   // Auto-scroll to selected plan when component mounts
   useEffect(() => {
@@ -79,21 +120,77 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
         
-        Alert.alert(
-          '🎉 Welcome to RORK DENSE Pro!',
-          'Your subscription is now active. Enjoy unlimited access to your personalized workout programs!',
-          [{ text: 'Start Training', onPress: () => {
-            setIsProcessing(true);
-            setTimeout(() => {
-              onSubscribed();
-            }, 100);
-          }}]
-        );
+        // Refresh subscription status in the store to get the latest status
+        await refreshSubscriptionStatus();
+        
+        // Check if this is a re-subscription to show appropriate message
+        const isReturningUser = await isResubscription();
+        const subscriptionCount = await getSubscriptionCount();
+        
+        if (isReturningUser) {
+          // Re-subscription message
+          Alert.alert(
+            '🎉 Welcome Back to DENSE Pro!',
+            `Great to have you back! Your subscription is now active again. Continue your fitness journey with unlimited access to your personalized workout programs!`,
+            [{ text: 'Continue Training', onPress: () => {
+              setIsProcessing(true);
+              setTimeout(() => {
+                onSubscribed();
+              }, 100);
+            }}]
+          );
+        } else {
+          // First-time subscription message
+          Alert.alert(
+            '🎉 Welcome to DENSE Pro!',
+            'Your subscription is now active. Enjoy unlimited access to your personalized workout programs!',
+            [{ text: 'Start Training', onPress: () => {
+              setIsProcessing(true);
+              setTimeout(() => {
+                onSubscribed();
+              }, 100);
+            }}]
+          );
+        }
       } else {
         Alert.alert('Payment Failed', result.error || 'Please try again.');
       }
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    }
+  };
+
+  const handleStartTrial = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    setIsStartingTrial(true);
+
+    try {
+      const result = await startFreeTrial();
+      
+      if (result.success) {
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        
+        Alert.alert(
+          '🎉 Free Trial Started!',
+          'Welcome to your 7-day free trial of DENSE Pro! You now have full access to all premium features. Enjoy exploring unlimited AI-generated programs!',
+          [{ text: 'Start Training', onPress: () => {
+            setIsStartingTrial(false);
+            onSubscribed(); // Close screen and grant access
+          }}]
+        );
+      } else {
+        Alert.alert('Trial Unavailable', result.message);
+        setIsStartingTrial(false);
+      }
+    } catch (error) {
+      console.error('Error starting trial:', error);
+      Alert.alert('Error', 'Failed to start trial. Please try again.');
+      setIsStartingTrial(false);
     }
   };
 
@@ -138,7 +235,6 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     return (
       <TouchableOpacity
         key={plan.id}
-        ref={(ref) => planRefs.current[plan.id] = ref}
         style={[styles.planCard, isSelected && styles.planCardSelected]}
         onPress={() => handlePlanSelect(plan.id)}
         disabled={isProcessing}
@@ -208,6 +304,16 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         >
           {/* Header */}
           <View style={styles.header}>
+            {/* X Button - Only show if user has active subscription */}
+            {userHasActiveSubscription && onCancel && (
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={handleCancel}
+              >
+                <Icon name="x" size={24} color={colors.lightGray} />
+              </TouchableOpacity>
+            )}
+            
             <View style={styles.iconContainer}>
               <Icon name="zap" size={48} color={colors.primary} />
             </View>
@@ -264,17 +370,55 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 
         {/* Footer Actions */}
         <View style={styles.footer}>
+          {/* Free Trial Button (if eligible) */}
+          {canUserStartTrial && (
+            <TouchableOpacity
+              style={[styles.trialButton, isStartingTrial && styles.trialButtonDisabled]}
+              onPress={handleStartTrial}
+              disabled={isStartingTrial || isProcessing}
+            >
+              {isStartingTrial ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <>
+                  <Text style={styles.trialButtonText}>
+                    Start 7-Day Free Trial
+                  </Text>
+                  <Icon name="gift" size={20} color={colors.white} />
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* Divider when trial is available */}
+          {canUserStartTrial && (
+            <View style={styles.orDivider}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>or</Text>
+              <View style={styles.orLine} />
+            </View>
+          )}
+
           <TouchableOpacity
             style={[styles.subscribeButton, isProcessing && styles.subscribeButtonDisabled]}
             onPress={handlePurchase}
-            disabled={isProcessing}
+            disabled={isProcessing || isStartingTrial}
           >
             {isProcessing ? (
               <ActivityIndicator color={colors.black} />
             ) : (
               <>
                 <Text style={styles.subscribeButtonText}>
-                  Start ${subscriptionService.getPlan(selectedPlan)?.monthlyPrice}/month
+                  {(() => {
+                    const plan = subscriptionService.getPlan(selectedPlan);
+                    if (!plan) return 'Subscribe';
+                    
+                    if (plan.duration === 1) {
+                      return `Start $${plan.price}/month`;
+                    } else {
+                      return `Start $${plan.price}/year`;
+                    }
+                  })()}
                 </Text>
                 <Icon name="arrow-right" size={20} color={colors.black} />
               </>
@@ -338,6 +482,14 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 32,
+    position: 'relative',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    padding: 12,
+    zIndex: 1,
   },
   iconContainer: {
     width: 80,
@@ -580,6 +732,42 @@ const styles = StyleSheet.create({
     color: colors.black,
     marginRight: 8,
   },
+  trialButton: {
+    backgroundColor: colors.secondary,
+    borderRadius: 16,
+    padding: 18,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  trialButtonDisabled: {
+    opacity: 0.6,
+  },
+  trialButtonText: {
+    ...typography.button,
+    color: colors.white,
+    marginRight: 8,
+    fontWeight: '600',
+  },
+  orDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.lightGray,
+  },
+  orText: {
+    fontSize: 14,
+    color: colors.lightGray,
+    marginHorizontal: 16,
+    fontWeight: '500',
+  },
   footerLinks: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -611,9 +799,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: colors.white,
-    fontSize: 16,
-    marginTop: 16,
     ...typography.body,
+    color: colors.white,
+    marginTop: 16,
   },
 });

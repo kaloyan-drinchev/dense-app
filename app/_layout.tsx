@@ -18,14 +18,17 @@ import {
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
-import { Platform } from "react-native";
+import { Platform, View, Text, ActivityIndicator } from "react-native";
+
 
 import { initializeDatabase } from "@/db/migrations";
 import { useAuthStore } from "@/store/auth-store";
 import { useSubscriptionStore } from "@/store/subscription-store";
 
+
 import { SetupWizard } from "@/components/SetupWizard";
 import { SubscriptionScreen } from "@/components/SubscriptionScreen";
+
 import { AppUpdateManager } from "@/utils/app-updates";
 
 import { ErrorBoundary } from "./error-boundary";
@@ -136,16 +139,26 @@ export default function RootLayout() {
 
 function AppNavigator() {
   const { user, hasCompletedWizard, isFirstTime } = useAuthStore();
-  const { hasActiveSubscription, checkSubscriptionStatus } = useSubscriptionStore();
+  const { 
+    hasActiveSubscription, 
+    checkSubscriptionStatus, 
+    refreshSubscriptionStatus, 
+    shouldBlockAccess,
+    isLoading: isSubscriptionLoading,
+    hasCheckedStatus
+  } = useSubscriptionStore();
   const [showWizard, setShowWizard] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
+
 
   // Check subscription status when user exists
   useEffect(() => {
     if (user && !isFirstTime) {
       checkSubscriptionStatus();
     }
-  }, [user, isFirstTime]);
+  }, [user, isFirstTime, checkSubscriptionStatus]);
+
+
 
   // DEBUG: Log navigation state (only when navigation state changes)
   useEffect(() => {
@@ -160,22 +173,41 @@ function AppNavigator() {
     });
   }, [user, hasCompletedWizard, isFirstTime, showWizard, showSubscription]);
 
-  // Update navigation state when user/first time state changes
+  // Update navigation state when user/first time state changes - CRITICAL: Wait for subscription check
   useEffect(() => {
+    // 🔒 SECURITY: Don't make navigation decisions until subscription status is loaded
+    if (user && !isFirstTime && !hasCheckedStatus) {
+      // Still loading subscription status - don't navigate yet to prevent bypass
+      console.log('Waiting for subscription status to load before navigation...');
+      return;
+    }
+
     if (isFirstTime || !user || !hasCompletedWizard) {
       // First time, no user, or hasn't completed wizard - show wizard
       setShowWizard(true);
       setShowSubscription(false);
-    } else if (user && hasCompletedWizard && !hasActiveSubscription()) {
-      // User completed wizard but doesn't have active subscription
+    } else if (user && hasCompletedWizard && shouldBlockAccess()) {
+      // User completed wizard but subscription access should be blocked
+      console.log('Access blocked - showing subscription screen');
       setShowWizard(false);
       setShowSubscription(true);
     } else {
-      // User exists, completed wizard, has subscription - go to main app
+      // User exists, completed wizard, has subscription or trial - go to main app
+      console.log('Access granted - showing main app');
       setShowWizard(false);
       setShowSubscription(false);
     }
-  }, [user, hasCompletedWizard, isFirstTime, hasActiveSubscription]);
+  }, [user, hasCompletedWizard, isFirstTime, shouldBlockAccess, hasCheckedStatus]);
+
+  // Show loading while checking subscription status to prevent bypass
+  if (user && !isFirstTime && !hasCheckedStatus) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.dark }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.white, marginTop: 16, fontSize: 16 }}>Loading...</Text>
+      </View>
+    );
+  }
 
   // Show wizard for first-time users or those who haven't completed it
   if (showWizard) {
@@ -190,14 +222,34 @@ function AppNavigator() {
   if (showSubscription) {
     return (
       <SubscriptionScreen
-        onSubscribed={() => setShowSubscription(false)}
+        onSubscribed={async () => {
+          // Refresh subscription status when returning from subscription
+          await refreshSubscriptionStatus();
+          setShowSubscription(false);
+        }}
         showSkipOption={false}
+        onCancel={async () => {
+          try {
+            // For now, just close the subscription screen
+            // TODO: Re-implement subscription restoration when needed
+            setShowSubscription(false);
+          } catch (error) {
+            console.error('❌ Failed to close subscription screen:', error);
+            setShowSubscription(false);
+          }
+        }}
       />
     );
   }
 
   // Show main app if user exists, completed wizard, and has subscription
-  return <RootLayoutNav />;
+  return (
+    <>
+      <RootLayoutNav />
+      
+
+    </>
+  );
 }
 
 function RootLayoutNav() {

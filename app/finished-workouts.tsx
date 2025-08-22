@@ -97,9 +97,7 @@ export default function FinishedWorkoutsScreen() {
             </View>
           ) : entries.length === 0 ? (
             <View style={styles.centerBox}>
-              <Text style={styles.emptyText}>No finished workouts yet</Text>
-              <Text style={styles.debugText}>Debug: entries.length = {entries.length}</Text>
-              <Text style={styles.debugText}>Debug: user.id = {user?.id}</Text>
+              <Text style={styles.debugText}>No finished workouts yet</Text>
             </View>
           ) : (
             entries.map((item, idx) => {
@@ -108,10 +106,15 @@ export default function FinishedWorkoutsScreen() {
                 <TouchableOpacity
                   key={`${item.date}-${idx}`}
                   style={styles.entryCard}
-                  onPress={() => router.push(`/finished-workouts-detail?date=${encodeURIComponent(item.date)}&workoutIndex=${item.workoutIndex}`)}
+                  onPress={() => router.push(`/finished-workouts-detail?date=${encodeURIComponent(item.date)}&workoutIndex=${item.workoutIndex}` as any)}
                 >
                   <View style={styles.entryLeft}>
-                    <Text style={styles.entryTitle}>{`Day ${item.workoutIndex + 1} - ${workout?.name || item.workoutName || 'Workout'}`}</Text>
+                    <Text style={styles.entryTitle}>
+                      <Text>Day </Text>
+                      <Text>{item.workoutIndex + 1}</Text>
+                      <Text> - </Text>
+                      <Text>{workout?.name || item.workoutName || 'Workout'}</Text>
+                    </Text>
                     <View style={styles.entryMeta}>
                       <Text style={styles.entrySubtitle}>{new Date(item.date).toLocaleString()}</Text>
                       <Text style={styles.entrySubtitle}>{item.percentageSuccess}%</Text>

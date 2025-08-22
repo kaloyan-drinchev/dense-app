@@ -52,7 +52,7 @@ export default function WorkoutDetailScreen() {
   }
 
   const handleExercisePress = (exerciseId: string) => {
-    router.push(`/program/exercise/${exerciseId}`);
+    router.push(`/program/exercise/${exerciseId}` as any);
   };
 
   const handleStartTimer = () => {

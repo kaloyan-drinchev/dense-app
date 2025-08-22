@@ -48,7 +48,7 @@ const renderTextWithHighlight = (text: string) => {
   return parts.map((part, index) => {
     if (part === 'DENSE') {
       return (
-        <Text key={index} style={styles.highlightedText}>
+        <Text key={index} style={[styles.bulletText, styles.highlightedText]}>
           {part}
         </Text>
       );
@@ -56,8 +56,12 @@ const renderTextWithHighlight = (text: string) => {
       // For non-DENSE parts, randomly highlight 2 letters
       return renderRandomHighlights(part, index);
     }
-    return part;
-  });
+    return (
+      <Text key={index} style={styles.bulletText}>
+        {part}
+      </Text>
+    );
+  }).flat(); // Flatten the array since renderRandomHighlights returns an array
 };
 
 // Helper function to randomly highlight 2 letters in a text part
@@ -67,7 +71,7 @@ const renderRandomHighlights = (text: string, partIndex: number) => {
     .filter(item => /[a-zA-Z]/.test(item.char));
   
   if (letters.length < 2) {
-    return text; // Not enough letters to highlight
+    return [<Text key={`${partIndex}-text`} style={styles.bulletText}>{text}</Text>]; // Not enough letters to highlight
   }
   
   // Randomly select 2 different letter positions
@@ -78,12 +82,16 @@ const renderRandomHighlights = (text: string, partIndex: number) => {
   return text.split('').map((char, index) => {
     if (highlightIndices.has(index)) {
       return (
-        <Text key={`${partIndex}-${index}`} style={styles.highlightedText}>
+        <Text key={`${partIndex}-${index}`} style={[styles.bulletText, styles.highlightedText]}>
           {char}
         </Text>
       );
     }
-    return char;
+    return (
+      <Text key={`${partIndex}-${index}`} style={styles.bulletText}>
+        {char}
+      </Text>
+    );
   });
 };
 
@@ -191,7 +199,7 @@ const SingleProgramView = () => {
               {formatOverviewAsBullets(generatedProgram.overview).map((bullet, index) => (
                 <View key={index} style={styles.bulletPoint}>
                   <Text style={styles.bulletDot}>•</Text>
-                  <Text style={styles.bulletText}>
+                  <Text style={styles.bulletTextContainer}>
                     {renderTextWithHighlight(bullet)}
                   </Text>
                 </View>
@@ -448,6 +456,11 @@ const styles = StyleSheet.create({
     color: colors.lightGray,
     flex: 1,
     lineHeight: 22,
+  },
+  bulletTextContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   highlightedText: {
     color: colors.primary,

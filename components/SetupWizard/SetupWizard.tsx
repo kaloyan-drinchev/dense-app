@@ -262,8 +262,9 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   };
 
   const handleSubscriptionComplete = async () => {
-    // Refresh subscription status
-    await setSubscriptionStatus(await import('@/services/subscription-service').then(s => s.subscriptionService.getSubscriptionStatus()));
+    // Refresh subscription status using the store method
+    const { refreshSubscriptionStatus } = useSubscriptionStore.getState();
+    await refreshSubscriptionStatus();
     
     // Mark wizard as completed and close
     setWizardCompleted();
