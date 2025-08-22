@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
+import { useSubscriptionStore } from '@/store/subscription-store';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
@@ -24,9 +25,33 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { userProfile, resetProgress } = useWorkoutStore();
   const { user, logout } = useAuthStore();
+  const { 
+    hasActiveSubscription, 
+    getDaysUntilExpiry, 
+    getSubscriptionInfo,
+    isTrialActive,
+    getTrialDaysRemaining
+  } = useSubscriptionStore();
   const [notifications, setNotifications] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number>(0);
 
+
+  // Load trial days remaining when screen loads
+  useEffect(() => {
+    const loadTrialDays = async () => {
+      try {
+        const days = await getTrialDaysRemaining();
+        setTrialDaysLeft(days);
+      } catch (error) {
+        console.log('Failed to load trial days:', error);
+      }
+    };
+    
+    if (isTrialActive()) {
+      loadTrialDays();
+    }
+  }, [getTrialDaysRemaining, isTrialActive]);
 
   // Reload profile when screen comes into focus
   useFocusEffect(
@@ -61,8 +86,21 @@ export default function SettingsScreen() {
         }
       };
       
+      // Also refresh trial days when screen comes into focus
+      const loadTrialDays = async () => {
+        try {
+          const days = await getTrialDaysRemaining();
+          setTrialDaysLeft(days);
+        } catch (error) {
+          console.log('Failed to load trial days:', error);
+        }
+      };
+      
       loadProfile();
-    }, [user?.email])
+      if (isTrialActive()) {
+        loadTrialDays();
+      }
+    }, [user?.email, getTrialDaysRemaining, isTrialActive])
   );
 
 
@@ -155,6 +193,37 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleSubscriptionPress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    const subscriptionInfo = getSubscriptionInfo();
+    const daysLeft = getDaysUntilExpiry();
+    const trialActive = isTrialActive();
+
+    let title = '';
+    let message = '';
+
+    if (trialActive) {
+      title = '🆓 Free Trial Status';
+      message = `Your free trial is currently active with ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} remaining.\n\nAfter your trial ends, you'll need to subscribe to continue accessing premium features.`;
+    } else if (subscriptionInfo.isActive && daysLeft !== null) {
+      if (daysLeft > 0) {
+        title = '✅ Subscription Active';
+        message = `Your DENSE Pro subscription is active and will renew in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}.\n\nPlan: ${subscriptionInfo.planName || 'Pro'}\nExpires: ${subscriptionInfo.expiryDate ? new Date(subscriptionInfo.expiryDate).toLocaleDateString() : 'Unknown'}`;
+      } else {
+        title = '⚠️ Subscription Expires Today';
+        message = `Your DENSE Pro subscription expires today.\n\nIt should automatically renew if you haven't cancelled it in your iOS Settings.`;
+      }
+    } else {
+      title = '❌ No Active Subscription';
+      message = `You don't currently have an active subscription.\n\nSubscribe to DENSE Pro to access unlimited AI-generated workouts and premium features.`;
+    }
+
+    Alert.alert(title, message, [{ text: 'Got it', style: 'default' }]);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView 
@@ -191,8 +260,6 @@ export default function SettingsScreen() {
           </View>
           <Icon name="chevron-right" size={20} color={colors.lightGray} />
         </TouchableOpacity>
-
-
 
         {/* Preferences */}
         <View style={styles.section}>
@@ -276,7 +343,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Account */}
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           
           <TouchableOpacity style={styles.settingItem} onPress={handleLogout}>
@@ -290,6 +357,47 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+        </View> */}
+
+        {/* Subscription Status */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Subscription</Text>
+          
+          <TouchableOpacity style={styles.settingItem} onPress={handleSubscriptionPress}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
+              <Icon name="zap" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>DENSE Pro Status</Text>
+              <Text style={styles.settingDescription}>
+                {(() => {
+                  const subscriptionInfo = getSubscriptionInfo();
+                  const trialActive = isTrialActive();
+                  
+                  if (trialActive) {
+                    return `Free Trial Active`;
+                  } else if (subscriptionInfo.isActive) {
+                    return `Subscription Active`;
+                  } else {
+                    return `No active subscription`;
+                  }
+                })()}
+              </Text>
+            </View>
+            <View style={styles.subscriptionStatus}>
+              {(() => {
+                const subscriptionInfo = getSubscriptionInfo();
+                const daysLeft = getDaysUntilExpiry();
+                const trialActive = isTrialActive();
+                
+                if (trialActive || (subscriptionInfo.isActive && daysLeft !== null && daysLeft > 0)) {
+                  return <Icon name="check-circle" size={20} color={colors.success} />;
+                } else {
+                  return <Icon name="alert-circle" size={20} color={colors.warning} />;
+                }
+              })()}
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -419,6 +527,10 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.lightGray,
     marginTop: 2,
+  },
+  subscriptionStatus: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   connectionTestContainer: {
     backgroundColor: colors.darkGray,
