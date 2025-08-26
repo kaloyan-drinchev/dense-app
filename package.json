@@ -6,6 +6,10 @@
     "start": "expo start --tunnel",
     "start-web": "expo start --web",
     "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
+    "build-web": "expo export -p web",
+    "serve": "npx serve dist",
+    "pwa:icons": "node scripts/generate-pwa-icons.js",
+    "pwa:validate": "echo 'Visit: https://manifest-validator.appspot.com/'",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
@@ -51,6 +55,7 @@
     "react-native-screens": "~4.11.1",
     "react-native-svg": "15.11.2",
     "react-native-web": "~0.20.0",
+    "sharp": "^0.34.3",
     "zustand": "^5.0.2"
   },
   "devDependencies": {

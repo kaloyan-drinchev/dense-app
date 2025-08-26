@@ -35,6 +35,7 @@ import { AppUpdateManager } from "@/utils/app-updates";
 
 import { ErrorBoundary } from "./error-boundary";
 import { colors } from "@/constants/colors";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 
 export const unstable_settings = {
   // Ensure that reloading on `/modal` keeps a back button present.
@@ -346,6 +347,12 @@ function AppNavigator() {
         daysRemaining={reminderDaysLeft}
         onRenew={handleReminderRenew}
         onCancel={handleReminderCancel}
+      />
+      
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt 
+        onInstall={() => console.log('PWA installed successfully!')}
+        onDismiss={() => console.log('PWA install prompt dismissed')}
       />
     </>
   );
