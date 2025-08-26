@@ -29,27 +29,7 @@
       "permissions": ["CAMERA"]
     },
     "web": {
-      "favicon": "./assets/images/favicon.png",
-      "bundler": "metro",
-      "output": "static",
-      "lang": "en",
-      "name": "DENSE - AI Fitness Trainer",
-      "shortName": "DENSE",
-      "description": "AI-powered fitness training with DENSE methodology",
-      "themeColor": "#00FF88",
-      "backgroundColor": "#000000",
-      "display": "standalone",
-      "orientation": "portrait",
-      "scope": "/",
-      "startUrl": "/",
-      "crossorigin": "use-credentials",
-      "relatedApplications": [],
-      "preferRelatedApplications": false,
-      "config": {
-        "firebase": {
-          "measurementId": ""
-        }
-      }
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       [
