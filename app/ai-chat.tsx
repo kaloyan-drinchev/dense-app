@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   userText: {
-    color: 'white',
+    color: colors.black,
   },
   aiText: {
     color: colors.white,
