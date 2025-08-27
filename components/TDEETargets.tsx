@@ -2,18 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
+import { useNutritionStore } from '@/store/nutrition-store';
 import { wizardResultsService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
-import { TDEECalculation } from '@/components/SetupWizard/types';
 
 export const TDEETargets: React.FC = () => {
   const { user } = useAuthStore();
-  const [tdeeData, setTdeeData] = useState<TDEECalculation | null>(null);
+  const { nutritionGoals } = useNutritionStore();
+  const [bmr, setBmr] = useState<number | null>(null);
+  const [tdee, setTdee] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadTdeeData = async () => {
+    const loadTdeeMetrics = async () => {
       if (!user?.id) {
         setIsLoading(false);
         return;
@@ -23,21 +25,19 @@ export const TDEETargets: React.FC = () => {
         const wizardResults = await wizardResultsService.getByUserId(user.id);
         
         if (wizardResults?.tdeeData) {
-          const parsedTdeeData = JSON.parse(wizardResults.tdeeData) as TDEECalculation;
-          setTdeeData(parsedTdeeData);
-        } else {
-          // No TDEE data available
-          setTdeeData(null);
+          const parsedTdeeData = JSON.parse(wizardResults.tdeeData);
+          setBmr(parsedTdeeData.bmr);
+          setTdee(parsedTdeeData.tdee);
         }
       } catch (err) {
-        console.error('Failed to load TDEE data:', err);
+        console.error('Failed to load TDEE metrics:', err);
         setError('Failed to load nutrition targets');
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadTdeeData();
+    loadTdeeMetrics();
   }, [user?.id]);
 
   if (isLoading) {
@@ -59,7 +59,10 @@ export const TDEETargets: React.FC = () => {
     );
   }
 
-  if (!tdeeData) {
+  // Check if we have nutrition goals (which come from TDEE calculation)
+  const hasTargets = nutritionGoals.calories !== 2500; // 2500 is the default fallback value
+
+  if (!hasTargets) {
     return (
       <View style={styles.container}>
         <View style={styles.noDataContainer}>
@@ -81,35 +84,37 @@ export const TDEETargets: React.FC = () => {
 
       <View style={styles.targetsGrid}>
         <View style={styles.targetItem}>
-          <Text style={styles.targetValue}>{tdeeData.adjustedCalories}</Text>
+          <Text style={styles.targetValue}>{nutritionGoals.calories}</Text>
           <Text style={styles.targetLabel}>Calories</Text>
           <View style={[styles.targetIndicator, { backgroundColor: colors.primary }]} />
         </View>
         
         <View style={styles.targetItem}>
-          <Text style={styles.targetValue}>{tdeeData.protein}g</Text>
+          <Text style={styles.targetValue}>{nutritionGoals.protein}g</Text>
           <Text style={styles.targetLabel}>Protein</Text>
           <View style={[styles.targetIndicator, { backgroundColor: '#FF6B35' }]} />
         </View>
         
         <View style={styles.targetItem}>
-          <Text style={styles.targetValue}>{tdeeData.carbs}g</Text>
+          <Text style={styles.targetValue}>{nutritionGoals.carbs}g</Text>
           <Text style={styles.targetLabel}>Carbs</Text>
           <View style={[styles.targetIndicator, { backgroundColor: '#4CAF50' }]} />
         </View>
         
         <View style={styles.targetItem}>
-          <Text style={styles.targetValue}>{tdeeData.fat}g</Text>
+          <Text style={styles.targetValue}>{nutritionGoals.fat}g</Text>
           <Text style={styles.targetLabel}>Fat</Text>
           <View style={[styles.targetIndicator, { backgroundColor: '#3A5199' }]} />
         </View>
       </View>
 
-      <View style={styles.metricInfo}>
-        <Text style={styles.metricText}>
-          BMR: {tdeeData.bmr} cal • TDEE: {tdeeData.tdee} cal
-        </Text>
-      </View>
+      {bmr && tdee && (
+        <View style={styles.metricInfo}>
+          <Text style={styles.metricText}>
+            BMR: {bmr} cal • TDEE: {tdee} cal
+          </Text>
+        </View>
+      )}
     </View>
   );
 };

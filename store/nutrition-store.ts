@@ -32,6 +32,7 @@ interface NutritionState {
   updateNutritionGoals: (goals: Partial<NutritionGoals>) => void;
   updateNutritionPreferences: (prefs: Partial<NutritionPreferences>) => void;
   clearDailyLog: (date: string) => void;
+  clearAllData: () => void;
   loadNutritionData: (date: string) => Promise<void>;
 
   // Custom meals actions
@@ -297,6 +298,14 @@ export const useNutritionStore = create<NutritionState>()(
         });
       },
 
+      clearAllData: () => {
+        set({
+          dailyLogs: {},
+          recentFoods: [],
+          error: null,
+        });
+      },
+
       // Custom meals actions
       addCustomMeal: (meal) => {
         set((state) => ({
@@ -381,38 +390,72 @@ export const useNutritionStore = create<NutritionState>()(
   )
 );
 
-// Initialize nutrition goals based on user profile
-export const initializeNutritionGoals = () => {
+// Initialize nutrition goals based on TDEE calculation from wizard results
+export const initializeNutritionGoals = async () => {
   const { updateNutritionGoals } = useNutritionStore.getState();
-  const userProfile =
-    require('@/store/workout-store').useWorkoutStore.getState().userProfile;
+  
+  try {
+    // Import services here to avoid circular dependency
+    const { wizardResultsService } = await import('@/db/services');
+    const { useAuthStore } = await import('@/store/auth-store');
+    
+    const user = useAuthStore.getState().user;
+    if (!user?.id) {
+      console.log('No user found, using default nutrition goals');
+      return;
+    }
 
-  if (userProfile) {
-    const calorieGoal = calculateDefaultCalorieGoal(
-      userProfile.weight,
-      userProfile.height,
-      userProfile.age,
-      userProfile.goal
-    );
+    // Get wizard results with TDEE data
+    const wizardResults = await wizardResultsService.getByUserId(user.id);
+    
+    if (wizardResults?.tdeeData) {
+      // Parse TDEE data from wizard results
+      const tdeeData = JSON.parse(wizardResults.tdeeData);
+      
+      console.log('🎯 Using TDEE-calculated nutrition goals:', tdeeData);
+      
+      updateNutritionGoals({
+        calories: tdeeData.adjustedCalories,
+        protein: tdeeData.protein,
+        carbs: tdeeData.carbs,
+        fat: tdeeData.fat,
+      });
+    } else {
+      // Fallback to old calculation if no TDEE data available
+      console.log('No TDEE data found, using fallback calculation');
+      const userProfile =
+        require('@/store/workout-store').useWorkoutStore.getState().userProfile;
 
-    // Set protein based on body weight (1.8g per kg for bulking, 2.2g for cutting)
-    const proteinGoal = Math.round(
-      userProfile.weight * (userProfile.goal === 'cutting' ? 2.2 : 1.8)
-    );
+      if (userProfile) {
+        const calorieGoal = calculateDefaultCalorieGoal(
+          userProfile.weight,
+          userProfile.height,
+          userProfile.age,
+          userProfile.goal
+        );
 
-    // Set fat at 25-30% of calories
-    const fatGoal = Math.round((calorieGoal * 0.3) / 9);
+        // Set protein based on body weight (1.8g per kg for bulking, 2.2g for cutting)
+        const proteinGoal = Math.round(
+          userProfile.weight * (userProfile.goal === 'cutting' ? 2.2 : 1.8)
+        );
 
-    // Remaining calories from carbs
-    const carbGoal = Math.round(
-      (calorieGoal - proteinGoal * 4 - fatGoal * 9) / 4
-    );
+        // Set fat at 25-30% of calories
+        const fatGoal = Math.round((calorieGoal * 0.3) / 9);
 
-    updateNutritionGoals({
-      calories: calorieGoal,
-      protein: proteinGoal,
-      carbs: carbGoal,
-      fat: fatGoal,
-    });
+        // Remaining calories from carbs
+        const carbGoal = Math.round(
+          (calorieGoal - proteinGoal * 4 - fatGoal * 9) / 4
+        );
+
+        updateNutritionGoals({
+          calories: calorieGoal,
+          protein: proteinGoal,
+          carbs: carbGoal,
+          fat: fatGoal,
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Failed to initialize nutrition goals:', error);
   }
 };

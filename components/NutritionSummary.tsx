@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { colors } from '@/constants/colors';
 import { DailyLog } from '@/types/nutrition';
+import { useNutritionStore } from '@/store/nutrition-store';
 
 interface NutritionSummaryProps {
   dailyLog: DailyLog;
@@ -9,19 +10,15 @@ interface NutritionSummaryProps {
 
 export const NutritionSummary: React.FC<NutritionSummaryProps> = ({ dailyLog }) => {
   const { totalNutrition, calorieGoal } = dailyLog;
+  const { nutritionGoals } = useNutritionStore();
   
   // Calculate percentages
   const caloriePercentage = Math.min(100, Math.round((totalNutrition.calories / calorieGoal) * 100));
   
-  // Calculate macronutrient percentages
-  const totalCaloriesFromMacros = 
-    (totalNutrition.protein * 4) + 
-    (totalNutrition.carbs * 4) + 
-    (totalNutrition.fat * 9);
-  
-  const proteinPercentage = Math.round((totalNutrition.protein * 4 / totalCaloriesFromMacros) * 100) || 0;
-  const carbsPercentage = Math.round((totalNutrition.carbs * 4 / totalCaloriesFromMacros) * 100) || 0;
-  const fatPercentage = Math.round((totalNutrition.fat * 9 / totalCaloriesFromMacros) * 100) || 0;
+  // Calculate macronutrient percentages based on targets (not consumed calories)
+  const proteinPercentage = Math.min(100, Math.round((totalNutrition.protein / nutritionGoals.protein) * 100));
+  const carbsPercentage = Math.min(100, Math.round((totalNutrition.carbs / nutritionGoals.carbs) * 100));
+  const fatPercentage = Math.min(100, Math.round((totalNutrition.fat / nutritionGoals.fat) * 100));
   
   // Calculate remaining calories
   const remainingCalories = calorieGoal - totalNutrition.calories;
@@ -59,14 +56,15 @@ export const NutritionSummary: React.FC<NutritionSummaryProps> = ({ dailyLog }) 
         <View style={styles.macroItem}>
           <View style={styles.macroHeader}>
             <Text style={styles.macroName}>Protein</Text>
-            <Text style={styles.macroValue}>{totalNutrition.protein}g</Text>
+            <Text style={styles.macroValue}>{totalNutrition.protein}g / {nutritionGoals.protein}g</Text>
           </View>
           <View style={styles.macroBarContainer}>
             <View 
               style={[
                 styles.macroBar, 
                 styles.proteinBar,
-                { width: `${proteinPercentage}%` }
+                { width: `${proteinPercentage}%` },
+                proteinPercentage > 100 && styles.macroBarExceeded
               ]} 
             />
           </View>
@@ -75,14 +73,15 @@ export const NutritionSummary: React.FC<NutritionSummaryProps> = ({ dailyLog }) 
         <View style={styles.macroItem}>
           <View style={styles.macroHeader}>
             <Text style={styles.macroName}>Carbs</Text>
-            <Text style={styles.macroValue}>{totalNutrition.carbs}g</Text>
+            <Text style={styles.macroValue}>{totalNutrition.carbs}g / {nutritionGoals.carbs}g</Text>
           </View>
           <View style={styles.macroBarContainer}>
             <View 
               style={[
                 styles.macroBar, 
                 styles.carbsBar,
-                { width: `${carbsPercentage}%` }
+                { width: `${carbsPercentage}%` },
+                carbsPercentage > 100 && styles.macroBarExceeded
               ]} 
             />
           </View>
@@ -91,14 +90,15 @@ export const NutritionSummary: React.FC<NutritionSummaryProps> = ({ dailyLog }) 
         <View style={styles.macroItem}>
           <View style={styles.macroHeader}>
             <Text style={styles.macroName}>Fat</Text>
-            <Text style={styles.macroValue}>{totalNutrition.fat}g</Text>
+            <Text style={styles.macroValue}>{totalNutrition.fat}g / {nutritionGoals.fat}g</Text>
           </View>
           <View style={styles.macroBarContainer}>
             <View 
               style={[
                 styles.macroBar, 
                 styles.fatBar,
-                { width: `${fatPercentage}%` }
+                { width: `${fatPercentage}%` },
+                fatPercentage > 100 && styles.macroBarExceeded
               ]} 
             />
           </View>
@@ -199,5 +199,8 @@ const styles = StyleSheet.create({
   },
   fatBar: {
     backgroundColor: '#3A5199', // Blue
+  },
+  macroBarExceeded: {
+    backgroundColor: colors.error,
   },
 });

@@ -7,8 +7,10 @@ import {
   TouchableOpacity,
   Modal,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import {
@@ -23,20 +25,20 @@ import { TDEETargets } from '@/components/TDEETargets';
 
 import { FoodScanModal } from '@/components/FoodScanModal';
 import { ScanResultsModal } from '@/components/ScanResultsModal';
-import { CustomMealsList } from '@/components/CustomMealsList';
-import { CustomMealForm } from '@/components/CustomMealForm';
-import { FoodItem, MealType, CustomMeal } from '@/types/nutrition';
+import { FoodSelectionModal } from '@/components/FoodSelectionModal';
+import { FoodItem, MealType } from '@/types/nutrition';
+import { FoodItem as AllowedFoodItem } from '@/constants/allowed-foods';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 export default function NutritionScreen() {
+  const router = useRouter();
   const {
     dailyLogs,
     nutritionGoals,
     addFoodEntry,
     removeFoodEntry,
-    customMeals,
-    addCustomMealToLog,
+    clearAllData,
   } = useNutritionStore();
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split('T')[0]
@@ -49,10 +51,7 @@ export default function NutritionScreen() {
   >([]);
   const [scanMealType, setScanMealType] = useState<MealType>('breakfast');
   const [showScanResults, setShowScanResults] = useState(false);
-  const [showCustomMealForm, setShowCustomMealForm] = useState(false);
-  const [selectedCustomMeal, setSelectedCustomMeal] =
-    useState<CustomMeal | null>(null);
-  const [showCustomMeals, setShowCustomMeals] = useState(false);
+  const [showFoodSelection, setShowFoodSelection] = useState(false);
   const [barcodeData, setBarcodeData] = useState<string | null>(null);
 
   // Initialize nutrition goals based on user profile
@@ -96,6 +95,39 @@ export default function NutritionScreen() {
     setShowFoodForm(false);
   };
 
+  const handleFoodSelection = async (allowedFood: AllowedFoodItem, mealType: MealType) => {
+    try {
+      // Create nutrition entry with predefined portion
+      const nutritionEntry = {
+        id: `entry_${Date.now()}`,
+        foodId: `allowed_${allowedFood.name.toLowerCase().replace(/\s+/g, '_')}`,
+        name: allowedFood.name,
+        amount: 1, // Using 1 serving as defined
+        unit: allowedFood.servingSize,
+        mealType: mealType,
+        timestamp: new Date().toISOString(),
+        nutrition: {
+          calories: allowedFood.calories,
+          protein: allowedFood.protein,
+          carbs: allowedFood.carbs,
+          fat: allowedFood.fat,
+          fiber: 0,
+          sugar: 0,
+        },
+      };
+
+      // Add to daily log
+      await addFoodEntry(selectedDate, nutritionEntry);
+
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      console.error('Failed to add food:', error);
+      Alert.alert('Error', 'Failed to add food to your log.');
+    }
+  };
+
   const handleRemoveEntry = (entryId: string) => {
     removeFoodEntry(selectedDate, entryId);
 
@@ -127,33 +159,33 @@ export default function NutritionScreen() {
     );
   };
 
-
-
-  const handleAddCustomMeal = () => {
-    setSelectedCustomMeal(null);
-    setShowCustomMealForm(true);
+  const handleResetStats = () => {
+    Alert.alert(
+      'Reset All Nutrition Data',
+      'This will clear all your nutrition logs and reset your stats to 0. This action cannot be undone.\n\n⚠️ This is for testing purposes only.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Reset All Data',
+          style: 'destructive',
+          onPress: () => {
+            clearAllData();
+            if (Platform.OS !== 'web') {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+            Alert.alert('✅ Data Cleared', 'All nutrition data has been reset to 0.');
+          },
+        },
+      ]
+    );
   };
 
-  const handleEditCustomMeal = (meal: CustomMeal) => {
-    setSelectedCustomMeal(meal);
-    setShowCustomMealForm(true);
-  };
 
-  const handleSelectCustomMeal = (meal: CustomMeal) => {
-    // Add all foods from the custom meal to the log
-    addCustomMealToLog(selectedDate, meal.id);
 
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
 
-    setShowCustomMeals(false);
-  };
-
-  const handleCustomMealFormComplete = () => {
-    setShowCustomMealForm(false);
-    setSelectedCustomMeal(null);
-  };
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
@@ -176,20 +208,33 @@ export default function NutritionScreen() {
           onScanFood={handleScanFood}
         />
 
-
+        {/* Reset Stats Button for Testing */}
+        <TouchableOpacity 
+          style={styles.resetButton}
+          onPress={handleResetStats}
+        >
+          <Icon name="trash-2" size={16} color={colors.error} />
+          <Text style={styles.resetButtonText}>Reset All Stats (Testing)</Text>
+        </TouchableOpacity>
 
         <NutritionSummary dailyLog={dailyLog} />
 
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickActionButton}
-            onPress={() => setShowCustomMeals(true)}
+            onPress={() => setShowFoodSelection(true)}
           >
             <Icon name="plus" size={18} color={colors.white} />
-            <Text style={styles.quickActionText}>Custom Meals</Text>
+            <Text style={styles.quickActionText}>Add Foods</Text>
           </TouchableOpacity>
 
-
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => router.push('/allowed-foods')}
+          >
+            <Icon name="list" size={18} color={colors.white} />
+            <Text style={styles.quickActionText}>Allowed Foods</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.quickActionButton}
@@ -346,46 +391,12 @@ export default function NutritionScreen() {
         }}
       />
 
-      {/* Custom Meals Modal */}
-      <Modal
-        visible={showCustomMeals}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowCustomMeals(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <CustomMealsList
-              onAddMeal={handleAddCustomMeal}
-              onEditMeal={handleEditCustomMeal}
-              onSelectMeal={handleSelectCustomMeal}
-            />
-            <TouchableOpacity
-              style={styles.closeModalButton}
-              onPress={() => setShowCustomMeals(false)}
-            >
-              <Text style={styles.closeModalButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Custom Meal Form Modal */}
-      <Modal
-        visible={showCustomMealForm}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleCustomMealFormComplete}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <CustomMealForm
-              existingMeal={selectedCustomMeal || undefined}
-              onComplete={handleCustomMealFormComplete}
-            />
-          </View>
-        </View>
-      </Modal>
+      {/* Food Selection Modal */}
+      <FoodSelectionModal
+        visible={showFoodSelection}
+        onClose={() => setShowFoodSelection(false)}
+        onSelectFood={handleFoodSelection}
+      />
     </SafeAreaView>
   );
 }
@@ -486,5 +497,24 @@ const styles = StyleSheet.create({
   closeModalButtonText: {
     ...typography.button,
     color: colors.white,
+  },
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.darkGray,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.error,
+    opacity: 0.8,
+  },
+  resetButtonText: {
+    ...typography.bodySmall,
+    color: colors.error,
+    marginLeft: 8,
+    fontWeight: '600',
   },
 });
