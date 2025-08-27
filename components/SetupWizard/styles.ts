@@ -73,10 +73,10 @@ export const styles = StyleSheet.create({
     marginBottom: 20,
   },
   generatingDescription: {
-    ...typography.body,
+    ...typography.large,
     color: colors.lightGray,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 30,
     marginBottom: 30,
     paddingHorizontal: 20,
   },
@@ -91,10 +91,10 @@ export const styles = StyleSheet.create({
     marginBottom: 8,
   },
   stepSubtitle: {
-    ...typography.body,
+    ...typography.large,
     color: colors.lightGray,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 28,
     marginBottom: 20,
   },
   continueButton: {
@@ -306,10 +306,10 @@ export const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   welcomeText: {
-    ...typography.body,
+    ...typography.large,
     color: colors.lightGray,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 30,
     marginBottom: 30,
   },
   featureList: {
@@ -326,7 +326,7 @@ export const styles = StyleSheet.create({
     width: '100%',
   },
   featureText: {
-    ...typography.body,
+    ...typography.bodyLarge,
     color: colors.white,
     marginLeft: 12,
   },

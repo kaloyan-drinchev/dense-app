@@ -16,8 +16,13 @@ export interface WizardPreferences {
   // Step 3: Training Experience
   trainingExperience: string;
 
-  // Step 4: Body Fat
-  bodyFatLevel: string;
+  // Step 4: TDEE Calculation
+  age: string;
+  gender: string;
+  weight: string;
+  height: string;
+  activityLevel: string;
+  goal: string;
 
   // Step 5: Weekly Schedule
   trainingDaysPerWeek: number;
@@ -34,4 +39,13 @@ export interface WizardPreferences {
 
   // Step 9: Duration
   programDurationWeeks: number;
+}
+
+export interface TDEECalculation {
+  bmr: number;
+  tdee: number;
+  adjustedCalories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
 }

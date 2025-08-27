@@ -19,6 +19,7 @@ import { FoodSearchBar } from '@/components/FoodSearchBar';
 import { FoodEntryForm } from '@/components/FoodEntryForm';
 import { NutritionSummary } from '@/components/NutritionSummary';
 import { MealSection } from '@/components/MealSection';
+import { TDEETargets } from '@/components/TDEETargets';
 
 import { FoodScanModal } from '@/components/FoodScanModal';
 import { ScanResultsModal } from '@/components/ScanResultsModal';
@@ -167,6 +168,8 @@ export default function NutritionScreen() {
             <Text style={styles.dateText}>Today</Text>
           </TouchableOpacity>
         </View>
+
+        <TDEETargets />
 
         <FoodSearchBar
           onSelectFood={handleSelectFood}

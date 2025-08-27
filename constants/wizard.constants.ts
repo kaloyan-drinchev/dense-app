@@ -26,9 +26,9 @@ export const steps: WizardStep[] = [
     subtitle: 'How long have you been lifting?'
   },
   {
-    id: 'body-fat',
-    title: 'Body Fat Estimate',
-    subtitle: 'What best describes your current physique?'
+    id: 'tdee-calculation',
+    title: 'Body Metrics & Goals',
+    subtitle: 'Help us calculate your daily nutrition needs'
   },
   {
     id: 'weekly-schedule',
@@ -117,6 +117,25 @@ export const durationOptions = [
   { id: 4, label: '4 weeks' },
   { id: 8, label: '8 weeks' },
   { id: 12, label: '12 weeks' }
+];
+
+export const activityLevelOptions = [
+  { id: 'sedentary', label: 'Sedentary', description: 'Little to no exercise', multiplier: 1.2 },
+  { id: 'lightly_active', label: 'Lightly Active', description: 'Light exercise 1-3 days/week', multiplier: 1.375 },
+  { id: 'moderately_active', label: 'Moderately Active', description: 'Moderate exercise 3-5 days/week', multiplier: 1.55 },
+  { id: 'very_active', label: 'Very Active', description: 'Hard exercise 6-7 days/week', multiplier: 1.725 },
+  { id: 'extremely_active', label: 'Extremely Active', description: 'Very intense exercise or physical job', multiplier: 1.9 }
+];
+
+export const genderOptions = [
+  { id: 'male', label: 'Male' },
+  { id: 'female', label: 'Female' }
+];
+
+export const goalOptions = [
+  { id: 'lose_weight', label: 'Lose Weight', calorieAdjustment: -0.2, proteinMultiplier: 2.0 },
+  { id: 'maintain_weight', label: 'Maintain Weight', calorieAdjustment: 0, proteinMultiplier: 1.6 },
+  { id: 'gain_weight', label: 'Gain Weight', calorieAdjustment: 0.15, proteinMultiplier: 1.8 }
 ];
 
 export const aiGenerationSteps = [

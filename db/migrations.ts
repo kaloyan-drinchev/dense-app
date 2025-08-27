@@ -163,6 +163,63 @@ export const initializeDatabase = async () => {
       );
     `);
 
+    // Add TDEE columns if they don't exist (migration)
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_wizard_results ADD COLUMN tdee_data TEXT;
+      `);
+    } catch (error) {
+      // Column might already exist, that's okay
+    }
+
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_wizard_results ADD COLUMN age INTEGER;
+      `);
+    } catch (error) {
+      // Column might already exist, that's okay
+    }
+
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_wizard_results ADD COLUMN gender TEXT;
+      `);
+    } catch (error) {
+      // Column might already exist, that's okay
+    }
+
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_wizard_results ADD COLUMN weight REAL;
+      `);
+    } catch (error) {
+      // Column might already exist, that's okay
+    }
+
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_wizard_results ADD COLUMN height REAL;
+      `);
+    } catch (error) {
+      // Column might already exist, that's okay
+    }
+
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_wizard_results ADD COLUMN activity_level TEXT;
+      `);
+    } catch (error) {
+      // Column might already exist, that's okay
+    }
+
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_wizard_results ADD COLUMN goal TEXT;
+      `);
+    } catch (error) {
+      // Column might already exist, that's okay
+    }
+
     await expo_sqlite.execAsync(`
       CREATE TABLE IF NOT EXISTS sync_status (
         id TEXT PRIMARY KEY,

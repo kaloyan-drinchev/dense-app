@@ -90,8 +90,17 @@ export const userWizardResults = sqliteTable('user_wizard_results', {
   // Step 3: Training Experience
   trainingExperience: text('training_experience'), // 'new', '6_18_months', '2_plus_years'
   
-  // Step 4: Body Fat Estimate
+  // Step 4: Body Fat Estimate (legacy - now using TDEE calculation)
   bodyFatLevel: text('body_fat_level'), // 'lean_10_14', 'athletic_15_18', 'average_18_22', 'high_22_plus'
+  
+  // Step 4: TDEE Calculation (new fields)
+  tdeeData: text('tdee_data'), // JSON object with BMR, TDEE, calories, macros
+  age: integer('age'),
+  gender: text('gender'), // 'male', 'female'
+  weight: real('weight'), // in kg
+  height: real('height'), // in cm
+  activityLevel: text('activity_level'), // 'sedentary', 'lightly_active', etc.
+  goal: text('goal'), // 'lose_weight', 'maintain_weight', 'gain_weight'
   
   // Step 5: Weekly Schedule
   trainingDaysPerWeek: integer('training_days_per_week'), // 3, 4, 5, or 6

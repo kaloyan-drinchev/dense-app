@@ -25,15 +25,18 @@ import { SubscriptionScreen } from '@/components/SubscriptionScreen';
 import {
   steps,
   trainingExperienceOptions,
-  bodyFatOptions,
   trainingDaysOptions,
   musclePriorityOptions,
   pumpWorkOptions,
   recoveryOptions,
   durationOptions,
+  activityLevelOptions,
+  genderOptions,
+  goalOptions,
   aiGenerationSteps
 } from '@/constants/wizard.constants';
-import { type WizardStep, type WizardPreferences } from './types';
+import { type WizardStep, type WizardPreferences, type TDEECalculation } from './types';
+import { calculateTDEEAndMacros, validateTDEEInputs } from '@/utils/tdee-calculator';
 import { styles } from './styles';
 
 interface SetupWizardProps {
@@ -70,8 +73,13 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     // Step 3: Training Experience - Default to intermediate
     trainingExperience: '6_18_months',
     
-    // Step 4: Body Fat - Default to athletic range
-    bodyFatLevel: 'athletic_12_18',
+    // Step 4: TDEE Calculation - Default values
+    age: '',
+    gender: '',
+    weight: '',
+    height: '',
+    activityLevel: '',
+    goal: '',
     
     // Step 5: Weekly Schedule - Default to 4 days with common schedule
     trainingDaysPerWeek: 4,
@@ -103,6 +111,10 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           setValidationError('Please enter your name');
           return false;
         }
+        if (preferences.name.length > 25) {
+          setValidationError('Name must be 25 characters or less');
+          return false;
+        }
         return true;
 
       case 'current-strength':
@@ -115,9 +127,18 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         }
         return true;
 
-      case 'body-fat':
-        if (!preferences.bodyFatLevel) {
-          setValidationError('Please select your body fat estimate');
+      case 'tdee-calculation':
+        const tdeeErrors = validateTDEEInputs({
+          age: preferences.age ? parseInt(preferences.age) : undefined,
+          gender: preferences.gender as 'male' | 'female',
+          weight: preferences.weight ? parseFloat(preferences.weight) : undefined,
+          height: preferences.height ? parseFloat(preferences.height) : undefined,
+          activityLevel: preferences.activityLevel,
+          goal: preferences.goal
+        });
+        
+        if (tdeeErrors.length > 0) {
+          setValidationError(tdeeErrors[0]);
           return false;
         }
         return true;
@@ -211,7 +232,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
       // Generate the actual program
       const wizardResponses: WizardResponses = {
         trainingExperience: preferences.trainingExperience as any,
-        bodyFatLevel: preferences.bodyFatLevel as any,
+        bodyFatLevel: 'athletic_15_18' as any, // Default value since we now use TDEE calculation
         trainingDaysPerWeek: preferences.trainingDaysPerWeek,
         musclePriorities: preferences.musclePriorities,
         pumpWorkPreference: preferences.pumpWorkPreference as any,
@@ -224,10 +245,27 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
       
       // Save to database
       if (currentUser && currentUser.id) {
+        // Calculate and store TDEE data
+        let tdeeData = null;
+        try {
+          if (preferences.age && preferences.gender && preferences.weight && preferences.height && preferences.activityLevel && preferences.goal) {
+            tdeeData = calculateTDEEAndMacros({
+              age: parseInt(preferences.age),
+              gender: preferences.gender as 'male' | 'female',
+              weight: parseFloat(preferences.weight),
+              height: parseFloat(preferences.height),
+              activityLevel: preferences.activityLevel,
+              goal: preferences.goal
+            });
+          }
+        } catch (error) {
+          console.warn('Failed to calculate TDEE:', error);
+        }
+
         await wizardResultsService.create({
           userId: currentUser.id,
           trainingExperience: preferences.trainingExperience,
-          bodyFatLevel: preferences.bodyFatLevel,
+          bodyFatLevel: 'athletic_15_18', // Default value since we now use TDEE calculation
           trainingDaysPerWeek: preferences.trainingDaysPerWeek,
           preferredTrainingDays: JSON.stringify(preferences.preferredTrainingDays),
           musclePriorities: JSON.stringify(preferences.musclePriorities),
@@ -239,7 +277,20 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           squatKg: preferences.squatKg ? parseFloat(preferences.squatKg) : null,
           benchKg: preferences.benchKg ? parseFloat(preferences.benchKg) : null,
           deadliftKg: preferences.deadliftKg ? parseFloat(preferences.deadliftKg) : null,
+          // Store TDEE data for nutrition tracking
+          tdeeData: tdeeData ? JSON.stringify(tdeeData) : null,
+          age: preferences.age ? parseInt(preferences.age) : null,
+          gender: preferences.gender || null,
+          weight: preferences.weight ? parseFloat(preferences.weight) : null,
+          height: preferences.height ? parseFloat(preferences.height) : null,
+          activityLevel: preferences.activityLevel || null,
+          goal: preferences.goal || null,
         });
+
+        // TDEE data is now being saved to the database for the nutrition tab
+        if (tdeeData) {
+          console.log('✅ TDEE calculation completed and saved to database');
+        }
       } else {
         console.error('❌ No user or user.id available:', { currentUser, userId: currentUser?.id });
         throw new Error('User not authenticated or missing ID');
@@ -354,6 +405,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               autoCapitalize="words"
               autoCorrect={false}
               returnKeyType="next"
+              maxLength={25}
             />
           </View>
         );
@@ -434,28 +486,201 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           </View>
         );
 
-      case 'body-fat':
+      case 'tdee-calculation':
         return (
-          <View style={styles.optionsContainer}>
-            {bodyFatOptions.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={[
-                  styles.optionButton,
-                  preferences.bodyFatLevel === option.id && styles.selectedOption,
-                ]}
-                onPress={() => handleInputChange('bodyFatLevel', option.id)}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    preferences.bodyFatLevel === option.id && styles.selectedOptionText,
-                  ]}
-                >
-                  {option.label}
+          <View style={styles.inputContainer}>
+            {/* Age and Gender Row */}
+            <View style={{ flexDirection: 'row', marginBottom: 20, gap: 12 }}>
+              <View style={{ flex: 0.6 }}>
+                <Text style={styles.inputLabel}>Age</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={preferences.age}
+                  onChangeText={(value) => handleInputChange('age', value)}
+                  placeholder="e.g. 25"
+                  placeholderTextColor={colors.lightGray}
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
+              </View>
+              <View style={{ flex: 1.4 }}>
+                <Text style={styles.inputLabel}>Gender</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {genderOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={[
+                        styles.optionButton,
+                        { flex: 1, marginBottom: 0 },
+                        preferences.gender === option.id && styles.selectedOption,
+                      ]}
+                      onPress={() => handleInputChange('gender', option.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionText,
+                          preferences.gender === option.id && styles.selectedOptionText,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {/* Weight and Height Row */}
+            <View style={{ flexDirection: 'row', marginBottom: 20, gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Weight (kg)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={preferences.weight}
+                  onChangeText={(value) => handleInputChange('weight', value)}
+                  placeholder="e.g. 70"
+                  placeholderTextColor={colors.lightGray}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Height (cm)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={preferences.height}
+                  onChangeText={(value) => handleInputChange('height', value)}
+                  placeholder="e.g. 175"
+                  placeholderTextColor={colors.lightGray}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
+            {/* Goal */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Your Goal</Text>
+              <View style={styles.optionsContainer}>
+                {goalOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[
+                      styles.optionButton,
+                      preferences.goal === option.id && styles.selectedOption,
+                    ]}
+                    onPress={() => handleInputChange('goal', option.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        preferences.goal === option.id && styles.selectedOptionText,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Activity Level */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Activity Level</Text>
+              <View style={styles.optionsContainer}>
+                {activityLevelOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[
+                      styles.optionButton,
+                      preferences.activityLevel === option.id && styles.selectedOption,
+                    ]}
+                    onPress={() => handleInputChange('activityLevel', option.id)}
+                  >
+                    <View>
+                      <Text
+                        style={[
+                          styles.optionText,
+                          preferences.activityLevel === option.id && styles.selectedOptionText,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.optionText,
+                          { fontSize: 12, opacity: 0.7 },
+                          preferences.activityLevel === option.id && styles.selectedOptionText,
+                        ]}
+                      >
+                        {option.description}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* TDEE Preview */}
+            {preferences.age && preferences.gender && preferences.weight && preferences.height && preferences.activityLevel && preferences.goal && (
+              <View style={{ 
+                backgroundColor: colors.darkGray, 
+                borderRadius: 12, 
+                padding: 16, 
+                marginTop: 20,
+                borderWidth: 1,
+                borderColor: colors.primary 
+              }}>
+                <Text style={{ color: colors.primary, fontSize: 16, fontWeight: 'bold', marginBottom: 8 }}>
+                  📊 Your Daily Nutrition Targets
                 </Text>
-              </TouchableOpacity>
-            ))}
+                {(() => {
+                  try {
+                    const tdeeResult = calculateTDEEAndMacros({
+                      age: parseInt(preferences.age),
+                      gender: preferences.gender as 'male' | 'female',
+                      weight: parseFloat(preferences.weight),
+                      height: parseFloat(preferences.height),
+                      activityLevel: preferences.activityLevel,
+                      goal: preferences.goal
+                    });
+                    
+                    return (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={{ color: colors.white, fontSize: 18, fontWeight: 'bold' }}>
+                            {tdeeResult.adjustedCalories}
+                          </Text>
+                          <Text style={{ color: colors.lightGray, fontSize: 12 }}>Calories</Text>
+                        </View>
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={{ color: colors.white, fontSize: 18, fontWeight: 'bold' }}>
+                            {tdeeResult.protein}g
+                          </Text>
+                          <Text style={{ color: colors.lightGray, fontSize: 12 }}>Protein</Text>
+                        </View>
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={{ color: colors.white, fontSize: 18, fontWeight: 'bold' }}>
+                            {tdeeResult.carbs}g
+                          </Text>
+                          <Text style={{ color: colors.lightGray, fontSize: 12 }}>Carbs</Text>
+                        </View>
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={{ color: colors.white, fontSize: 18, fontWeight: 'bold' }}>
+                            {tdeeResult.fat}g
+                          </Text>
+                          <Text style={{ color: colors.lightGray, fontSize: 12 }}>Fat</Text>
+                        </View>
+                      </View>
+                    );
+                  } catch (error) {
+                    return (
+                      <Text style={{ color: colors.lightGray, textAlign: 'center' }}>
+                        Complete all fields to see your targets
+                      </Text>
+                    );
+                  }
+                })()}
+              </View>
+            )}
           </View>
         );
 
