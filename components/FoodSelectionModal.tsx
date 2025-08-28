@@ -114,7 +114,7 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
 
           {/* Meal Recipes */}
           <Text style={styles.instructionText}>
-            👇 Select a {selectedMealType} recipe from the options below:
+            👇 Select a {selectedMealType} recipe or individual food:
           </Text>
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
             {currentMealRecipes.map((category) => (
@@ -169,71 +169,55 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
               </View>
             ))}
             
-            {/* Option to browse individual foods */}
-            <TouchableOpacity 
-              style={styles.browseIndividualButton}
-              onPress={() => {
-                // Switch to individual foods view
-                setExpandedCategory('proteins');
-              }}
-            >
-              <Text style={styles.browseIndividualText}>
-                Or browse individual foods by category
-              </Text>
-              <Icon name="chevron-down" size={16} color={colors.primary} />
-            </TouchableOpacity>
+            {/* Individual Foods - Always displayed */}
+            <View style={styles.individualFoodsSection}>
+              <Text style={styles.sectionTitle}>Individual Foods</Text>
+              {allowedFoodCategories.map((category) => (
+                <View key={category.id} style={styles.categoryContainer}>
+                  <TouchableOpacity
+                    style={styles.categoryHeader}
+                    onPress={() => toggleCategory(category.id)}
+                  >
+                    <View style={styles.categoryTitleContainer}>
+                      <Text style={styles.categoryIcon}>{category.icon}</Text>
+                      <Text style={styles.categoryTitle}>{category.name}</Text>
+                      <Text style={styles.foodCount}>({category.foods.length} foods)</Text>
+                    </View>
+                    <Icon
+                      name={expandedCategory === category.id ? 'chevron-up' : 'chevron-down'}
+                      size={20}
+                      color={colors.lightGray}
+                    />
+                  </TouchableOpacity>
 
-            {/* Individual Foods (collapsed by default) */}
-            {expandedCategory && ['proteins', 'carbs', 'fats', 'vegetables', 'fruits', 'flavor-boosters'].includes(expandedCategory) && (
-              <View style={styles.individualFoodsSection}>
-                <Text style={styles.sectionTitle}>Individual Foods</Text>
-                {allowedFoodCategories.map((category) => (
-                  <View key={category.id} style={styles.categoryContainer}>
-                    <TouchableOpacity
-                      style={styles.categoryHeader}
-                      onPress={() => toggleCategory(category.id)}
-                    >
-                      <View style={styles.categoryTitleContainer}>
-                        <Text style={styles.categoryIcon}>{category.icon}</Text>
-                        <Text style={styles.categoryTitle}>{category.name}</Text>
-                        <Text style={styles.foodCount}>({category.foods.length} foods)</Text>
-                      </View>
-                      <Icon
-                        name={expandedCategory === category.id ? 'chevron-up' : 'chevron-down'}
-                        size={20}
-                        color={colors.lightGray}
-                      />
-                    </TouchableOpacity>
-
-                    {expandedCategory === category.id && (
-                      <View style={styles.foodsList}>
-                        {category.foods.map((food, index) => (
-                          <TouchableOpacity
-                            key={index}
-                            style={styles.foodItem}
-                            onPress={() => handleFoodSelect(food)}
-                          >
-                            <View style={styles.foodInfo}>
-                              <Text style={styles.foodName}>{food.name}</Text>
-                              <Text style={styles.foodServing}>{food.servingSize}</Text>
-                              <Text style={styles.foodDetails}>{food.details}</Text>
+                  {expandedCategory === category.id && (
+                    <View style={styles.foodsList}>
+                      {category.foods.map((food, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.foodItem}
+                          onPress={() => handleFoodSelect(food)}
+                        >
+                          <View style={styles.foodInfo}>
+                            <Text style={styles.foodName}>{food.name}</Text>
+                            <Text style={styles.foodServing}>{food.servingSize}</Text>
+                            <Text style={styles.foodDetails}>{food.details}</Text>
+                          </View>
+                          <View style={styles.foodNutrition}>
+                            <Text style={styles.caloriesBadge}>{food.calories} cal</Text>
+                            <View style={styles.macroInfo}>
+                              <Text style={styles.macroText}>P: {food.protein}g</Text>
+                              <Text style={styles.macroText}>C: {food.carbs}g</Text>
+                              <Text style={styles.macroText}>F: {food.fat}g</Text>
                             </View>
-                            <View style={styles.foodNutrition}>
-                              <Text style={styles.caloriesBadge}>{food.calories} cal</Text>
-                              <View style={styles.macroInfo}>
-                                <Text style={styles.macroText}>P: {food.protein}g</Text>
-                                <Text style={styles.macroText}>C: {food.carbs}g</Text>
-                                <Text style={styles.macroText}>F: {food.fat}g</Text>
-                              </View>
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
           </ScrollView>
         </View>
       </View>
@@ -421,28 +405,11 @@ const styles = StyleSheet.create({
   recipeNutrition: {
     alignItems: 'flex-end',
   },
-  browseIndividualButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.darkGray,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginTop: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  browseIndividualText: {
-    ...typography.body,
-    color: colors.primary,
-    marginRight: 8,
-  },
+
   individualFoodsSection: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 2,
     borderTopColor: colors.mediumGray,
   },
   sectionTitle: {

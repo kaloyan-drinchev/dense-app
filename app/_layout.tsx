@@ -404,6 +404,18 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="nutrition-detail" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="nutrition-history" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
         name="finished-workouts" 
         options={{ 
           headerShown: false,

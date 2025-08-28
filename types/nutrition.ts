@@ -45,6 +45,15 @@ export type DailyLog = {
   calorieGoal: number;
 };
 
+export type LoggedMealSession = {
+  id: string;
+  date: string;
+  timestamp: string;
+  entries: FoodEntry[];
+  totalNutrition: NutritionInfo;
+  calorieGoal: number;
+};
+
 export type NutritionGoals = {
   calories: number;
   protein: number;

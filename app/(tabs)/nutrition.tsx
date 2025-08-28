@@ -17,6 +17,7 @@ import {
   useNutritionStore,
   initializeNutritionGoals,
 } from '@/store/nutrition-store';
+import { startMidnightLogger, checkForUnloggedMeals } from '@/utils/midnight-logger';
 import { FoodSearchBar } from '@/components/FoodSearchBar';
 import { FoodEntryForm } from '@/components/FoodEntryForm';
 import { NutritionSummary } from '@/components/NutritionSummary';
@@ -39,6 +40,7 @@ export default function NutritionScreen() {
     addFoodEntry,
     removeFoodEntry,
     clearAllData,
+    logCurrentMeals,
   } = useNutritionStore();
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split('T')[0]
@@ -57,6 +59,12 @@ export default function NutritionScreen() {
   // Initialize nutrition goals based on user profile
   useEffect(() => {
     initializeNutritionGoals();
+    
+    // Start midnight auto-logging system
+    startMidnightLogger();
+    
+    // Check for any unlogged meals from previous days
+    checkForUnloggedMeals();
   }, []);
 
   // Get or create daily log for selected date
@@ -71,6 +79,12 @@ export default function NutritionScreen() {
     },
     calorieGoal: nutritionGoals.calories,
   };
+
+  // Always use current nutrition goals for calorie goal (in case they were updated)
+  dailyLog.calorieGoal = nutritionGoals.calories;
+
+  console.log('📊 Nutrition Tab - nutritionGoals:', nutritionGoals);
+  console.log('📊 Nutrition Tab - dailyLog calorieGoal:', dailyLog.calorieGoal);
 
   // Group entries by meal type
   const entriesByMeal = dailyLog.entries.reduce((acc, entry) => {
@@ -183,6 +197,39 @@ export default function NutritionScreen() {
     );
   };
 
+  const handleLogDaily = () => {
+    const totalEntries = Object.keys(entriesByMeal).length;
+    const totalCalories = dailyLog.totalNutrition.calories;
+    const calorieGoal = dailyLog.calorieGoal;
+    const completionPercentage = Math.round((totalCalories / calorieGoal) * 100);
+
+    Alert.alert(
+      'Log Selected Meals',
+      `Ready to log these meals?\n\n📊 ${dailyLog.entries.length} foods\n🔥 ${totalCalories} calories (${completionPercentage}% of goal)\n\nThese meals will be saved to your history and cleared from the current view so you can add more meals.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Log Meals',
+          style: 'default',
+          onPress: () => {
+            // Log the current meals and clear the view
+            logCurrentMeals(selectedDate);
+            if (Platform.OS !== 'web') {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+            Alert.alert(
+              '✅ Meals Logged!', 
+              'Your meals have been saved to history. You can now add more meals for today.'
+            );
+          },
+        },
+      ]
+    );
+  };
+
 
 
 
@@ -203,10 +250,11 @@ export default function NutritionScreen() {
 
         <TDEETargets />
 
-        <FoodSearchBar
+        {/* FoodSearchBar - Temporarily commented out */}
+        {/* <FoodSearchBar
           onSelectFood={handleSelectFood}
           onScanFood={handleScanFood}
-        />
+        /> */}
 
         {/* Reset Stats Button for Testing */}
         <TouchableOpacity 
@@ -222,7 +270,18 @@ export default function NutritionScreen() {
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickActionButton}
-            onPress={() => setShowFoodSelection(true)}
+            onPress={() => {
+              // Check meal limit before opening modal
+              if (dailyLog.entries.length >= 10) {
+                Alert.alert(
+                  'Meal Limit Reached',
+                  'You can only add up to 10 meals per day. Please log or clear some of the foods to add more.',
+                  [{ text: 'OK', style: 'default' }]
+                );
+                return;
+              }
+              setShowFoodSelection(true);
+            }}
           >
             <Icon name="plus" size={18} color={colors.white} />
             <Text style={styles.quickActionText}>Add Foods</Text>
@@ -316,12 +375,40 @@ export default function NutritionScreen() {
           </>
         ) : (
           <View style={styles.emptyContainer}>
+            <View style={styles.aiChatTip}>
+              <Icon name="message-circle" size={16} color={colors.primary} />
+              <Text style={styles.aiChatTipText}>
+                For pre-workout and pump recipes ask the AI chat
+              </Text>
+            </View>
             <Text style={styles.emptyTitle}>No foods logged yet</Text>
             <Text style={styles.emptyText}>
               Search for foods or use camera input to log your meals
             </Text>
           </View>
         )}
+
+        {/* Daily Actions - Always visible */}
+        <View style={styles.dailyActions}>
+          {Object.keys(entriesByMeal).length > 0 && (
+            <TouchableOpacity
+              style={styles.logDayButton}
+              onPress={handleLogDaily}
+            >
+              <Icon name="check-circle" size={18} color={colors.black} />
+              <Text style={styles.logDayButtonText}>Log Selected Meals</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={styles.dailyActionButton}
+            onPress={() => router.push('/nutrition-history')}
+          >
+            <Icon name="calendar" size={18} color={colors.primary} />
+            <Text style={styles.dailyActionText}>See Previous Nutrition</Text>
+            <Icon name="arrow-right" size={16} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Food Entry Form Modal */}
@@ -516,5 +603,61 @@ const styles = StyleSheet.create({
     color: colors.error,
     marginLeft: 8,
     fontWeight: '600',
+  },
+  dailyActions: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  dailyActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.darkGray,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    gap: 8,
+  },
+  dailyActionText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  logDayButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  logDayButtonText: {
+    ...typography.body,
+    color: colors.black,
+    fontWeight: '600',
+  },
+  aiChatTip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.darkGray,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    gap: 8,
+  },
+  aiChatTipText: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

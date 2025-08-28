@@ -7,6 +7,7 @@ import {
   NutritionGoals,
   NutritionPreferences,
   CustomMeal,
+  LoggedMealSession,
 } from '@/types/nutrition';
 import { COMMON_FOODS, calculateNutrition } from '@/mocks/foods';
 import { generateId } from '@/utils/helpers';
@@ -14,6 +15,7 @@ import { ApiService } from '@/utils/api';
 
 interface NutritionState {
   dailyLogs: { [date: string]: DailyLog };
+  loggedMealSessions: LoggedMealSession[]; // All logged meal sessions
   nutritionGoals: NutritionGoals;
   nutritionPreferences: NutritionPreferences;
   recentFoods: string[]; // IDs of recently added foods
@@ -33,6 +35,8 @@ interface NutritionState {
   updateNutritionPreferences: (prefs: Partial<NutritionPreferences>) => void;
   clearDailyLog: (date: string) => void;
   clearAllData: () => void;
+  logCurrentMeals: (date: string) => void;
+  autoLogUnloggedMeals: () => void;
   loadNutritionData: (date: string) => Promise<void>;
 
   // Custom meals actions
@@ -107,6 +111,7 @@ export const useNutritionStore = create<NutritionState>()(
   persist(
     (set, get) => ({
       dailyLogs: {},
+      loggedMealSessions: [],
       nutritionGoals: {
         calories: 2500, // Default value, will be updated based on user profile
         protein: 180,
@@ -301,8 +306,81 @@ export const useNutritionStore = create<NutritionState>()(
       clearAllData: () => {
         set({
           dailyLogs: {},
+          loggedMealSessions: [],
           recentFoods: [],
           error: null,
+        });
+      },
+
+      logCurrentMeals: (date) => {
+        set((state) => {
+          const currentLog = state.dailyLogs[date];
+          if (!currentLog || currentLog.entries.length === 0) return state;
+
+          // Create a new logged meal session
+          const newSession: LoggedMealSession = {
+            id: `session_${Date.now()}`,
+            date,
+            timestamp: new Date().toISOString(),
+            entries: [...currentLog.entries],
+            totalNutrition: { ...currentLog.totalNutrition },
+            calorieGoal: currentLog.calorieGoal,
+          };
+
+          // Clear the current day's entries but keep the log structure
+          const clearedLog = createEmptyDailyLog(date, state.nutritionGoals.calories);
+
+          return {
+            loggedMealSessions: [...state.loggedMealSessions, newSession],
+            dailyLogs: {
+              ...state.dailyLogs,
+              [date]: clearedLog,
+            },
+          };
+        });
+      },
+
+      autoLogUnloggedMeals: () => {
+        set((state) => {
+          const today = new Date().toISOString().split('T')[0];
+          const newLoggedSessions = [...state.loggedMealSessions];
+          const newDailyLogs = { ...state.dailyLogs };
+
+          // Check all daily logs for unlogged meals
+          Object.entries(state.dailyLogs).forEach(([date, log]) => {
+            // Skip today's meals - only auto-log past days
+            if (date === today) return;
+            
+            // Check if this day has unlogged meals
+            if (log.entries.length > 0) {
+              // Check if already logged by looking for existing session for this date
+              const hasLoggedSession = state.loggedMealSessions.some(session => session.date === date);
+              
+              if (!hasLoggedSession) {
+                console.log(`🕛 Auto-logging meals for ${date} (${log.entries.length} entries)`);
+                
+                // Create auto-logged meal session
+                const autoSession: LoggedMealSession = {
+                  id: `auto_${date}_${Date.now()}`,
+                  date,
+                  timestamp: `${date}T23:59:59.000Z`, // Set to end of day
+                  entries: [...log.entries],
+                  totalNutrition: { ...log.totalNutrition },
+                  calorieGoal: log.calorieGoal,
+                };
+
+                newLoggedSessions.push(autoSession);
+                
+                // Clear the daily log after auto-logging
+                newDailyLogs[date] = createEmptyDailyLog(date, state.nutritionGoals.calories);
+              }
+            }
+          });
+
+          return {
+            loggedMealSessions: newLoggedSessions,
+            dailyLogs: newDailyLogs,
+          };
         });
       },
 
