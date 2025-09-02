@@ -255,6 +255,7 @@ function AppNavigator() {
 
       if (isFirstTime || !user || !hasCompletedWizard) {
         // First time, no user, or hasn't completed wizard - show wizard
+        console.log('🔍 App Layout: Showing wizard - isFirstTime:', isFirstTime, 'hasUser:', !!user, 'hasCompletedWizard:', hasCompletedWizard);
         setShowWizard(true);
         setShowSubscription(false);
         return;
@@ -276,7 +277,7 @@ function AppNavigator() {
         } else {
           // Active or cancelled users get main app access
           // (cancelled users will also see reminder modal separately)
-          console.log(`✅ Access granted - user status: ${statusType}`);
+          console.log(`✅ Access granted - user status: ${statusType}, hiding wizard and subscription`);
           setShowWizard(false);
           setShowSubscription(false);
         }

@@ -137,8 +137,8 @@ export default function SettingsScreen() {
     }
 
     Alert.alert(
-      'Reset Progress',
-      'This will clear all your progress and return you to the setup screen. This action cannot be undone.',
+      'Reset ALL Progress & Subscriptions',
+      'This will clear ALL your data including subscriptions, trial status, wizard progress, and return you to the setup screen. This action cannot be undone.',
       [
         {
           text: 'Cancel',
@@ -150,11 +150,39 @@ export default function SettingsScreen() {
           onPress: async () => {
             setIsResetting(true);
             try {
-              // First reset all progress data
+              console.log('🧹 Starting complete reset...');
+              
+              // Import AsyncStorage dynamically
+              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+              
+              // Clear subscription/trial data
+              await AsyncStorage.removeItem('user_subscription');
+              await AsyncStorage.removeItem('user_trial_status');
+              await AsyncStorage.removeItem('user_purchases');
+              await AsyncStorage.removeItem('subscription_history');
+              await AsyncStorage.removeItem('device_id');
+              
+              // Clear wizard completion
+              await AsyncStorage.removeItem('user_wizard_completed');
+              await AsyncStorage.removeItem('user_first_time');
+              
+              // Clear user data  
+              await AsyncStorage.removeItem('user_profile');
+              await AsyncStorage.removeItem('user_data');
+              
+              console.log('✅ AsyncStorage cleared');
+              
+              // Reset workout progress data
               await resetProgress();
+              console.log('✅ Workout progress reset');
+              
+              // Refresh subscription status to reflect cleared state
+              await refreshSubscriptionStatus();
+              console.log('✅ Subscription status refreshed');
               
               // Then logout to return to biometric setup
               await logout();
+              console.log('✅ Logged out - ready for fresh start');
               
               if (Platform.OS !== 'web') {
                 Haptics.notificationAsync(
@@ -490,9 +518,9 @@ export default function SettingsScreen() {
               <Icon name="trash-2" size={20} color={colors.white} />
             </View>
             <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>🚨 Reset All Progress</Text>
+              <Text style={styles.settingTitle}>🚨 Reset All Progress & Subscriptions</Text>
               <Text style={styles.settingDescription}>
-                Clear all data and return to setup
+                Clear ALL data (subscriptions, trials, progress) and return to setup
               </Text>
             </View>
             {!isResetting && <Icon name="chevron-right" size={20} color={colors.lightGray} />}

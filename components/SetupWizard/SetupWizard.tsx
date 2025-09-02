@@ -348,16 +348,25 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   };
 
   const handleSubscriptionComplete = async () => {
+    console.log('🎯 handleSubscriptionComplete called');
+    
     // Refresh subscription status using the store method
     const { refreshSubscriptionStatus } = useSubscriptionStore.getState();
     await refreshSubscriptionStatus();
     
-    // Mark wizard as completed and close
+    // Mark wizard as completed
     setWizardCompleted();
     console.log('✅ Subscription completed, wizard marked as completed');
     
-    // Close the wizard
-    onClose();
+    // Navigate directly to home immediately - don't change local state first
+    console.log('🎯 Navigating directly to home...');
+    router.replace('/(tabs)');
+    console.log('🎯 Navigation to home completed');
+    
+    // Close the entire wizard component after navigation
+    setTimeout(() => {
+      onClose();
+    }, 100);
   };
 
   const handleSubscriptionSkip = () => {

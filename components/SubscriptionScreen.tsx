@@ -17,6 +17,7 @@ import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { subscriptionService, SUBSCRIPTION_PLANS, type SubscriptionPlan } from '@/services/subscription-service';
 import { useSubscriptionStore } from '@/store/subscription-store';
+import { useRouter } from 'expo-router';
 
 interface SubscriptionScreenProps {
   onSubscribed: () => void;
@@ -33,6 +34,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   programPreview,
   onCancel 
 }) => {
+  const router = useRouter();
   const { 
     isResubscription, 
     getSubscriptionCount, 
@@ -54,7 +56,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   // Check if user has active subscription to show X button
   const userHasActiveSubscription = hasActiveSubscription();
 
-  // Check if user can start trial on component mount
+  // Check if user can start trial on component mount  
   useEffect(() => {
     const checkTrialEligibility = async () => {
       try {
@@ -132,7 +134,46 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
+    setIsProcessing(true);
+
     try {
+      // First, try to start free trial
+      const canStart = await canStartTrial();
+      
+      if (canStart) {
+        // Start the 7-day free trial
+        const trialResult = await startFreeTrial();
+        
+        if (trialResult.success) {
+          if (Platform.OS !== 'web') {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+          
+          // Show trial started message
+          const plan = subscriptionService.getPlan(selectedPlan);
+          const planText = plan?.duration === 1 ? `$${plan?.price}/month` : `$${plan?.price}/year`;
+          
+          console.log('🎯 Showing Free Trial Started message');
+          Alert.alert(
+            '🎉 Free Trial Started!',
+            `Welcome to your 7-day free trial of DENSE Pro! You now have full access to all premium features. After 7 days, your subscription will continue at ${planText}.`,
+            [{ text: 'Start Training', onPress: () => {
+              console.log('🎯 Trial Start Training pressed - navigating directly to home');
+              setIsProcessing(false);
+              
+              // Force navigation directly to home page, bypassing any wizard logic
+              router.replace('/(tabs)');
+              console.log('🎯 Direct navigation to home from trial completion');
+              
+              // Also call onSubscribed for any cleanup
+              onSubscribed();
+            }}]
+          );
+          return;
+        }
+      }
+      
+      // If trial can't be started, proceed with regular purchase
       const result = await subscriptionService.purchasePlan(selectedPlan);
       
       if (result.success) {
@@ -143,76 +184,35 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         // Refresh subscription status in the store to get the latest status
         await refreshSubscriptionStatus();
         
-        // Check if this is a re-subscription to show appropriate message
-        const isReturningUser = await isResubscription();
-        const subscriptionCount = await getSubscriptionCount();
-        
-        if (isReturningUser) {
-          // Re-subscription message
-          Alert.alert(
-            '🎉 Welcome Back to DENSE Pro!',
-            `Great to have you back! Your subscription is now active again. Continue your fitness journey with unlimited access to your personalized workout programs!`,
-            [{ text: 'Continue Training', onPress: () => {
-              setIsProcessing(true);
-              setTimeout(() => {
-                onSubscribed();
-              }, 100);
-            }}]
-          );
-        } else {
-          // First-time subscription message
-          Alert.alert(
-            '🎉 Welcome to DENSE Pro!',
-            'Your subscription is now active. Enjoy unlimited access to your personalized workout programs!',
-            [{ text: 'Start Training', onPress: () => {
-              setIsProcessing(true);
-              setTimeout(() => {
-                onSubscribed();
-              }, 100);
-            }}]
-          );
-        }
-      } else {
-        Alert.alert('Payment Failed', result.error || 'Please try again.');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
-    }
-  };
-
-  const handleStartTrial = async () => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-
-    setIsStartingTrial(true);
-
-    try {
-      const result = await startFreeTrial();
-      
-      if (result.success) {
-        if (Platform.OS !== 'web') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-        
+        // Always show first-time subscription message and go directly to home
+        console.log('🎯 Showing Welcome to DENSE Pro message (NOT Welcome Back)');
         Alert.alert(
-          '🎉 Free Trial Started!',
-          'Welcome to your 7-day free trial of DENSE Pro! You now have full access to all premium features. Enjoy exploring unlimited AI-generated programs!',
+          '🎉 Welcome to DENSE Pro!',
+          'Your subscription is now active. Enjoy unlimited access to your personalized workout programs!',
           [{ text: 'Start Training', onPress: () => {
-            setIsStartingTrial(false);
-            onSubscribed(); // Close screen and grant access
+            console.log('🎯 Start Training pressed - navigating directly to home');
+            setIsProcessing(false);
+            
+            // Force navigation directly to home page, bypassing any wizard logic
+            router.replace('/(tabs)');
+            console.log('🎯 Direct navigation to home from subscription screen');
+            
+            // Also call onSubscribed for any cleanup
+            onSubscribed();
           }}]
         );
       } else {
-        Alert.alert('Trial Unavailable', result.message);
-        setIsStartingTrial(false);
+        Alert.alert('Payment Failed', result.error || 'Please try again.');
+        setIsProcessing(false);
       }
     } catch (error) {
-      console.error('Error starting trial:', error);
-      Alert.alert('Error', 'Failed to start trial. Please try again.');
-      setIsStartingTrial(false);
+      console.error('Purchase error:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      setIsProcessing(false);
     }
   };
+
+
 
   const handleRestorePurchases = async () => {
     if (Platform.OS !== 'web') {
@@ -390,34 +390,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 
         {/* Footer Actions */}
         <View style={styles.footer}>
-          {/* Free Trial Button (if eligible) */}
-          {canUserStartTrial && (
-            <TouchableOpacity
-              style={[styles.trialButton, isStartingTrial && styles.trialButtonDisabled]}
-              onPress={handleStartTrial}
-              disabled={isStartingTrial || isProcessing}
-            >
-              {isStartingTrial ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <>
-                  <Text style={styles.trialButtonText}>
-                    Start 7-Day Free Trial
-                  </Text>
-                  <Icon name="gift" size={20} color={colors.black} />
-                </>
-              )}
-            </TouchableOpacity>
-          )}
 
-          {/* Divider when trial is available */}
-          {canUserStartTrial && (
-            <View style={styles.orDivider}>
-              <View style={styles.orLine} />
-              <Text style={styles.orText}>or</Text>
-              <View style={styles.orLine} />
-            </View>
-          )}
 
           <TouchableOpacity
             style={[styles.subscribeButton, isProcessing && styles.subscribeButtonDisabled]}
@@ -431,12 +404,12 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
                 <Text style={styles.subscribeButtonText}>
                   {(() => {
                     const plan = subscriptionService.getPlan(selectedPlan);
-                    if (!plan) return 'Subscribe';
+                    if (!plan) return 'Start 7-Day Free Trial';
                     
                     if (plan.duration === 1) {
-                      return `Start $${plan.price}/month`;
+                      return `Start 7-Day Free Trial\nThen $${plan.price}/month`;
                     } else {
-                      return `Start $${plan.price}/year`;
+                      return `Start 7-Day Free Trial\nThen $${plan.price}/year`;
                     }
                   })()}
                 </Text>
@@ -735,6 +708,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
     paddingTop: 10,
+    borderRadius: 16,
   },
   subscribeButton: {
     backgroundColor: colors.primary,
@@ -752,27 +726,10 @@ const styles = StyleSheet.create({
     ...typography.button,
     color: colors.black,
     marginRight: 8,
+    textAlign: 'center',
+    lineHeight: 20,
   },
-  trialButton: {
-    backgroundColor: colors.secondary,
-    borderRadius: 16,
-    padding: 18,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  trialButtonDisabled: {
-    opacity: 0.6,
-  },
-  trialButtonText: {
-    ...typography.button,
-    color: colors.black,
-    marginRight: 8,
-    fontWeight: '600',
-  },
+
   orDivider: {
     flexDirection: 'row',
     alignItems: 'center',
