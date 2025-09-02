@@ -13,6 +13,7 @@ import { colors, gradients } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { wizardResultsService, userProgressService } from '@/db/services';
 import { WorkoutProgressCharts } from '@/components/WorkoutProgressCharts';
+import { WeightTracker } from '@/components/WeightTracker';
 import { calculateWorkoutProgress } from '@/utils/progress-calculator';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -29,6 +30,10 @@ export default function ProgressScreen() {
   // State for user progress tracking
   const [userProgressData, setUserProgressData] = useState<any>(null);
   const [loadingProgress, setLoadingProgress] = useState(true);
+  
+  // State for weight tracking data
+  const [wizardData, setWizardData] = useState<any>(null);
+  const [loadingWizard, setLoadingWizard] = useState(true);
 
   // Load generated program data
   const loadGeneratedProgram = useCallback(async () => {
@@ -65,12 +70,28 @@ export default function ProgressScreen() {
     }
   }, [user?.id]);
 
+  // Load wizard data for weight tracking
+  const loadWizardData = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoadingWizard(true);
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
+      setWizardData(wizardResults);
+    } catch (error) {
+      console.error('Error loading wizard data:', error);
+    } finally {
+      setLoadingWizard(false);
+    }
+  }, [user?.id]);
+
   // Load data on focus
   useFocusEffect(
     useCallback(() => {
       loadGeneratedProgram();
       loadUserProgress();
-    }, [loadGeneratedProgram, loadUserProgress])
+      loadWizardData();
+    }, [loadGeneratedProgram, loadUserProgress, loadWizardData])
   );
 
   // Calculate progress data for charts
@@ -78,7 +99,7 @@ export default function ProgressScreen() {
     return calculateWorkoutProgress(generatedProgram, userProgressData);
   }, [generatedProgram, userProgressData]);
 
-  if (loadingProgram || loadingProgress) {
+  if (loadingProgram || loadingProgress || loadingWizard) {
     return (
       <View style={[styles.container, { backgroundColor: colors.dark }]}>
         <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
@@ -113,13 +134,21 @@ export default function ProgressScreen() {
             <Text style={styles.subtitle}>Track your workout journey and consistency</Text>
           </View>
 
-          {/* Progress Charts */}
+          {/* Workout Progress Charts */}
           <WorkoutProgressCharts
             currentWeek={progressData.currentWeek}
             currentDay={progressData.currentDay}
             totalWeeks={progressData.totalWeeks}
             daysPerWeek={progressData.daysPerWeek}
           />
+
+          {/* Weight Progress Section */}
+          <View style={styles.section}>
+            <WeightTracker
+              targetWeight={userProfile?.targetWeight}
+              initialWeight={wizardData?.weight}
+            />
+          </View>
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>
@@ -129,6 +158,10 @@ export default function ProgressScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  section: {
+    marginTop: 24,
+    paddingHorizontal: 20,
   },
   safeArea: {
     flex: 1,

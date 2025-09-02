@@ -25,9 +25,6 @@ interface ProfileData {
   profilePicture: string; // Base64 or URI
   
   // Physical Measurements
-  height: string; // cm
-  currentWeight: string; // kg
-  targetWeight: string; // kg
   bodyFat: string; // percentage
 }
 
@@ -39,9 +36,6 @@ export default function ProfileEditScreen() {
   const [profile, setProfile] = useState<ProfileData>({
     name: user?.name || userProfile?.name || '',
     profilePicture: userProfile?.profilePicture || '',
-    height: userProfile?.height?.toString() || '',
-    currentWeight: userProfile?.weight?.toString() || '',
-    targetWeight: '',
     bodyFat: '',
   });
 
@@ -106,9 +100,6 @@ export default function ProfileEditScreen() {
         name: profile.name,
         email: user?.email, // Keep existing email from auth store
         profilePicture: profile.profilePicture,
-        weight: profile.currentWeight ? parseFloat(profile.currentWeight) : undefined,
-        height: profile.height ? parseFloat(profile.height) : undefined,
-        targetWeight: profile.targetWeight ? parseFloat(profile.targetWeight) : undefined,
         bodyFat: profile.bodyFat ? parseFloat(profile.bodyFat) : undefined,
       };
 
@@ -233,10 +224,20 @@ export default function ProfileEditScreen() {
         {/* Physical Measurements */}
         {renderSection('Physical Measurements', (
           <>
-            {renderInput('Height (cm)', profile.height, (text) => updateProfile('height', text), '175', 'numeric')}
-            {renderInput('Current Weight (kg)', profile.currentWeight, (text) => updateProfile('currentWeight', text), '70', 'numeric')}
-            {renderInput('Target Weight (kg)', profile.targetWeight, (text) => updateProfile('targetWeight', text), '68', 'numeric')}
             {renderInput('Body Fat % (optional)', profile.bodyFat, (text) => updateProfile('bodyFat', text), '15', 'numeric')}
+            <TouchableOpacity 
+              style={styles.weightRedirect}
+              onPress={() => router.push('/(tabs)/progress')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.weightRedirectContent}>
+                <Text style={styles.weightRedirectText}>💪 Manage your weight tracking</Text>
+                <Text style={styles.weightRedirectSubtext}>
+                  Track current weight, set targets, and monitor progress in the Progress tab
+                </Text>
+              </View>
+              <Icon name="arrow-right" size={20} color={colors.primary} />
+            </TouchableOpacity>
           </>
         ))}
 
@@ -249,6 +250,32 @@ export default function ProfileEditScreen() {
 }
 
 const styles = StyleSheet.create({
+  weightRedirect: {
+    backgroundColor: colors.darkest,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  weightRedirectContent: {
+    flex: 1,
+    marginRight: 12,
+  },
+  weightRedirectText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  weightRedirectSubtext: {
+    ...typography.caption,
+    color: colors.lightGray,
+    lineHeight: 18,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.dark,

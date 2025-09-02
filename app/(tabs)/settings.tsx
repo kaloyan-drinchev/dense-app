@@ -16,6 +16,7 @@ import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
 import { useSubscriptionStore } from '@/store/subscription-store';
 import { subscriptionService } from '@/services/subscription-service';
+import { wizardResultsService } from '@/db/services';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
@@ -39,9 +40,10 @@ export default function SettingsScreen() {
   const [notifications, setNotifications] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number>(0);
+  const [wizardData, setWizardData] = useState<any>(null);
 
 
-  // Load trial days remaining when screen loads
+  // Load trial days remaining and wizard data when screen loads
   useEffect(() => {
     const loadTrialDays = async () => {
       try {
@@ -52,10 +54,23 @@ export default function SettingsScreen() {
       }
     };
     
+    const loadWizardData = async () => {
+      try {
+        if (user?.id) {
+          const data = await wizardResultsService.getByUserId(user.id);
+          setWizardData(data);
+        }
+      } catch (error) {
+        console.log('Failed to load wizard data:', error);
+      }
+    };
+    
     if (isTrialActive()) {
       loadTrialDays();
     }
-  }, [getTrialDaysRemaining, isTrialActive]);
+    
+    loadWizardData();
+  }, [getTrialDaysRemaining, isTrialActive, user?.id]);
 
   // Reload profile and wizard data when screen comes into focus
   useFocusEffect(
@@ -127,6 +142,13 @@ export default function SettingsScreen() {
   };
 
 
+
+  const handleMyGoals = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push('/my-goals');
+  };
 
   // 🚨 TESTING ONLY - Remove before production
   const handleResetProgress = () => {
@@ -434,13 +456,7 @@ export default function SettingsScreen() {
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{user?.name || 'User'}</Text>
             <Text style={styles.profileDetails}>
-              {userProfile?.weight && userProfile.weight > 0 
-                ? `${Math.round(userProfile.weight)} kg` 
-                : 'Weight not set'
-              } • {userProfile?.height && userProfile.height > 0 
-                ? `${Math.round(userProfile.height)} cm`
-                : 'Height not set'
-              }
+              Manage weight tracking in Progress tab
             </Text>
           </View>
           <Icon name="chevron-right" size={20} color={colors.lightGray} />
@@ -494,6 +510,19 @@ export default function SettingsScreen() {
               <Text style={styles.settingTitle}>About DENSE</Text>
               <Text style={styles.settingDescription}>
                 Version 1.0.0 • Terms & Privacy
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={handleMyGoals}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
+              <Icon name="target" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>My Goals</Text>
+              <Text style={styles.settingDescription}>
+                View your fitness goals and preferences
               </Text>
             </View>
             <Icon name="chevron-right" size={20} color={colors.lightGray} />

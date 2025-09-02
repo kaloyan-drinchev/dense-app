@@ -415,6 +415,18 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="my-goals" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="allowed-foods" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
         name="nutrition-history" 
         options={{ 
           headerShown: false,
