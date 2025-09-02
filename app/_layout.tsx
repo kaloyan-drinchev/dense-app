@@ -76,6 +76,10 @@ export default function RootLayout() {
         if (success) {
           console.log('✅ Database initialization completed');
           
+          // Initialize subscription service
+          console.log('🔄 Initializing subscription service...');
+          await subscriptionService.initialize();
+          
           // Check if user exists and if it's first time
           if (typeof checkUserStatus === 'function') {
             await checkUserStatus();

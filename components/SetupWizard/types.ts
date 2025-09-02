@@ -5,13 +5,16 @@ export interface WizardStep {
 }
 
 export interface WizardPreferences {
-  // Step 1: Name
+  // Step 1: Motivation (multiple selections)
+  motivation: string[];
+  
+  // Step 2: Name
   name: string;
 
-  // Step 2: Current Strength
-  squatKg: string;
-  benchKg: string;
-  deadliftKg: string;
+  // Step 3: Current Strength (commented out - can be restored later)
+  // squatKg: string;
+  // benchKg: string;
+  // deadliftKg: string;
 
   // Step 3: Training Experience
   trainingExperience: string;
@@ -24,20 +27,20 @@ export interface WizardPreferences {
   activityLevel: string;
   goal: string;
 
-  // Step 5: Weekly Schedule
+  // Step 6: Weekly Schedule
   trainingDaysPerWeek: number;
   preferredTrainingDays: string[];
 
-  // Step 6: Muscle Priorities
+  // Step 7: Muscle Priorities
   musclePriorities: string[];
 
-  // Step 7: Pump Work
+  // Step 8: Pump Work
   pumpWorkPreference: string;
 
-  // Step 8: Recovery
+  // Step 9: Recovery
   recoveryProfile: string;
 
-  // Step 9: Duration
+  // Step 10: Duration
   programDurationWeeks: number;
 }
 

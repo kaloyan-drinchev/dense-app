@@ -82,18 +82,21 @@ export const userWizardResults = sqliteTable('user_wizard_results', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
   
-  // Step 2: Current Strength Starting Point
+  // Step 1: What brings you to DENSE? (multiple selections)
+  motivation: text('motivation'), // JSON array of user's motivations: ["build_muscle", "get_stronger", etc.]
+  
+  // Step 3: Current Strength Starting Point
   squatKg: real('squat_kg'), // User's current squat weight in kg
   benchKg: real('bench_kg'), // User's current bench press weight in kg
   deadliftKg: real('deadlift_kg'), // User's current deadlift weight in kg
   
-  // Step 3: Training Experience
+  // Step 4: Training Experience
   trainingExperience: text('training_experience'), // 'new', '6_18_months', '2_plus_years'
   
-  // Step 4: Body Fat Estimate (legacy - now using TDEE calculation)
+  // Step 5: Body Fat Estimate (legacy - now using TDEE calculation)
   bodyFatLevel: text('body_fat_level'), // 'lean_10_14', 'athletic_15_18', 'average_18_22', 'high_22_plus'
   
-  // Step 4: TDEE Calculation (new fields)
+  // Step 5: TDEE Calculation (new fields)
   tdeeData: text('tdee_data'), // JSON object with BMR, TDEE, calories, macros
   age: integer('age'),
   gender: text('gender'), // 'male', 'female'
@@ -102,20 +105,20 @@ export const userWizardResults = sqliteTable('user_wizard_results', {
   activityLevel: text('activity_level'), // 'sedentary', 'lightly_active', etc.
   goal: text('goal'), // 'lose_weight', 'maintain_weight', 'gain_weight'
   
-  // Step 5: Weekly Schedule
-  trainingDaysPerWeek: integer('training_days_per_week'), // 3, 4, 5, or 6
+  // Step 6: Weekly Schedule
+  trainingDaysPerWeek: integer('training_days_per_week'), // 3, 4, 5, 6, or 7
   preferredTrainingDays: text('preferred_training_days'), // JSON array: ['monday', 'tuesday', 'wednesday', ...]
   
-  // Step 6: Muscle Group Prioritization (max 3)
+  // Step 7: Muscle Group Prioritization (max 3)
   musclePriorities: text('muscle_priorities'), // JSON array: ['chest', 'back', 'shoulders', 'arms', 'quads', 'hamstrings_glutes', 'calves', 'abs']
   
-  // Step 7: Pump Work Preference
+  // Step 8: Pump Work Preference
   pumpWorkPreference: text('pump_work_preference'), // 'yes_love_burn', 'maybe_sometimes', 'no_minimal'
   
-  // Step 8: Recovery Profile
+  // Step 9: Recovery Profile
   recoveryProfile: text('recovery_profile'), // 'fast_recovery', 'need_more_rest', 'not_sure'
   
-  // Step 9: Program Duration
+  // Step 10: Program Duration
   programDurationWeeks: integer('program_duration_weeks'), // 4, 8, or 12
   
   // Legacy fields (keeping for backward compatibility)
@@ -137,7 +140,7 @@ export const userWizardResults = sqliteTable('user_wizard_results', {
   generatedSplit: text('generated_split'), // JSON object: generated Push/Pull/Legs split based on responses
   
   completedAt: text('completed_at').default(sql`(CURRENT_TIMESTAMP)`),
-  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`)
 });
 
 // Sync Status Table - tracks last sync times for each table

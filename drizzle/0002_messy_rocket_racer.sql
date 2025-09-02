@@ -1,0 +1,1 @@
+ALTER TABLE `user_wizard_results` ADD `motivation` text;

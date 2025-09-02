@@ -57,31 +57,37 @@ export default function SettingsScreen() {
     }
   }, [getTrialDaysRemaining, isTrialActive]);
 
-  // Reload profile when screen comes into focus
+  // Reload profile and wizard data when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       const loadProfile = async () => {
         if (user?.email) {
           try {
-            const { userProfileService } = await import('@/db/services');
+            const { userProfileService, wizardResultsService } = await import('@/db/services');
             const allProfiles = await userProfileService.getAll();
             const userProfileData = allProfiles.find(p => p.id === user.id);
+            
+            // Get wizard results for weight and height
+            const wizardData = await wizardResultsService.getByUserId(user.id);
+            console.log('🔍 Wizard data loaded:', { weight: wizardData?.weight, height: wizardData?.height, age: wizardData?.age, goal: wizardData?.goal });
             
             if (userProfileData) {
               const { updateUserProfile } = useWorkoutStore.getState();
               // Convert database types (null) to app types (undefined)
+              // Use weight and height from wizard results instead of profile
               const convertedProfile = {
                 ...userProfileData,
                 email: userProfileData.email ?? undefined,
-                weight: userProfileData.weight ?? undefined,
-                height: userProfileData.height ?? undefined,
-                age: userProfileData.age ?? undefined,
+                weight: wizardData?.weight ?? undefined, // ✅ Use wizard weight
+                height: wizardData?.height ?? undefined, // ✅ Use wizard height
+                age: wizardData?.age ?? userProfileData.age ?? undefined, // ✅ Prefer wizard age
                 profilePicture: userProfileData.profilePicture ?? undefined,
-                goal: userProfileData.goal ?? undefined,
+                goal: wizardData?.goal ?? userProfileData.goal ?? undefined, // ✅ Prefer wizard goal
                 createdAt: userProfileData.createdAt ?? undefined,
                 updatedAt: userProfileData.updatedAt ?? undefined,
                 syncedAt: userProfileData.syncedAt ?? undefined,
               };
+              console.log('🔍 Final profile after wizard data merge:', { weight: convertedProfile.weight, height: convertedProfile.height, age: convertedProfile.age, goal: convertedProfile.goal });
               await updateUserProfile(convertedProfile);
             }
           } catch (error) {
@@ -400,7 +406,13 @@ export default function SettingsScreen() {
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{user?.name || 'User'}</Text>
             <Text style={styles.profileDetails}>
-              {String(userProfile?.weight || 0)} kg • {String(userProfile?.height || 0)} cm 
+              {userProfile?.weight && userProfile.weight > 0 
+                ? `${Math.round(userProfile.weight)} kg` 
+                : 'Weight not set'
+              } • {userProfile?.height && userProfile.height > 0 
+                ? `${Math.round(userProfile.height)} cm`
+                : 'Height not set'
+              }
             </Text>
           </View>
           <Icon name="chevron-right" size={20} color={colors.lightGray} />

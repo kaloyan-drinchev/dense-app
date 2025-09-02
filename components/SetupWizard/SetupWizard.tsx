@@ -28,11 +28,11 @@ import {
   trainingDaysOptions,
   musclePriorityOptions,
   pumpWorkOptions,
-  recoveryOptions,
   durationOptions,
   activityLevelOptions,
   genderOptions,
   goalOptions,
+  motivationOptions,
   aiGenerationSteps
 } from '@/constants/wizard.constants';
 import { type WizardStep, type WizardPreferences, type TDEECalculation } from './types';
@@ -53,6 +53,22 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [validationError, setValidationError] = useState('');
   const [isGeneratingProgram, setIsGeneratingProgram] = useState(false);
+  
+  // Safety check: ensure currentStep is valid when component mounts or steps change
+  useEffect(() => {
+    if (steps.length === 0) {
+      console.warn('⚠️ Steps array is empty');
+      return;
+    }
+    
+    if (currentStep >= steps.length) {
+      console.warn('⚠️ currentStep out of bounds, resetting to 0. currentStep:', currentStep, 'steps.length:', steps.length);
+      setCurrentStep(0);
+    } else if (currentStep < 0) {
+      console.warn('⚠️ currentStep is negative, resetting to 0. currentStep:', currentStep);
+      setCurrentStep(0);
+    }
+  }, [currentStep, steps.length]);
   const [generationStep, setGenerationStep] = useState('');
   const [generationProgress, setGenerationProgress] = useState(0);
   const [showCheckProgramButton, setShowCheckProgramButton] = useState(false);
@@ -62,18 +78,21 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   const [showSubscriptionScreen, setShowSubscriptionScreen] = useState(false);
   
   const [preferences, setPreferences] = useState<WizardPreferences>({
-    // Step 1: Name
+    // Step 1: Motivation
+    motivation: [],
+    
+    // Step 2: Name
     name: '',
 
-    // Step 2: Current Strength - Default to moderate beginner weights
-    squatKg: '60',
-    benchKg: '50',
-    deadliftKg: '70',
+    // Step 3: Current Strength - Default to moderate beginner weights
+    // squatKg: '60',
+    // benchKg: '50',
+    // deadliftKg: '70',
     
-    // Step 3: Training Experience - Default to intermediate
+    // Step 4: Training Experience - Default to intermediate
     trainingExperience: '6_18_months',
     
-    // Step 4: TDEE Calculation - Default values
+    // Step 5: TDEE Calculation - Default values
     age: '',
     gender: '',
     weight: '',
@@ -81,29 +100,49 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     activityLevel: '',
     goal: '',
     
-    // Step 5: Weekly Schedule - Default to 4 days with common schedule
+    // Step 6: Weekly Schedule - Default to 4 days with common schedule
     trainingDaysPerWeek: 4,
     preferredTrainingDays: ['monday', 'tuesday', 'thursday', 'friday'],
     
-    // Step 6: Muscle Priorities - Default to popular chest and back focus
+    // Step 7: Muscle Priorities - Default to popular chest and back focus
     musclePriorities: ['chest', 'back'],
     
-    // Step 7: Pump Work - Default to moderate preference
+    // Step 8: Pump Work - Default to moderate preference
     pumpWorkPreference: 'maybe_sometimes',
     
-    // Step 8: Recovery - Default to normal recovery
+    // Step 9: Recovery - Default to normal recovery
     recoveryProfile: 'need_more_rest',
     
-    // Step 9: Duration - Default to 12 weeks
+    // Step 10: Duration - Default to 12 weeks
     programDurationWeeks: 12
   });
 
   const validateCurrentStep = (): boolean => {
     setValidationError('');
+    
+    // Safety check: ensure currentStep is within valid bounds
+    if (currentStep < 0 || currentStep >= steps.length) {
+      console.error('❌ currentStep out of bounds:', currentStep, 'steps.length:', steps.length);
+      setCurrentStep(0);
+      return false;
+    }
+    
     const step = steps[currentStep];
+    if (!step) {
+      console.error('❌ Step is undefined at index:', currentStep);
+      setCurrentStep(0);
+      return false;
+    }
 
     switch (step.id) {
       case 'welcome':
+        return true;
+
+      case 'motivation':
+        if (preferences.motivation.length === 0) {
+          setValidationError('Please select at least one motivation');
+          return false;
+        }
         return true;
 
       case 'name':
@@ -117,8 +156,8 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         }
         return true;
 
-      case 'current-strength':
-        return true; // Optional fields
+      // case 'current-strength':
+      //   return true; // Optional fields
 
       case 'training-experience':
         if (!preferences.trainingExperience) {
@@ -133,19 +172,18 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           gender: preferences.gender as 'male' | 'female',
           weight: preferences.weight ? parseFloat(preferences.weight) : undefined,
           height: preferences.height ? parseFloat(preferences.height) : undefined,
-          activityLevel: preferences.activityLevel,
+          activityLevel: preferences.trainingDaysPerWeek ? getActivityLevelFromTrainingDays(preferences.trainingDaysPerWeek) : undefined,
           goal: preferences.goal
         });
         
-        if (tdeeErrors.length > 0) {
-          setValidationError(tdeeErrors[0]);
+        // Add training days validation
+        if (!preferences.trainingDaysPerWeek) {
+          setValidationError('Please select how many days you can train per week');
           return false;
         }
-        return true;
-
-      case 'weekly-schedule':
-        if (!preferences.trainingDaysPerWeek) {
-          setValidationError('Please select how many days you can train');
+        
+        if (tdeeErrors.length > 0) {
+          setValidationError(tdeeErrors[0]);
           return false;
         }
         return true;
@@ -168,12 +206,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         }
         return true;
 
-      case 'recovery-profile':
-        if (!preferences.recoveryProfile) {
-          setValidationError('Please select your recovery profile');
-          return false;
-        }
-        return true;
+
 
       case 'program-duration':
         if (!preferences.programDurationWeeks) {
@@ -248,13 +281,14 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         // Calculate and store TDEE data
         let tdeeData = null;
         try {
-          if (preferences.age && preferences.gender && preferences.weight && preferences.height && preferences.activityLevel && preferences.goal) {
+          if (preferences.age && preferences.gender && preferences.weight && preferences.height && preferences.trainingDaysPerWeek && preferences.goal) {
+            const activityLevel = getActivityLevelFromTrainingDays(preferences.trainingDaysPerWeek);
             tdeeData = calculateTDEEAndMacros({
               age: parseInt(preferences.age),
               gender: preferences.gender as 'male' | 'female',
               weight: parseFloat(preferences.weight),
               height: parseFloat(preferences.height),
-              activityLevel: preferences.activityLevel,
+              activityLevel: activityLevel,
               goal: preferences.goal
             });
           }
@@ -264,6 +298,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
 
         await wizardResultsService.create({
           userId: currentUser.id,
+          motivation: JSON.stringify(preferences.motivation),
           trainingExperience: preferences.trainingExperience,
           bodyFatLevel: 'athletic_15_18', // Default value since we now use TDEE calculation
           trainingDaysPerWeek: preferences.trainingDaysPerWeek,
@@ -274,16 +309,16 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           programDurationWeeks: preferences.programDurationWeeks,
           generatedSplit: JSON.stringify(generatedProgram),
           suggestedPrograms: JSON.stringify([generatedProgram.programName]),
-          squatKg: preferences.squatKg ? parseFloat(preferences.squatKg) : null,
-          benchKg: preferences.benchKg ? parseFloat(preferences.benchKg) : null,
-          deadliftKg: preferences.deadliftKg ? parseFloat(preferences.deadliftKg) : null,
-          // Store TDEE data for nutrition tracking
+          // squatKg: preferences.squatKg ? parseFloat(preferences.squatKg) : null,
+          // benchKg: preferences.benchKg ? parseFloat(preferences.benchKg) : null,
+          // deadliftKg: preferences.deadliftKg ? parseFloat(preferences.deadliftKg) : null,
+          // // Store TDEE data for nutrition tracking
           tdeeData: tdeeData ? JSON.stringify(tdeeData) : null,
           age: preferences.age ? parseInt(preferences.age) : null,
           gender: preferences.gender || null,
           weight: preferences.weight ? parseFloat(preferences.weight) : null,
           height: preferences.height ? parseFloat(preferences.height) : null,
-          activityLevel: preferences.activityLevel || null,
+          activityLevel: preferences.trainingDaysPerWeek ? getActivityLevelFromTrainingDays(preferences.trainingDaysPerWeek) : null,
           goal: preferences.goal || null,
         });
 
@@ -352,6 +387,24 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     setValidationError('');
   };
 
+  // Helper function to map training days to activity level
+  const getActivityLevelFromTrainingDays = (trainingDays: number): string => {
+    if (trainingDays <= 3) return 'lightly_active';    // 1-3 days = Lightly Active
+    if (trainingDays <= 5) return 'moderately_active'; // 4-5 days = Moderately Active
+    return 'very_active';                               // 6-7 days = Very Active
+  };
+
+  const toggleMotivation = (motivationId: string) => {
+    const current = preferences.motivation;
+    const isSelected = current.includes(motivationId);
+    
+    if (isSelected) {
+      handleInputChange('motivation', current.filter(m => m !== motivationId));
+    } else {
+      handleInputChange('motivation', [...current, motivationId]);
+    }
+  };
+
   const toggleMusclePriority = (muscle: string) => {
     const current = preferences.musclePriorities;
     const isSelected = current.includes(muscle);
@@ -366,14 +419,24 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   };
 
   const renderStepContent = () => {
+    // Safety check: ensure currentStep is within valid bounds
+    if (currentStep < 0 || currentStep >= steps.length) {
+      console.error('❌ renderStepContent: currentStep out of bounds:', currentStep, 'steps.length:', steps.length);
+      return <Text style={styles.stepSubtitle}>Loading...</Text>;
+    }
+    
     const step = steps[currentStep];
+    if (!step) {
+      console.error('❌ renderStepContent: Step is undefined at index:', currentStep);
+      return <Text style={styles.stepSubtitle}>Loading...</Text>;
+    }
 
     switch (step.id) {
       case 'welcome':
         return (
           <View style={styles.welcomeContent}>
             <Text style={styles.welcomeText}>
-              Answer 8 quick questions and we'll create the perfect 12-week program tailored to your goals and preferences.
+              Answer 9 quick questions and we'll create the perfect 12-week program tailored to your goals and preferences.
             </Text>
             <View style={styles.featureList}>
               <View style={styles.featureItem}>
@@ -392,13 +455,49 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           </View>
         );
 
+      case 'motivation':
+        return (
+          <View style={styles.optionsContainer}>
+            <Text style={styles.priorityHint}>
+              Choose what brings you to DENSE ({preferences.motivation.length} selected)
+            </Text>
+            {motivationOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.optionButton,
+                  preferences.motivation.includes(option.id) && styles.selectedOption,
+                ]}
+                onPress={() => {
+                  if (Platform.OS !== 'web') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  toggleMotivation(option.id);
+                }}
+              >
+                <View style={styles.motivationOption}>
+                  <Text style={styles.motivationEmoji}>{option.emoji}</Text>
+                  <Text
+                    style={[
+                      styles.optionText,
+                      preferences.motivation.includes(option.id) && styles.selectedOptionText,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+
       case 'name':
         return (
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.nameInput}
               value={preferences.name}
-              onChangeText={(value) => handleInputChange('name', value)}
+              onChangeText={(value: string) => handleInputChange('name', value)}
               placeholder="Enter your name"
               placeholderTextColor={colors.lightGray}
               autoFocus
@@ -410,56 +509,56 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           </View>
         );
 
-      case 'current-strength':
-        return (
-          <View style={styles.inputContainer}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Squat (kg)</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="80 (max 300kg)"
-                placeholderTextColor={colors.lightGray}
-                value={preferences.squatKg}
-                onChangeText={(value) => {
-                  const numValue = parseFloat(value) || 0;
-                  const limitedValue = Math.max(0, Math.min(300, numValue));
-                  handleInputChange('squatKg', limitedValue.toString());
-                }}
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Bench Press (kg)</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="60 (max 300kg)"
-                placeholderTextColor={colors.lightGray}
-                value={preferences.benchKg}
-                onChangeText={(value) => {
-                  const numValue = parseFloat(value) || 0;
-                  const limitedValue = Math.max(0, Math.min(300, numValue));
-                  handleInputChange('benchKg', limitedValue.toString());
-                }}
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Deadlift (kg)</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="100 (max 300kg)"
-                placeholderTextColor={colors.lightGray}
-                value={preferences.deadliftKg}
-                onChangeText={(value) => {
-                  const numValue = parseFloat(value) || 0;
-                  const limitedValue = Math.max(0, Math.min(300, numValue));
-                  handleInputChange('deadliftKg', limitedValue.toString());
-                }}
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-        );
+      // case 'current-strength':
+      //   return (
+      //     <View style={styles.inputContainer}>
+      //       <View style={styles.inputGroup}>
+      //         <Text style={styles.inputLabel}>Squat (kg)</Text>
+      //         <TextInput
+      //           style={styles.textInput}
+      //           placeholder="80 (max 300kg)"
+      //           placeholderTextColor={colors.lightGray}
+      //           value={preferences.squatKg}
+      //           onChangeText={(value) => {
+      //             const numValue = parseFloat(value) || 0;
+      //             const limitedValue = Math.max(0, Math.min(300, numValue));
+      //             handleInputChange('squatKg', limitedValue.toString());
+      //           }}
+      //           keyboardType="numeric"
+      //         />
+      //       </View>
+      //       <View style={styles.inputGroup}>
+      //         <Text style={styles.inputLabel}>Bench Press (kg)</Text>
+      //         <TextInput
+      //           style={styles.textInput}
+      //           placeholder="60 (max 300kg)"
+      //           placeholderTextColor={colors.lightGray}
+      //           value={preferences.benchKg}
+      //           onChangeText={(value) => {
+      //             const numValue = parseFloat(value) || 0;
+      //             const limitedValue = Math.max(0, Math.min(300, numValue));
+      //             handleInputChange('benchKg', limitedValue.toString());
+      //           }}
+      //           keyboardType="numeric"
+      //         />
+      //       </View>
+      //       <View style={styles.inputGroup}>
+      //         <Text style={styles.inputLabel}>Deadlift (kg)</Text>
+      //         <TextInput
+      //           style={styles.textInput}
+      //           placeholder="100 (max 300kg)"
+      //           placeholderTextColor={colors.lightGray}
+      //           value={preferences.deadliftKg}
+      //           onChangeText={(value) => {
+      //             const numValue = parseFloat(value) || 0;
+      //             const limitedValue = Math.max(0, Math.min(300, numValue));
+      //             handleInputChange('deadliftKg', limitedValue.toString());
+      //           }}
+      //           keyboardType="numeric"
+      //         />
+      //       </View>
+      //     </View>
+      //   );
 
       case 'training-experience':
         return (
@@ -496,11 +595,15 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                 <TextInput
                   style={styles.textInput}
                   value={preferences.age}
-                  onChangeText={(value) => handleInputChange('age', value)}
-                  placeholder="e.g. 25"
+                  onChangeText={(value) => {
+                    // Filter to only allow numbers (no range validation while typing)
+                    const numericValue = value.replace(/[^0-9]/g, '');
+                    handleInputChange('age', numericValue);
+                  }}
+                  placeholder="e.g 25"
                   placeholderTextColor={colors.lightGray}
                   keyboardType="numeric"
-                  maxLength={2}
+                  maxLength={3}
                 />
               </View>
               <View style={{ flex: 1.4 }}>
@@ -537,10 +640,18 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                 <TextInput
                   style={styles.textInput}
                   value={preferences.weight}
-                  onChangeText={(value) => handleInputChange('weight', value)}
-                  placeholder="e.g. 70"
+                  onChangeText={(value) => {
+                    // Filter to allow numbers and decimal point (no range validation while typing)
+                    const filteredValue = value.replace(/[^0-9.]/g, '');
+                    // Ensure only one decimal point
+                    const parts = filteredValue.split('.');
+                    const cleanValue = parts[0] + (parts.length > 1 ? '.' + parts[1] : '');
+                    handleInputChange('weight', cleanValue);
+                  }}
+                  placeholder="e.g 75"
                   placeholderTextColor={colors.lightGray}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
+                  maxLength={5}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -548,10 +659,18 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                 <TextInput
                   style={styles.textInput}
                   value={preferences.height}
-                  onChangeText={(value) => handleInputChange('height', value)}
-                  placeholder="e.g. 175"
+                  onChangeText={(value) => {
+                    // Filter to allow numbers and decimal point (no range validation while typing)
+                    const filteredValue = value.replace(/[^0-9.]/g, '');
+                    // Ensure only one decimal point
+                    const parts = filteredValue.split('.');
+                    const cleanValue = parts[0] + (parts.length > 1 ? '.' + parts[1] : '');
+                    handleInputChange('height', cleanValue);
+                  }}
+                  placeholder="e.g 170"
                   placeholderTextColor={colors.lightGray}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
+                  maxLength={5}
                 />
               </View>
             </View>
@@ -582,36 +701,40 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               </View>
             </View>
 
-            {/* Activity Level */}
+            {/* Training Days */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Activity Level</Text>
-              <View style={styles.optionsContainer}>
-                {activityLevelOptions.map((option) => (
+              <Text style={styles.inputLabel}>Training Days per Week</Text>
+              <View style={styles.trainingDaysContainer}>
+                {trainingDaysOptions.map((option) => (
                   <TouchableOpacity
                     key={option.id}
                     style={[
-                      styles.optionButton,
-                      preferences.activityLevel === option.id && styles.selectedOption,
+                      styles.trainingDayOption,
+                      preferences.trainingDaysPerWeek === option.id && styles.selectedTrainingDay,
                     ]}
-                    onPress={() => handleInputChange('activityLevel', option.id)}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }
+                      handleInputChange('trainingDaysPerWeek', option.id);
+                    }}
                   >
-                    <View>
+                    <View style={styles.trainingDayContent}>
                       <Text
                         style={[
-                          styles.optionText,
-                          preferences.activityLevel === option.id && styles.selectedOptionText,
+                          styles.trainingDayLabel,
+                          preferences.trainingDaysPerWeek === option.id && styles.selectedTrainingDayLabel,
                         ]}
                       >
                         {option.label}
                       </Text>
                       <Text
                         style={[
-                          styles.optionText,
-                          { fontSize: 12, opacity: 0.7 },
-                          preferences.activityLevel === option.id && styles.selectedOptionText,
+                          styles.trainingDayNickname,
+                          preferences.trainingDaysPerWeek === option.id && styles.selectedTrainingDayNickname,
                         ]}
                       >
-                        {option.description}
+                        {option.nickname}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -620,7 +743,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
             </View>
 
             {/* TDEE Preview */}
-            {preferences.age && preferences.gender && preferences.weight && preferences.height && preferences.activityLevel && preferences.goal && (
+            {preferences.age && preferences.gender && preferences.weight && preferences.height && preferences.trainingDaysPerWeek && preferences.goal && (
               <View style={{ 
                 backgroundColor: colors.darkGray, 
                 borderRadius: 12, 
@@ -634,12 +757,13 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                 </Text>
                 {(() => {
                   try {
+                    const activityLevel = getActivityLevelFromTrainingDays(preferences.trainingDaysPerWeek);
                     const tdeeResult = calculateTDEEAndMacros({
                       age: parseInt(preferences.age),
                       gender: preferences.gender as 'male' | 'female',
                       weight: parseFloat(preferences.weight),
                       height: parseFloat(preferences.height),
-                      activityLevel: preferences.activityLevel,
+                      activityLevel: activityLevel,
                       goal: preferences.goal
                     });
                     
@@ -684,30 +808,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           </View>
         );
 
-      case 'weekly-schedule':
-        return (
-          <View style={styles.optionsContainer}>
-            {trainingDaysOptions.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={[
-                  styles.optionButton,
-                  preferences.trainingDaysPerWeek === option.id && styles.selectedOption,
-                ]}
-                onPress={() => handleInputChange('trainingDaysPerWeek', option.id)}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    preferences.trainingDaysPerWeek === option.id && styles.selectedOptionText,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        );
+
 
       case 'muscle-priorities':
         return (
@@ -768,30 +869,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           </View>
         );
 
-      case 'recovery-profile':
-        return (
-          <View style={styles.optionsContainer}>
-            {recoveryOptions.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={[
-                  styles.optionButton,
-                  preferences.recoveryProfile === option.id && styles.selectedOption,
-                ]}
-                onPress={() => handleInputChange('recoveryProfile', option.id)}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    preferences.recoveryProfile === option.id && styles.selectedOptionText,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        );
+
 
       case 'program-duration':
         return (
@@ -818,18 +896,229 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           </View>
         );
 
+      case 'review-preferences':
+        return (
+          <ScrollView style={styles.completeScrollView} showsVerticalScrollIndicator={false}>
+            <View style={styles.completeContent}>
+              
+              <View style={styles.preferencesContainer}>
+                {/* Motivation Card */}
+                <View style={styles.preferenceCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardIcon}>✨</Text>
+                    <Text style={styles.cardTitle}>What Brings You to DENSE</Text>
+                  </View>
+                  <View style={styles.motivationTags}>
+                    {preferences.motivation.map((motivationId) => {
+                      const motivation = motivationOptions.find(o => o.id === motivationId);
+                      return motivation ? (
+                        <View key={motivationId} style={styles.motivationTag}>
+                          <Text style={styles.motivationTagEmoji}>{motivation.emoji}</Text>
+                          <Text style={styles.motivationTagText}>{motivation.label}</Text>
+                        </View>
+                      ) : null;
+                    })}
+                  </View>
+                </View>
+
+                {/* Training Info Card */}
+                <View style={styles.preferenceCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardIcon}>🏋️</Text>
+                    <Text style={styles.cardTitle}>Training Schedule</Text>
+                  </View>
+                  <View style={styles.trainingInfoGrid}>
+                    <View style={styles.trainingInfoItem}>
+                      <Text style={styles.trainingInfoNumber}>
+                        {preferences.trainingDaysPerWeek}
+                      </Text>
+                      <Text style={styles.trainingInfoLabel}>Days/Week</Text>
+                      <Text style={styles.trainingInfoNickname}>
+                        {trainingDaysOptions.find(o => o.id === preferences.trainingDaysPerWeek)?.nickname}
+                      </Text>
+                    </View>
+                    <View style={styles.trainingInfoItem}>
+                      <Text style={styles.trainingInfoNumber}>
+                        {preferences.programDurationWeeks}
+                      </Text>
+                      <Text style={styles.trainingInfoLabel}>Weeks</Text>
+                      <Text style={styles.trainingInfoNickname}>Program</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* TDEE & Nutrition Targets Card */}
+                {preferences.age && preferences.gender && preferences.weight && preferences.height && preferences.trainingDaysPerWeek && preferences.goal && (
+                  <View style={styles.preferenceCard}>
+                    <View style={styles.cardHeader}>
+                      <Text style={styles.cardIcon}>🔥</Text>
+                      <Text style={styles.cardTitle}>Daily Nutrition Targets</Text>
+                    </View>
+                    {(() => {
+                      try {
+                        const activityLevel = getActivityLevelFromTrainingDays(preferences.trainingDaysPerWeek);
+                        const tdeeResult = calculateTDEEAndMacros({
+                          age: parseInt(preferences.age),
+                          gender: preferences.gender as 'male' | 'female',
+                          weight: parseFloat(preferences.weight),
+                          height: parseFloat(preferences.height),
+                          activityLevel: activityLevel,
+                          goal: preferences.goal
+                        });
+                        
+                        return (
+                          <View style={styles.tdeeCardContent}>
+                            {/* Main Calorie Target */}
+                            <View style={styles.calorieTargetSection}>
+                              <View style={styles.calorieTargetMain}>
+                                <Text style={styles.calorieTargetNumber}>
+                                  {tdeeResult.adjustedCalories}
+                                </Text>
+                                <Text style={styles.calorieTargetLabel}>Daily Calories</Text>
+                              </View>
+                              <View style={styles.tdeeBreakdown}>
+                                <View style={styles.tdeeRow}>
+                                  <Text style={styles.tdeeLabel}>BMR (Base):</Text>
+                                  <Text style={styles.tdeeValue}>{tdeeResult.bmr} cal</Text>
+                                </View>
+                                <View style={styles.tdeeRow}>
+                                  <Text style={styles.tdeeLabel}>TDEE (Active):</Text>
+                                  <Text style={styles.tdeeValue}>{tdeeResult.tdee} cal</Text>
+                                </View>
+                              </View>
+                            </View>
+
+                            {/* Macros Grid */}
+                            <View style={styles.macrosGrid}>
+                              <View style={styles.macroItem}>
+                                <Text style={styles.macroIcon}>🥩</Text>
+                                <Text style={styles.macroValue}>{tdeeResult.protein}g</Text>
+                                <Text style={styles.macroLabel}>Protein</Text>
+                                <Text style={styles.macroPercentage}>
+                                  {Math.round((tdeeResult.protein * 4 / tdeeResult.adjustedCalories) * 100)}%
+                                </Text>
+                              </View>
+                              <View style={styles.macroItem}>
+                                <Text style={styles.macroIcon}>🍞</Text>
+                                <Text style={styles.macroValue}>{tdeeResult.carbs}g</Text>
+                                <Text style={styles.macroLabel}>Carbs</Text>
+                                <Text style={styles.macroPercentage}>
+                                  {Math.round((tdeeResult.carbs * 4 / tdeeResult.adjustedCalories) * 100)}%
+                                </Text>
+                              </View>
+                              <View style={styles.macroItem}>
+                                <Text style={styles.macroIcon}>🥑</Text>
+                                <Text style={styles.macroValue}>{tdeeResult.fat}g</Text>
+                                <Text style={styles.macroLabel}>Fats</Text>
+                                <Text style={styles.macroPercentage}>
+                                  {Math.round((tdeeResult.fat * 9 / tdeeResult.adjustedCalories) * 100)}%
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      } catch (error) {
+                        return (
+                          <View style={styles.tdeeError}>
+                            <Text style={styles.tdeeErrorText}>
+                              Unable to calculate nutrition targets. Please check your inputs.
+                            </Text>
+                          </View>
+                        );
+                      }
+                    })()}
+                  </View>
+                )}
+
+                {/* Goal Card */}
+                <View style={styles.preferenceCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardIcon}>🎯</Text>
+                    <Text style={styles.cardTitle}>Your Goal</Text>
+                  </View>
+                  <View style={styles.goalDisplay}>
+                    <Text style={styles.goalText}>
+                      {preferences.goal?.replace('_', ' ').toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Experience & Focus Card */}
+                <View style={styles.preferenceCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardIcon}>💪</Text>
+                    <Text style={styles.cardTitle}>Experience & Focus</Text>
+                  </View>
+                  <View style={styles.cardContent}>
+                    <View style={styles.experienceRow}>
+                      <Text style={styles.experienceLabel}>Level:</Text>
+                      <Text style={styles.experienceValue}>
+                        {trainingExperienceOptions.find(o => o.id === preferences.trainingExperience)?.label}
+                      </Text>
+                    </View>
+                    <View style={styles.focusSection}>
+                      <Text style={styles.focusLabel}>Priority Muscles:</Text>
+                      <View style={styles.muscleTagsContainer}>
+                        {preferences.musclePriorities.map((priority) => {
+                          const muscle = musclePriorityOptions.find(o => o.id === priority);
+                          return muscle ? (
+                            <View key={priority} style={styles.muscleTag}>
+                              <Text style={styles.muscleTagText}>{muscle.label}</Text>
+                            </View>
+                          ) : null;
+                        })}
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Body Stats Card */}
+                <View style={styles.preferenceCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardIcon}>📊</Text>
+                    <Text style={styles.cardTitle}>Your Stats</Text>
+                  </View>
+                  <View style={styles.statsGrid}>
+                    <View style={styles.statBox}>
+                      <Text style={styles.statValue}>{preferences.age}</Text>
+                      <Text style={styles.statLabelSmall}>Years Old</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                      <Text style={styles.statValue}>{preferences.weight}</Text>
+                      <Text style={styles.statLabelSmall}>kg</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                      <Text style={styles.statValue}>{preferences.height}</Text>
+                      <Text style={styles.statLabelSmall}>cm</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                      <Text style={styles.statValue}>
+                        {preferences.gender === 'male' ? '♂️' : '♀️'}
+                      </Text>
+                      <Text style={styles.statLabelSmall}>
+                        {preferences.gender === 'male' ? 'Male' : 'Female'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        );
+
       case 'complete':
         return (
           <View style={styles.completeContent}>
-            <Text style={styles.completeText}>
-              Perfect! We have everything we need to create your personalized program.
+            <Text style={styles.finalTitle}>🚀 Ready to Transform?</Text>
+            <Text style={styles.finalSubtitle}>
+              Your personalized program is about to be generated based on your preferences!
             </Text>
-            <View style={styles.summaryContainer}>
-              <Text style={styles.summaryTitle}>Your Preferences:</Text>
-              <Text style={styles.summaryItem}>• Experience: {trainingExperienceOptions.find(o => o.id === preferences.trainingExperience)?.label}</Text>
-              <Text style={styles.summaryItem}>• Training Days: {preferences.trainingDaysPerWeek} days per week</Text>
-              <Text style={styles.summaryItem}>• Focus: {preferences.musclePriorities.join(', ')}</Text>
-              <Text style={styles.summaryItem}>• Duration: {preferences.programDurationWeeks} weeks</Text>
+            
+            <View style={styles.finalCTA}>
+              <Text style={styles.finalCTAIcon}>⚡</Text>
+              <Text style={styles.finalCTAText}>
+                Let's create your perfect training plan
+              </Text>
             </View>
           </View>
         );
@@ -998,8 +1287,41 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     );
   }
 
-  // Main wizard interface
+  // Main wizard interface  
+  // Safety check: ensure currentStep is within valid bounds
+  if (currentStep < 0 || currentStep >= steps.length) {
+    console.error('❌ Main render: currentStep out of bounds:', currentStep, 'steps.length:', steps.length);
+    // Reset to first step and return loading state
+    setTimeout(() => setCurrentStep(0), 0);
+    return (
+      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.stepCounter}>Loading...</Text>
+        </View>
+        <View style={styles.content}>
+          <Text style={styles.stepTitle}>Loading...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
+  
   const step = steps[currentStep];
+  if (!step) {
+    console.error('❌ Main render: Step is undefined at index:', currentStep);
+    // Reset to first step and return loading state
+    setTimeout(() => setCurrentStep(0), 0);
+    return (
+      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.stepCounter}>Loading...</Text>
+        </View>
+        <View style={styles.content}>
+          <Text style={styles.stepTitle}>Loading...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
+  
   const progress = (currentStep + 1) / steps.length;
 
   return (
@@ -1024,17 +1346,18 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.stepHeader}>
+        <View style={step.subtitle ? styles.stepHeader : styles.stepHeaderNoSubtitle}>
           <Text style={styles.stepTitle}>{step.title}</Text>
-          <Text style={styles.stepSubtitle}>{step.subtitle}</Text>
+          {step.subtitle ? <Text style={styles.stepSubtitle}>{step.subtitle}</Text> : null}
+          
+          {/* Validation error below subtitle */}
+          {validationError ? (
+            <Text style={styles.stepValidationError}>{validationError}</Text>
+          ) : null}
         </View>
 
         {/* Step-specific content */}
         {renderStepContent()}
-        
-        {validationError ? (
-          <Text style={{ color: 'red', textAlign: 'center', marginTop: 20 }}>{validationError}</Text>
-        ) : null}
       </ScrollView>
 
       {/* Navigation buttons - Fixed at bottom */}

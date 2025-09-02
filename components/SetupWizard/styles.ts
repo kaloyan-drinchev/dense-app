@@ -12,8 +12,8 @@ export const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 50, // Reduced from 60
+    paddingBottom: 10, // Reduced from 20
   },
   headerTitle: {
     ...typography.h3,
@@ -27,7 +27,7 @@ export const styles = StyleSheet.create({
   },
   progressContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 60,
+    paddingBottom: 30, // Reduced from 60
   },
   progressBar: {
     height: 4,
@@ -84,6 +84,10 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
+  stepHeaderNoSubtitle: {
+    alignItems: 'center',
+    marginBottom: 15, // Reduced margin for steps without subtitle
+  },
   stepTitle: {
     ...typography.h2,
     color: colors.white,
@@ -96,6 +100,12 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 28,
     marginBottom: 20,
+  },
+  stepValidationError: {
+    ...typography.body,
+    color: 'red',
+    textAlign: 'center',
+    marginTop: 16,
   },
   continueButton: {
     backgroundColor: colors.primary,
@@ -361,7 +371,6 @@ export const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.primary,
     textAlign: 'center',
-    fontSize: 20,
   },
   optionsContainer: {
     width: '100%',
@@ -388,8 +397,8 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
   },
   selectedOptionText: {
+    ...typography.button,
     color: colors.black,
-    fontWeight: 'bold',
   },
   scheduleContainer: {
     width: '100%',
@@ -431,6 +440,7 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
   },
   selectedDayText: {
+    ...typography.bodySmall,
     color: colors.black,
     fontWeight: 'bold',
   },
@@ -468,12 +478,12 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
   },
   selectedPriorityText: {
+    ...typography.button,
     color: colors.black,
-    fontWeight: 'bold',
   },
   completeContent: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 0, // Minimal padding to prevent layering issues
   },
   completeText: {
     ...typography.body,
@@ -499,5 +509,332 @@ export const styles = StyleSheet.create({
     color: colors.lightGray,
     marginBottom: 8,
     lineHeight: 20,
+  },
+  // Enhanced Step 11 "Your Preferences" styles
+  completeScrollView: {
+    flex: 1,
+  },
+  preferencesContainer: {
+    width: '100%',
+    gap: 16,
+  },
+  preferencesTitle: {
+    ...typography.h2,
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  preferenceCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.primary + '20',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  cardIcon: {
+    fontSize: 24,
+  },
+  cardTitle: {
+    ...typography.h4,
+    color: colors.white,
+  },
+  cardContent: {
+    gap: 12,
+  },
+  // Motivation tags styles
+  motivationTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  motivationTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '20',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  motivationTagEmoji: {
+    fontSize: 14,
+  },
+  motivationTagText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  // Training info grid styles
+  trainingInfoGrid: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  trainingInfoItem: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: colors.dark,
+    borderRadius: 12,
+    padding: 16,
+  },
+  trainingInfoNumber: {
+    ...typography.timerMedium,
+    color: colors.primary,
+  },
+  trainingInfoLabel: {
+    ...typography.caption,
+    color: colors.lightGray,
+    marginTop: 4,
+  },
+  trainingInfoNickname: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: 'bold',
+    marginTop: 2,
+    fontSize: 10, // Keep smaller for nickname
+  },
+  // Experience row styles
+  experienceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  experienceLabel: {
+    ...typography.body,
+    color: colors.lightGray,
+  },
+  experienceValue: {
+    ...typography.body,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  // Focus section styles
+  focusSection: {
+    gap: 8,
+  },
+  focusLabel: {
+    ...typography.body,
+    color: colors.lightGray,
+  },
+  muscleTagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  muscleTag: {
+    backgroundColor: colors.primary + '15',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  muscleTagText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  // Stats grid styles
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  statBox: {
+    flex: 0.48,
+    backgroundColor: colors.dark,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  statValue: {
+    ...typography.timerSmall,
+    color: colors.primary,
+    fontWeight: 'bold',
+  },
+  statLabelSmall: {
+    fontSize: 11,
+    color: colors.lightGray,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  // Goal display styles
+  goalDisplay: {
+    backgroundColor: colors.dark,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  goalText: {
+    ...typography.h4,
+    color: colors.primary,
+    textAlign: 'center',
+  },
+  // TDEE Calculation Card styles
+  tdeeCardContent: {
+    gap: 20,
+  },
+  calorieTargetSection: {
+    backgroundColor: colors.dark,
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+  },
+  calorieTargetMain: {
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.darkGray,
+    paddingBottom: 12,
+  },
+  calorieTargetNumber: {
+    ...typography.h1,
+    color: colors.primary,
+  },
+  calorieTargetLabel: {
+    ...typography.body,
+    color: colors.lightGray,
+    marginTop: 4,
+  },
+  tdeeBreakdown: {
+    gap: 8,
+  },
+  tdeeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  tdeeLabel: {
+    ...typography.caption,
+    color: colors.lightGray,
+  },
+  tdeeValue: {
+    ...typography.caption,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  macrosGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  macroItem: {
+    flex: 1,
+    backgroundColor: colors.dark,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    gap: 6,
+  },
+  macroIcon: {
+    fontSize: 20,
+  },
+  macroValue: {
+    ...typography.timerSmall,
+    color: colors.primary,
+    fontWeight: 'bold',
+  },
+  macroLabel: {
+    ...typography.caption,
+    color: colors.lightGray,
+    textAlign: 'center',
+    fontSize: 10, // Keep smaller for macro labels
+  },
+  macroPercentage: {
+    ...typography.caption,
+    color: colors.primary + '80',
+    fontWeight: '600',
+    fontSize: 9, // Keep very small for percentages
+  },
+  tdeeError: {
+    backgroundColor: colors.dark,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  tdeeErrorText: {
+    ...typography.body,
+    color: colors.lightGray,
+    textAlign: 'center',
+  },
+  // Final step styles
+  finalTitle: {
+    ...typography.h1,
+    color: colors.white,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  finalSubtitle: {
+    ...typography.body,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 40,
+    paddingHorizontal: 20,
+  },
+  finalCTA: {
+    backgroundColor: colors.darkGray, // Little grey background instead of black
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: colors.primary, // Green border
+    padding: 24,
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 20,
+  },
+  finalCTAIcon: {
+    fontSize: 32,
+  },
+  finalCTAText: {
+    ...typography.button, // Use consistent typography
+    color: colors.white, // White text on grey background
+    textAlign: 'center',
+  },
+  // Motivation step styles
+  motivationOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  motivationEmoji: {
+    fontSize: 20,
+  },
+  // Training days styles
+  trainingDaysContainer: {
+    gap: 16,
+  },
+  trainingDayOption: {
+    backgroundColor: colors.darkGray,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    borderRadius: 12,
+    padding: 20,
+  },
+  selectedTrainingDay: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  trainingDayContent: {
+    alignItems: 'center',
+  },
+  trainingDayLabel: {
+    ...typography.h4,
+    color: colors.white,
+    marginBottom: 4,
+  },
+  selectedTrainingDayLabel: {
+    color: colors.black,
+  },
+  trainingDayNickname: {
+    ...typography.body,
+    color: colors.lightGray,
+    fontStyle: 'italic',
+  },
+  selectedTrainingDayNickname: {
+    ...typography.caption,
+    color: colors.black,
+    fontWeight: 'bold',
   },
 });

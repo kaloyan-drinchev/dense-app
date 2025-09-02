@@ -220,6 +220,14 @@ export const initializeDatabase = async () => {
       // Column might already exist, that's okay
     }
 
+    try {
+      await expo_sqlite.execAsync(`
+        ALTER TABLE user_wizard_results ADD COLUMN motivation TEXT;
+      `);
+    } catch (error) {
+      // Column might already exist, that's okay
+    }
+
     await expo_sqlite.execAsync(`
       CREATE TABLE IF NOT EXISTS sync_status (
         id TEXT PRIMARY KEY,

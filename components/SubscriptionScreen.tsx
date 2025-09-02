@@ -467,7 +467,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           </View>
 
           <Text style={styles.disclaimer}>
-            🔒 Mock payments enabled for development. No actual charges will be made.
+            🔒 {subscriptionService.getPaymentProviderInfo().displayName} - {subscriptionService.getPaymentProviderInfo().provider === 'mock' ? 'No actual charges will be made.' : 'Real charges will occur.'}
           </Text>
         </View>
         
@@ -734,6 +734,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+    paddingTop: 10,
   },
   subscribeButton: {
     backgroundColor: colors.primary,

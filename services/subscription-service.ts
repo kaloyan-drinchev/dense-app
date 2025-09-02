@@ -125,8 +125,21 @@ export const subscriptionService = {
     return SUBSCRIPTION_PLANS.find(plan => plan.id === planId);
   },
 
-  // Mock purchase processing
+  // Main purchase function - uses mock payments
   async purchasePlan(planId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log('🛒 Processing purchase for plan:', planId);
+      return await this.purchaseWithMockPayments(planId);
+    } catch (error) {
+      console.error('❌ Purchase error:', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  },
+
+
+
+  // Mock purchase processing (existing logic)
+  async purchaseWithMockPayments(planId: string): Promise<{ success: boolean; error?: string }> {
     try {
       console.log('🛒 Processing mock purchase for plan:', planId);
       
@@ -179,11 +192,11 @@ export const subscriptionService = {
       const updatedPurchases = [...existingPurchases, purchase];
       await AsyncStorage.setItem(PURCHASES_STORAGE_KEY, JSON.stringify(updatedPurchases));
 
-      console.log('Mock purchase successful:', subscription);
+      console.log('✅ Mock purchase successful:', subscription);
       return { success: true };
 
     } catch (error) {
-      console.error('❌ Purchase error:', error);
+      console.error('❌ Mock purchase error:', error);
       return { success: false, error: 'An unexpected error occurred' };
     }
   },
@@ -277,10 +290,23 @@ export const subscriptionService = {
     }
   },
 
-  // Restore purchases (mock implementation)
-  async restorePurchases(): Promise<{ success: boolean; restored: number }> {
+  // Main restore function - routes to appropriate payment system
+  async restorePurchases(): Promise<{ success: boolean; restored: number; error?: string }> {
     try {
       console.log('🔄 Restoring purchases...');
+      return await this.restoreMockPurchases();
+    } catch (error) {
+      console.error('❌ Error restoring purchases:', error);
+      return { success: false, restored: 0, error: 'An unexpected error occurred' };
+    }
+  },
+
+
+
+  // Restore mock purchases (existing logic)
+  async restoreMockPurchases(): Promise<{ success: boolean; restored: number; error?: string }> {
+    try {
+      console.log('🔄 Restoring mock purchases...');
       
       // Simulate restore delay
       await new Promise(resolve => setTimeout(resolve, 1500));
@@ -310,7 +336,7 @@ export const subscriptionService = {
           };
           
           await AsyncStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subscription));
-          console.log('✅ Purchases restored:', subscription);
+          console.log('✅ Mock purchases restored:', subscription);
           
           return { success: true, restored: 1 };
         }
@@ -318,8 +344,8 @@ export const subscriptionService = {
       
       return { success: true, restored: 0 };
     } catch (error) {
-      console.error('❌ Error restoring purchases:', error);
-      return { success: false, restored: 0 };
+      console.error('❌ Error restoring mock purchases:', error);
+      return { success: false, restored: 0, error: 'An unexpected error occurred' };
     }
   },
 
@@ -826,5 +852,28 @@ export const subscriptionService = {
       console.error('❌ Error expiring trial:', error);
       return { success: false, message: 'Failed to expire trial' };
     }
-  }
+  },
+
+  // ==================== INITIALIZATION ====================
+
+  // Initialize the subscription service
+  async initialize(): Promise<void> {
+    try {
+      console.log('🔧 Initializing subscription service...');
+      console.log('✅ Subscription service initialized (using mock payments)');
+    } catch (error) {
+      console.error('❌ Error initializing subscription service:', error);
+      // Don't throw - allow app to continue with limited functionality
+    }
+  },
+
+  // Get current payment provider information
+  getPaymentProviderInfo(): { provider: string; displayName: string } {
+    return {
+      provider: 'mock',
+      displayName: 'Mock Payments (Development)',
+    };
+  },
+
+
 };

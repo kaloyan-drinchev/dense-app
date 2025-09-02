@@ -11,15 +11,20 @@ export const steps: WizardStep[] = [
     subtitle: 'Let\'s create the perfect workout program for you'
   },
   {
+    id: 'motivation',
+    title: 'What brings you to DENSE?',
+    subtitle: 'Tell us your main fitness motivation'
+  },
+  {
     id: 'name',
     title: 'What\'s Your Name?',
     subtitle: 'Let\'s personalize your fitness journey'
   },
-  {
-    id: 'current-strength',
-    title: 'What\'s Your Starting Point?',
-    subtitle: 'Tell us your current strength levels (optional)'
-  },
+  // {
+  //   id: 'current-strength',
+  //   title: 'What\'s Your Starting Point?',
+  //   subtitle: 'Tell us your current strength levels (optional)'
+  // },
   {
     id: 'training-experience',
     title: 'Training Experience',
@@ -27,13 +32,8 @@ export const steps: WizardStep[] = [
   },
   {
     id: 'tdee-calculation',
-    title: 'Body Metrics & Goals',
-    subtitle: 'Help us calculate your daily nutrition needs'
-  },
-  {
-    id: 'weekly-schedule',
-    title: 'Weekly Schedule',
-    subtitle: 'How many days can you train per week?'
+    title: 'Body Metrics & Training',
+    subtitle: 'Tell us about yourself to calculate your nutrition needs'
   },
   {
     id: 'muscle-priorities',
@@ -46,19 +46,19 @@ export const steps: WizardStep[] = [
     subtitle: 'Do you enjoy high-rep "pump" exercises?'
   },
   {
-    id: 'recovery-profile',
-    title: 'Recovery Profile',
-    subtitle: 'How do you typically recover from workouts?'
-  },
-  {
     id: 'program-duration',
     title: 'Program Duration',
     subtitle: 'How long do you want your program to run?'
   },
   {
+    id: 'review-preferences',
+    title: 'Review Your Setup',
+    subtitle: ''
+  },
+  {
     id: 'complete',
-    title: 'You\'re Ready! 💪',
-    subtitle: 'Time to generate the perfect program tailored just for you'
+    title: 'Generate My Program! 💪',
+    subtitle: 'Ready to create your perfect training plan?'
   }
 ];
 
@@ -76,10 +76,11 @@ export const bodyFatOptions = [
 ];
 
 export const trainingDaysOptions = [
-  { id: 3, label: '3 days' },
-  { id: 4, label: '4 days' },
-  { id: 5, label: '5 days' },
-  { id: 6, label: '6 days' }
+  { id: 3, label: '3 days', nickname: 'Triple Threat' },
+  { id: 4, label: '4 days', nickname: 'Lean Machine' },
+  { id: 5, label: '5 days', nickname: 'Iron Addict' },
+  { id: 6, label: '6 days', nickname: 'Gym Rat' },
+  { id: 7, label: '7 days', nickname: 'Legend' }
 ];
 
 export const weekDays = [
@@ -107,11 +108,7 @@ export const pumpWorkOptions = [
   { id: 'no_minimal', label: 'No, keep it minimal' }
 ];
 
-export const recoveryOptions = [
-  { id: 'fast_ready_next_day', label: 'Fast - ready next day' },
-  { id: 'need_more_rest', label: 'Need more rest between sessions' },
-  { id: 'not_sure', label: 'Not sure yet' }
-];
+
 
 export const durationOptions = [
   { id: 4, label: '4 weeks' },
@@ -136,6 +133,17 @@ export const goalOptions = [
   { id: 'lose_weight', label: 'Lose Weight', calorieAdjustment: -0.2, proteinMultiplier: 2.0 },
   { id: 'maintain_weight', label: 'Maintain Weight', calorieAdjustment: 0, proteinMultiplier: 1.6 },
   { id: 'gain_weight', label: 'Gain Weight', calorieAdjustment: 0.15, proteinMultiplier: 1.8 }
+];
+
+export const motivationOptions = [
+  { id: 'build_muscle', label: 'Build Muscle & Size', emoji: '💪' },
+  { id: 'get_stronger', label: 'Get Stronger', emoji: '🏋️' },
+  { id: 'lose_weight', label: 'Lose Weight', emoji: '🔥' },
+  { id: 'tone_up', label: 'Tone Up & Define', emoji: '✨' },
+  { id: 'improve_health', label: 'Improve Overall Health', emoji: '❤️' },
+  { id: 'boost_confidence', label: 'Boost Confidence', emoji: '🚀' },
+  { id: 'stress_relief', label: 'Stress Relief', emoji: '🧘' },
+  { id: 'challenge_myself', label: 'Challenge Myself', emoji: '🎯' }
 ];
 
 export const aiGenerationSteps = [
