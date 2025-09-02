@@ -162,8 +162,10 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
               setIsProcessing(false);
               
               // Force navigation directly to home page, bypassing any wizard logic
-              router.replace('/(tabs)');
-              console.log('🎯 Direct navigation to home from trial completion');
+              setTimeout(() => {
+                router.replace('/(tabs)');
+                console.log('🎯 Direct navigation to home from trial completion');
+              }, 200);
               
               // Also call onSubscribed for any cleanup
               onSubscribed();
@@ -194,8 +196,10 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
             setIsProcessing(false);
             
             // Force navigation directly to home page, bypassing any wizard logic
-            router.replace('/(tabs)');
-            console.log('🎯 Direct navigation to home from subscription screen');
+            setTimeout(() => {
+              router.replace('/(tabs)');
+              console.log('🎯 Direct navigation to home from subscription screen');
+            }, 200);
             
             // Also call onSubscribed for any cleanup
             onSubscribed();

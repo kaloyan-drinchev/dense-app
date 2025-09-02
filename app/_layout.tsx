@@ -166,16 +166,19 @@ function AppNavigator() {
   useEffect(() => {
     // Override the triggerNavigationRefresh function in the store
     const originalTrigger = triggerNavigationRefresh;
-    useSubscriptionStore.setState({
-      triggerNavigationRefresh: () => {
-        console.log('🚨 NAVIGATION REFRESH TRIGGERED!');
-        setNavigationRefresh(prev => {
-          const newValue = prev + 1;
-          console.log('🚨 Navigation refresh counter:', prev, '->', newValue);
-          return newValue;
-        });
-      }
-    });
+          useSubscriptionStore.setState({
+        triggerNavigationRefresh: () => {
+          console.log('🚨 NAVIGATION REFRESH TRIGGERED!');
+          // Add small delay to prevent navigation timing issues
+          setTimeout(() => {
+            setNavigationRefresh(prev => {
+              const newValue = prev + 1;
+              console.log('🚨 Navigation refresh counter:', prev, '->', newValue);
+              return newValue;
+            });
+          }, 100);
+        }
+      });
 
     // Cleanup
     return () => {

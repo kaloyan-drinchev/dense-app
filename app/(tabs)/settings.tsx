@@ -21,6 +21,7 @@ import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+
 // import ConnectionTest from '@/components/ConnectionTest';
 
 export default function SettingsScreen() {
@@ -33,6 +34,7 @@ export default function SettingsScreen() {
     getSubscriptionInfo,
     isTrialActive,
     getTrialDaysRemaining,
+    getTrialInfo,
     setSubscriptionEndDate,
     triggerNavigationRefresh,
     refreshSubscriptionStatus
@@ -258,29 +260,19 @@ export default function SettingsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    // Debug: Check raw subscription status from service
-    try {
-      const rawStatus = await subscriptionService.getSubscriptionStatus();
-      const statusType = await subscriptionService.getSubscriptionStatusType();
-      console.log('🔍 Debug - Raw subscription status:', rawStatus);
-      console.log('🔍 Debug - Status type:', statusType);
-    } catch (error) {
-      console.error('🔍 Debug - Error getting status:', error);
-    }
-
     const subscriptionInfo = getSubscriptionInfo();
     const daysLeft = getDaysUntilExpiry();
     const trialActive = isTrialActive();
-
-    console.log('🔍 Debug - Subscription info from store:', subscriptionInfo);
-    console.log('🔍 Debug - Days left:', daysLeft);
+    const trialInfo = getTrialInfo();
 
     let title = '';
     let message = '';
 
-    if (trialActive) {
-      title = '🆓 Free Trial Status';
-      message = `Your free trial is currently active with ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} remaining.\n\nAfter your trial ends, you'll need to subscribe to continue accessing premium features.`;
+    // ALWAYS check trial status first - this takes priority
+    if (trialActive || trialInfo.isActive) {
+      const daysRemaining = trialInfo.daysRemaining || trialDaysLeft;
+      title = '🆓 Free Trial Active';
+      message = `Your 7-day free trial is currently active with ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining.\n\n✨ Enjoy all premium features while on trial!\n\nAfter your trial ends, you'll need to subscribe to continue accessing premium features.`;
     } else if (subscriptionInfo.isActive && daysLeft !== null) {
       if (daysLeft > 0) {
         title = '✅ Subscription Active';
@@ -606,6 +598,8 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View> */}
 
+
+
         {/* Subscription Status */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Subscription</Text>
@@ -619,12 +613,20 @@ export default function SettingsScreen() {
               <Text style={styles.settingDescription}>
                 {(() => {
                   const subscriptionInfo = getSubscriptionInfo();
+                  const daysLeft = getDaysUntilExpiry();
                   const trialActive = isTrialActive();
+                  const trialInfo = getTrialInfo();
                   
-                  if (trialActive) {
-                    return `Free Trial Active`;
-                  } else if (subscriptionInfo.isActive) {
-                    return `Subscription Active`;
+                  if (trialActive || trialInfo.isActive) {
+                    const daysRemaining = trialInfo.daysRemaining || trialDaysLeft;
+                    return `Free Trial Active • ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} left`;
+                  } else if (subscriptionInfo.isActive && daysLeft !== null) {
+                    if (daysLeft > 0) {
+                      const planName = subscriptionInfo.planName || 'Pro';
+                      return `${planName} Active • ${daysLeft} day${daysLeft !== 1 ? 's' : ''} until renewal`;
+                    } else {
+                      return `Subscription expires today`;
+                    }
                   } else {
                     return `No active subscription`;
                   }
@@ -636,8 +638,9 @@ export default function SettingsScreen() {
                 const subscriptionInfo = getSubscriptionInfo();
                 const daysLeft = getDaysUntilExpiry();
                 const trialActive = isTrialActive();
+                const trialInfo = getTrialInfo();
                 
-                if (trialActive || (subscriptionInfo.isActive && daysLeft !== null && daysLeft > 0)) {
+                if (trialActive || trialInfo.isActive || (subscriptionInfo.isActive && daysLeft !== null && daysLeft > 0)) {
                   return <Icon name="check-circle" size={20} color={colors.success} />;
                 } else {
                   return <Icon name="alert-circle" size={20} color={colors.warning} />;

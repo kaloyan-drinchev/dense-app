@@ -358,10 +358,12 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     setWizardCompleted();
     console.log('✅ Subscription completed, wizard marked as completed');
     
-    // Navigate directly to home immediately - don't change local state first
+    // Navigate directly to home with delay to prevent timing issues
     console.log('🎯 Navigating directly to home...');
-    router.replace('/(tabs)');
-    console.log('🎯 Navigation to home completed');
+    setTimeout(() => {
+      router.replace('/(tabs)');
+      console.log('🎯 Navigation to home completed');
+    }, 200);
     
     // Close the entire wizard component after navigation
     setTimeout(() => {
