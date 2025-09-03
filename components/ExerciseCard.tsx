@@ -12,6 +12,7 @@ interface ExerciseCardProps {
   onPress: () => void;
   index: number;
   status?: 'pending' | 'in-progress' | 'completed';
+  prPotential?: boolean; // Whether this exercise has potential for PRs
 }
 
 export const ExerciseCard: React.FC<ExerciseCardProps> = ({
@@ -19,6 +20,7 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   onPress,
   index,
   status = 'pending',
+  prPotential = false,
 }) => {
   const statusLabel =
     status === 'completed' ? 'Completed' : status === 'in-progress' ? 'In Progress' : 'Pending';
@@ -40,20 +42,28 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
           <Text style={styles.title}>{exercise.name}</Text>
           <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
         </View>
-        <View
-          style={[
-            styles.statusBadge,
-            status === 'completed'
-              ? styles.statusCompleted
-              : status === 'in-progress'
-              ? styles.statusInProgress
-              : styles.statusPending,
-          ]}
-        >
-          <Text style={[
-            styles.statusText,
-            status === 'completed' && styles.statusTextCompleted
-          ]}>{statusLabel}</Text>
+        <View style={styles.badgeContainer}>
+          {prPotential && status !== 'completed' && (
+            <View style={styles.prBadge}>
+              <Icon name="zap" size={12} color={colors.black} />
+              <Text style={styles.prText}>PR</Text>
+            </View>
+          )}
+          <View
+            style={[
+              styles.statusBadge,
+              status === 'completed'
+                ? styles.statusCompleted
+                : status === 'in-progress'
+                ? styles.statusInProgress
+                : styles.statusPending,
+            ]}
+          >
+            <Text style={[
+              styles.statusText,
+              status === 'completed' && styles.statusTextCompleted
+            ]}>{statusLabel}</Text>
+          </View>
         </View>
       </View>
 
@@ -171,5 +181,27 @@ const styles = StyleSheet.create({
   },
   statusCompleted: {
     backgroundColor: colors.success,
+  },
+  
+  // PR Indicator styles
+  badgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  prBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  prText: {
+    ...typography.caption,
+    color: colors.black,
+    fontWeight: '700',
+    fontSize: 10,
   },
 });

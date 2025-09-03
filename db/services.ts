@@ -168,9 +168,25 @@ export const userProgressService = {
   async getWeeklyWeightsByUserId(userId: string): Promise<any> {
     const progress = await this.getByUserId(userId);
     if (!progress) return {};
+    
+    console.log(`🔍 RAW DATABASE - weeklyWeights field type:`, typeof progress.weeklyWeights);
+    console.log(`🔍 RAW DATABASE - weeklyWeights raw value:`, progress.weeklyWeights);
+    
     try {
-      return progress.weeklyWeights ? JSON.parse(progress.weeklyWeights as unknown as string) : {};
-    } catch {
+      const parsed = progress.weeklyWeights ? JSON.parse(progress.weeklyWeights as unknown as string) : {};
+      
+      // FIX: Ensure data is always an object, never an array
+      if (Array.isArray(parsed)) {
+        console.log(`🔍 RAW DATABASE - CORRUPTION DETECTED! Found array instead of object. Returning empty object.`);
+        return {};
+      }
+      
+      console.log(`🔍 RAW DATABASE - After JSON.parse:`, parsed);
+      console.log(`🔍 RAW DATABASE - Parsed type:`, typeof parsed);
+      return parsed;
+    } catch (error) {
+      console.error(`🔍 RAW DATABASE - JSON parse failed:`, error);
+      console.log(`🔍 RAW DATABASE - Returning empty object due to parse error`);
       return {};
     }
   },
@@ -187,14 +203,48 @@ export const userProgressService = {
     return sorted[sorted.length - 1];
   },
 
+  async getTodayExerciseSession(userId: string, exerciseId: string, dateISO?: string): Promise<
+    | { date: string; unit: 'kg' | 'lb'; sets: Array<{ setNumber: number; weightKg: number; reps: number; isCompleted: boolean }> }
+    | null
+  > {
+    const today = (dateISO || new Date().toISOString()).slice(0, 10); // YYYY-MM-DD
+    const data = await this.getWeeklyWeightsByUserId(userId);
+    
+    console.log(`🔍 Raw weeklyWeights data:`, data);
+    console.log(`🔍 Exercise logs keys:`, Object.keys(data?.exerciseLogs || {}));
+    console.log(`🔍 Looking for exerciseId: "${exerciseId}"`);
+    
+    const sessions = data?.exerciseLogs?.[exerciseId] as any[] | undefined;
+    console.log(`🔍 Sessions for ${exerciseId}:`, sessions);
+    
+    if (!sessions || sessions.length === 0) {
+      console.log(`🔍 No sessions found for ${exerciseId}`);
+      return null;
+    }
+    
+    // Find today's session specifically
+    const todaySession = sessions.find(session => session.date === today);
+    console.log(`🔍 Looking for today's session (${today}) for ${exerciseId}:`, !!todaySession);
+    console.log(`🔍 Available sessions dates:`, sessions.map(s => ({ date: s.date, setsCount: s.sets?.length || 0 })));
+    
+    if (todaySession) {
+      console.log(`✅ Found today's session:`, { date: todaySession.date, unit: todaySession.unit, setsCount: todaySession.sets?.length || 0 });
+    }
+    
+    return todaySession || null;
+  },
+
   async upsertTodayExerciseSession(
     userId: string,
     exerciseId: string,
     payload: { unit: 'kg' | 'lb'; sets: Array<{ setNumber: number; weightKg: number; reps: number; isCompleted: boolean }> },
     dateISO?: string
   ): Promise<void> {
+    console.log(`💾 SAVE DEBUG - Starting upsert for ${exerciseId}`);
+    
     let progress = await this.getByUserId(userId);
     if (!progress) {
+      console.log(`💾 SAVE DEBUG - No progress found, creating new record`);
       // Create a minimal default progress row if none exists
       const created = await this.create({
         userId,
@@ -206,30 +256,89 @@ export const userProgressService = {
         weeklyWeights: '{}',
       } as any);
       progress = created || (await this.getByUserId(userId));
-      if (!progress) return;
+      if (!progress) {
+        console.log(`💾 SAVE DEBUG - Failed to create progress record`);
+        return;
+      }
     }
 
     const today = (dateISO || new Date().toISOString()).slice(0, 10); // YYYY-MM-DD
+    console.log(`💾 SAVE DEBUG - Today's date: ${today}`);
+    
     let data: any = {};
     try {
-      data = progress.weeklyWeights ? JSON.parse(progress.weeklyWeights as unknown as string) : {};
-    } catch {
+      console.log(`💾 SAVE DEBUG - Raw weeklyWeights from DB:`, progress.weeklyWeights);
+      console.log(`💾 SAVE DEBUG - Raw weeklyWeights type:`, typeof progress.weeklyWeights);
+      
+      const parsed = progress.weeklyWeights ? JSON.parse(progress.weeklyWeights as unknown as string) : {};
+      
+      // FIX: Ensure data is always an object, never an array
+      if (Array.isArray(parsed)) {
+        console.log(`💾 SAVE DEBUG - CORRUPTION DETECTED! Database contains array instead of object. Fixing...`);
+        data = {}; // Reset to empty object
+      } else {
+        data = parsed;
+      }
+      
+      console.log(`💾 SAVE DEBUG - Final data after array fix:`, data);
+      console.log(`💾 SAVE DEBUG - Final data type:`, typeof data);
+      console.log(`💾 SAVE DEBUG - Is final data an array?:`, Array.isArray(data));
+      console.log(`💾 SAVE DEBUG - Current data keys:`, Object.keys(data));
+    } catch (error) {
+      console.log(`💾 SAVE DEBUG - Failed to parse weeklyWeights, starting fresh:`, error);
       data = {};
     }
 
-    if (!data.exerciseLogs) data.exerciseLogs = {};
-    if (!data.exerciseLogs[exerciseId]) data.exerciseLogs[exerciseId] = [];
+    if (!data.exerciseLogs) {
+      console.log(`💾 SAVE DEBUG - Creating exerciseLogs object`);
+      data.exerciseLogs = {};
+    }
+    if (!data.exerciseLogs[exerciseId]) {
+      console.log(`💾 SAVE DEBUG - Creating sessions array for ${exerciseId}`);
+      data.exerciseLogs[exerciseId] = [];
+    }
 
     const sessions: any[] = data.exerciseLogs[exerciseId];
     const idx = sessions.findIndex((s) => s.date === today);
     const newSession = { date: today, unit: payload.unit, sets: payload.sets };
+    
+    console.log(`💾 SAVE DEBUG - Session index: ${idx}, Sessions before: ${sessions.length}`);
+    
     if (idx >= 0) {
+      console.log(`💾 SAVE DEBUG - Updating existing session at index ${idx}`);
       sessions[idx] = newSession;
     } else {
+      console.log(`💾 SAVE DEBUG - Adding new session`);
       sessions.push(newSession);
     }
 
-    await this.update(progress.id, { weeklyWeights: JSON.stringify(data) });
+    console.log(`💾 SAVE DEBUG - Sessions after: ${sessions.length}`);
+    console.log(`💾 SAVE DEBUG - Final data keys:`, Object.keys(data.exerciseLogs));
+    console.log(`💾 SAVE DEBUG - Data object before stringify:`, data);
+    console.log(`💾 SAVE DEBUG - Data object type:`, typeof data);
+    console.log(`💾 SAVE DEBUG - Is data an array?:`, Array.isArray(data));
+    console.log(`💾 SAVE DEBUG - Data.exerciseLogs type:`, typeof data.exerciseLogs);
+    console.log(`💾 SAVE DEBUG - Data.exerciseLogs keys:`, Object.keys(data.exerciseLogs || {}));
+    
+    const stringified = JSON.stringify(data);
+    console.log(`💾 SAVE DEBUG - JSON.stringify result:`, stringified.substring(0, 200) + '...');
+    console.log(`💾 SAVE DEBUG - JSON.stringify length:`, stringified.length);
+
+    try {
+      await this.update(progress.id, { weeklyWeights: JSON.stringify(data) });
+      console.log(`💾 SAVE DEBUG - Database update completed successfully`);
+      
+      // Verify the save worked
+      const verifyProgress = await this.getByUserId(userId);
+      if (verifyProgress?.weeklyWeights) {
+        const verifyData = JSON.parse(verifyProgress.weeklyWeights as string);
+        console.log(`💾 SAVE DEBUG - Verification - Exercise keys:`, Object.keys(verifyData?.exerciseLogs || {}));
+        console.log(`💾 SAVE DEBUG - Verification - ${exerciseId} sessions:`, verifyData?.exerciseLogs?.[exerciseId]?.length || 0);
+      }
+    } catch (error) {
+      console.error(`💾 SAVE DEBUG - Database update failed:`, error);
+      throw error;
+    }
   },
 };
 

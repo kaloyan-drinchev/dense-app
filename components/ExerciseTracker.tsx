@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Exercise, ExerciseSet } from '@/types/workout';
@@ -18,6 +19,15 @@ import { userProgressService } from '@/db/services';
 import { generateId } from '@/utils/helpers';
 import { Feather as Icon } from '@expo/vector-icons';
 import { typography } from '@/constants/typography';
+import { 
+  analyzeExercisePRs, 
+  checkForNewPRs, 
+  showPRNotification,
+  getBeatLastWorkoutSuggestions,
+  type ExerciseLogs,
+  type ExercisePRs,
+  type PersonalRecord
+} from '@/utils/pr-tracking';
 
 interface ExerciseTrackerProps {
   exercise: Exercise;
@@ -72,6 +82,37 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const isSavingRef = useRef(false);
   const pendingSaveRef = useRef(false);
 
+  // PR tracking state
+  const [exerciseLogs, setExerciseLogs] = useState<ExerciseLogs>({});
+  const [exercisePRs, setExercisePRs] = useState<ExercisePRs>({});
+  const [beatLastSuggestions, setBeatLastSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+
+  // Load PR data function (moved outside useEffect for reuse)
+  const loadPRData = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const progress = await userProgressService.getByUserId(user.id);
+      if (progress?.weeklyWeights) {
+        const weeklyWeights = JSON.parse(progress.weeklyWeights);
+        const logs = weeklyWeights?.exerciseLogs || {};
+        
+        setExerciseLogs(logs);
+        
+        // Analyze PRs for all exercises
+        const allPRs = analyzeExercisePRs(logs);
+        setExercisePRs(allPRs);
+        
+        // Generate beat last workout suggestions
+        const suggestions = getBeatLastWorkoutSuggestions(exerciseKey, allPRs);
+        setBeatLastSuggestions(suggestions);
+      }
+    } catch (error) {
+      console.error('Failed to load PR data:', error);
+    }
+  };
+
   useEffect(() => {
     const loadSessionData = async () => {
       if (presetSession) {
@@ -88,23 +129,47 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       // Load current session data if not read-only
       if (!user?.id || !exerciseKey) return;
       try {
-        const lastSession = await userProgressService.getLastExerciseSession(user.id, exerciseKey);
-        if (lastSession?.sets) {
-          setUnit(lastSession.unit || 'kg');
-          const limitedSets = lastSession.sets.slice(0, MAX_SETS);
-          const hydrated: ExerciseSet[] = (limitedSets.length > 0
-            ? limitedSets
-            : Array.from({ length: MIN_SETS }, () => ({ reps: 0, weightKg: 0, isCompleted: false }))
-          ).map((s) => ({ id: generateId(), reps: s.reps, weight: s.weightKg, isCompleted: !!s.isCompleted }));
+        console.log(`🔄 Loading today's session for ${exerciseKey}...`);
+        
+        // DEBUG: Check what's actually stored
+        const progress = await userProgressService.getByUserId(user.id);
+        if (progress?.weeklyWeights) {
+          const data = JSON.parse(progress.weeklyWeights);
+          console.log(`🔧 DEBUG - All stored exercise keys:`, Object.keys(data?.exerciseLogs || {}));
+          console.log(`🔧 DEBUG - Looking for key: "${exerciseKey}"`);
+          console.log(`🔧 DEBUG - Direct lookup:`, data?.exerciseLogs?.[exerciseKey]?.length || 0, 'sessions');
+          if (data?.exerciseLogs?.[exerciseKey]) {
+            console.log(`🔧 DEBUG - Sessions:`, data.exerciseLogs[exerciseKey].map(s => ({ date: s.date, sets: s.sets?.length })));
+          }
+        }
+        
+        const todaySession = await userProgressService.getTodayExerciseSession(user.id, exerciseKey);
+        console.log(`📋 Today's session found:`, !!todaySession, todaySession?.sets?.length || 0, 'sets');
+        
+        if (todaySession?.sets && todaySession.sets.length > 0) {
+          setUnit(todaySession.unit || 'kg');
+          const limitedSets = todaySession.sets.slice(0, MAX_SETS);
+          const hydrated: ExerciseSet[] = limitedSets.map((s) => ({ 
+            id: generateId(), 
+            reps: s.reps || 0, 
+            weight: s.weightKg || 0, 
+            isCompleted: !!s.isCompleted 
+          }));
+          console.log(`✅ Loaded ${hydrated.length} sets for ${exerciseKey}:`, hydrated.map(s => `${s.weight}kg x ${s.reps} (${s.isCompleted ? '✓' : '○'})`));
           setSets(hydrated);
+        } else {
+          console.log(`🆕 No today's session found for ${exerciseKey}, starting fresh`);
         }
       } catch (e) {
         // If no previous session found, start with empty sets
-        console.log('No previous session found, starting fresh');
+        console.log('❌ Error loading session, starting fresh:', e);
       }
     };
     
+
+    
     loadSessionData();
+    loadPRData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, exerciseKey, presetSession?.unit, JSON.stringify(presetSession?.sets)]);
 
@@ -279,8 +344,13 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       })),
     };
     try {
-      console.log(`💾 Saving exercise ${exerciseKey}:`, payload);
+      console.log(`💾 Saving exercise ${exerciseKey} with ${payload.sets.length} sets:`);
+      console.log(`💾 Sets details:`, payload.sets.map(s => `Set ${s.setNumber}: ${s.weightKg}kg x ${s.reps} (${s.isCompleted ? '✓' : '○'})`));
+      
+      console.log(`💾 TRACKER DEBUG - About to call upsertTodayExerciseSession`);
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
+      console.log(`💾 TRACKER DEBUG - upsertTodayExerciseSession completed`);
+      
       console.log(`✅ Successfully saved ${exerciseKey}`);
       setSaveStatus('saved');
     } catch (e) {
@@ -358,6 +428,52 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       }
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
       console.log('✅ Successfully saved completed exercise with all sets marked as completed');
+      
+      // Check for new PRs and show notifications
+      const completedSets = updatedSets.filter(set => set.isCompleted && set.weight > 0 && set.reps > 0);
+      console.log('🔍 PR Check - Completed sets:', completedSets.length);
+      
+      if (completedSets.length > 0) {
+        // Get fresh PR data directly from database instead of relying on state
+        console.log('🔄 Getting fresh PR data to include new session...');
+        const progress = await userProgressService.getByUserId(user.id);
+        
+        if (progress?.weeklyWeights) {
+          const weeklyWeights = JSON.parse(progress.weeklyWeights);
+          const freshLogs = weeklyWeights?.exerciseLogs || {};
+          console.log('📋 Fresh exercise logs:', Object.keys(freshLogs));
+          console.log(`📋 Sessions for ${exerciseKey}:`, freshLogs[exerciseKey]?.length || 0);
+          
+          // Analyze PRs with fresh data
+          const freshPRs = analyzeExercisePRs(freshLogs);
+          
+          // Convert ExerciseSet[] to PR tracking format
+          const prSets = completedSets.map(set => ({
+            weightKg: set.weight,
+            reps: set.reps,
+            isCompleted: set.isCompleted
+          }));
+          
+          console.log('🎯 Checking for PRs with sets:', prSets);
+          console.log('🎯 Previous exercise PRs:', exercisePRs[exerciseKey]);
+          console.log('🎯 Fresh exercise PRs:', freshPRs[exerciseKey]);
+          
+          const newPRs = checkForNewPRs(exerciseKey, prSets, exercisePRs);
+          console.log('🏆 New PRs found:', newPRs);
+          
+          if (newPRs.length > 0) {
+            // Show PR notification
+            showPRNotification(exercise.name, newPRs);
+          } else {
+            console.log('💭 No new PRs detected');
+          }
+          
+          // Update state with fresh data
+          await loadPRData();
+        } else {
+          console.log('⚠️ No weeklyWeights data found');
+        }
+      }
     } catch (e) {
       console.error('❌ Failed to save completed exercise:', e);
     }
@@ -379,9 +495,39 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{exercise.name}</Text>
-        <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>{exercise.name}</Text>
+          <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.historyButton}
+          onPress={() => router.push(`/exercise-history?exerciseId=${exerciseKey}&exerciseName=${encodeURIComponent(exercise.name)}`)}
+        >
+          <Icon name="bar-chart-2" size={20} color={colors.primary} />
+          <Text style={styles.historyButtonText}>History</Text>
+        </TouchableOpacity>
       </View>
+      
+      {/* Beat Last Workout Suggestions */}
+      {!readOnly && beatLastSuggestions.length > 0 && showSuggestions && (
+        <View style={styles.suggestionsContainer}>
+          <View style={styles.suggestionsHeader}>
+            <Icon name="target" size={16} color={colors.primary} />
+            <Text style={styles.suggestionsTitle}>Beat Last Workout</Text>
+            <TouchableOpacity onPress={() => setShowSuggestions(false)}>
+              <Icon name="x" size={16} color={colors.lightGray} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll}>
+            {beatLastSuggestions.map((suggestion, index) => (
+              <View key={index} style={styles.suggestionChip}>
+                <Text style={styles.suggestionText}>{suggestion}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+      
       {readOnly && (
         <View style={styles.readOnlyBanner}>
           <Text style={styles.readOnlyText}>Finished workout • Read-only</Text>
@@ -609,6 +755,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
   title: {
@@ -860,5 +1009,61 @@ const styles = StyleSheet.create({
     flex: 0,
     minWidth: 120,
     maxWidth: 140,
+  },
+  
+  // New PR tracking styles
+  titleContainer: {
+    flex: 1,
+  },
+  historyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.darkGray,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  historyButtonText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  
+  // Beat Last Workout Suggestions
+  suggestionsContainer: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  suggestionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  suggestionsTitle: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '600',
+    flex: 1,
+  },
+  suggestionsScroll: {
+    flexGrow: 0,
+  },
+  suggestionChip: {
+    backgroundColor: colors.mediumGray,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  suggestionText: {
+    ...typography.caption,
+    color: colors.white,
+    fontSize: 12,
   },
 });

@@ -26,6 +26,12 @@ import { WorkoutPreviewModal } from '@/components/WorkoutPreviewModal';
 import { WorkoutNotStartedModal } from '@/components/WorkoutNotStartedModal';
 import { markTodayWorkoutCompleted } from '@/utils/workout-completion-tracker';
 import { ensureMinimumDuration } from '@/utils/workout-duration';
+import { 
+  analyzeExercisePRs, 
+  getBeatLastWorkoutSuggestions,
+  type ExerciseLogs,
+  type ExercisePRs
+} from '@/utils/pr-tracking';
 
 export default function WorkoutSessionScreen() {
   const router = useRouter();
@@ -39,6 +45,10 @@ export default function WorkoutSessionScreen() {
   const [showWorkoutConfirmModal, setShowWorkoutConfirmModal] = useState(false);
   const [workoutCompletionData, setWorkoutCompletionData] = useState<{percentage: number, completed: number, total: number} | null>(null);
   const [workoutStarted, setWorkoutStarted] = useState(false);
+  
+  // PR tracking state
+  const [exerciseLogs, setExerciseLogs] = useState<ExerciseLogs>({});
+  const [exercisePRs, setExercisePRs] = useState<ExercisePRs>({});
   const { 
     formattedTime, 
     isRunning, 
@@ -98,6 +108,17 @@ export default function WorkoutSessionScreen() {
       // Load progress data
       const progress = await userProgressService.getByUserId(user.id);
       setUserProgressData(progress);
+      
+      // Load PR data
+      if (progress?.weeklyWeights) {
+        const weeklyWeights = JSON.parse(progress.weeklyWeights);
+        const logs = weeklyWeights?.exerciseLogs || {};
+        setExerciseLogs(logs);
+        
+        // Analyze PRs for all exercises
+        const allPRs = analyzeExercisePRs(logs);
+        setExercisePRs(allPRs);
+      }
     } catch (error) {
       console.error('❌ Failed to load workout data:', error);
     } finally {
@@ -190,6 +211,13 @@ export default function WorkoutSessionScreen() {
 
   const workoutProgress = calculateWorkoutProgress();
   const allExercisesCompleted = workoutProgress.percentage === 100;
+
+  // Check if an exercise has PR potential
+  const hasPRPotential = (exerciseId: string): boolean => {
+    const suggestions = getBeatLastWorkoutSuggestions(exerciseId, exercisePRs);
+    // If there are suggestions, it means there's data to beat
+    return suggestions.length > 0 && !suggestions[0].includes('First time');
+  };
 
   // New modal handlers
   const handleStartWorkoutPress = () => {
@@ -490,6 +518,7 @@ export default function WorkoutSessionScreen() {
                   index={index}
                   onPress={() => handleExercisePress(exerciseWithId.id)}
                   status={getExerciseStatus(exerciseWithId.id, exerciseWithId.sets)}
+                  prPotential={hasPRPotential(exerciseWithId.id)}
                 />
               );
             }) || (

@@ -456,6 +456,13 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="exercise-history" 
+        options={{ 
+          headerShown: false,
+          animation: 'slide_from_right',
+        }} 
+      />
+      <Stack.Screen 
         name="ai-chat" 
         options={{ 
           headerShown: false,
