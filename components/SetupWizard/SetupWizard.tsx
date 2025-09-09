@@ -17,7 +17,7 @@ import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { wizardResultsService, userProfileService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
-import { useSubscriptionStore } from '@/store/subscription-store';
+import { useSubscriptionStore } from '@/store/subscription-store.js';
 import { ProgramGenerator, type WizardResponses } from '@/utils/program-generator';
 import { SubscriptionScreen } from '@/components/SubscriptionScreen';
 

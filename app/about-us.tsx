@@ -14,6 +14,7 @@ import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LEGAL_URLS, openLegalURL } from '@/constants/legal';
 
 export default function AboutUsScreen() {
   const router = useRouter();
@@ -239,6 +240,38 @@ export default function AboutUsScreen() {
               <Icon name="external-link" size={16} color={colors.lightGray} />
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Legal Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Legal & Privacy</Text>
+          
+          <TouchableOpacity
+            style={styles.contactItem}
+            onPress={() => openLegalURL('privacyPolicy')}
+          >
+            <Icon name="shield" size={20} color={colors.primary} />
+            <Text style={styles.contactText}>Privacy Policy</Text>
+            <Icon name="external-link" size={16} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.contactItem}
+            onPress={() => openLegalURL('termsOfService')}
+          >
+            <Icon name="file-text" size={20} color={colors.primary} />
+            <Text style={styles.contactText}>Terms of Service</Text>
+            <Icon name="external-link" size={16} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.contactItem}
+            onPress={() => openLegalURL('support')}
+          >
+            <Icon name="help-circle" size={20} color={colors.primary} />
+            <Text style={styles.contactText}>Support & Help</Text>
+            <Icon name="external-link" size={16} color={colors.lightGray} />
+          </TouchableOpacity>
         </View>
 
         {/* Footer */}

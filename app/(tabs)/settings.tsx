@@ -14,13 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
-import { useSubscriptionStore } from '@/store/subscription-store';
-import { subscriptionService } from '@/services/subscription-service';
+import { useSubscriptionStore } from '@/store/subscription-store.js';
+import { subscriptionService } from '@/services/subscription-service.js';
 import { wizardResultsService } from '@/db/services';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LEGAL_URLS, openLegalURL } from '@/constants/legal.js';
 
 // import ConnectionTest from '@/components/ConnectionTest';
 
@@ -149,6 +150,43 @@ export default function SettingsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     router.push('/my-goals');
+  };
+
+  const handleManageSubscription = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    try {
+      if (Platform.OS === 'ios') {
+        // Open Apple's subscription management
+        const { Linking } = await import('react-native');
+        const url = 'https://apps.apple.com/account/subscriptions';
+        const supported = await Linking.canOpenURL(url);
+        if (supported) {
+          await Linking.openURL(url);
+        } else {
+          Alert.alert(
+            'Manage Subscription',
+            'To manage your subscription, go to Settings > [Your Name] > Subscriptions on your device.',
+            [{ text: 'OK' }]
+          );
+        }
+      } else {
+        Alert.alert(
+          'Manage Subscription',
+          'Subscription management is available in the app store where you purchased the subscription.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error opening subscription management:', error);
+      Alert.alert(
+        'Error',
+        'Unable to open subscription management. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
 
@@ -803,6 +841,25 @@ export default function SettingsScreen() {
               })()}
             </View>
           </TouchableOpacity>
+
+          {/* Manage Subscription Button - Required by Apple */}
+          {hasActiveSubscription() && (
+            <TouchableOpacity 
+              style={styles.settingItem}
+              onPress={handleManageSubscription}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
+                <Icon name="settings" size={20} color={colors.black} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingTitle}>Manage Subscription</Text>
+                <Text style={styles.settingDescription}>
+                  Cancel, change plan, or view billing history
+                </Text>
+              </View>
+              <Icon name="external-link" size={20} color={colors.lightGray} />
+            </TouchableOpacity>
+          )}
         </View>
 
       </ScrollView>

@@ -23,8 +23,8 @@ import { Platform, View, Text, ActivityIndicator } from "react-native";
 
 import { initializeDatabase } from "@/db/migrations";
 import { useAuthStore } from "@/store/auth-store";
-import { useSubscriptionStore } from "@/store/subscription-store";
-import { subscriptionService } from "@/services/subscription-service";
+import { useSubscriptionStore } from "@/store/subscription-store.js";
+import { subscriptionService } from "@/services/subscription-service.js";
 
 
 import { SetupWizard } from "@/components/SetupWizard";

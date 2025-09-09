@@ -15,8 +15,20 @@ import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { subscriptionService, SUBSCRIPTION_PLANS, type SubscriptionPlan } from '@/services/subscription-service';
-import { useSubscriptionStore } from '@/store/subscription-store';
+import { subscriptionService, SUBSCRIPTION_PLANS } from '@/services/subscription-service.js';
+
+// Define SubscriptionPlan type locally
+interface SubscriptionPlan {
+  id: string;
+  name: string;
+  duration: number;
+  price: number;
+  originalPrice?: number;
+  discount?: number;
+  popular?: boolean;
+  description?: string;
+}
+import { useSubscriptionStore } from '@/store/subscription-store.js';
 import { useRouter } from 'expo-router';
 
 interface SubscriptionScreenProps {
@@ -156,7 +168,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           console.log('🎯 Showing Free Trial Started message');
           Alert.alert(
             '🎉 Free Trial Started!',
-            `Welcome to your 7-day free trial of DENSE Pro! You now have full access to all premium features. After 7 days, your subscription will continue at ${planText}.`,
+            `Welcome to your 7-day free trial of DENSE Pro! You now have full access to all premium features. Your trial will automatically end after 7 days - no charges will occur unless you choose to subscribe.`,
             [{ text: 'Start Training', onPress: () => {
               console.log('🎯 Trial Start Training pressed - navigating directly to home');
               setIsProcessing(false);

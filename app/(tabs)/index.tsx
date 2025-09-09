@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
 import { useTimerStore } from '@/store/timer-store';
-import { useSubscriptionStore } from '@/store/subscription-store';
+import { useSubscriptionStore } from '@/store/subscription-store.js';
 import { wizardResultsService, userProgressService } from '@/db/services';
 import { colors, gradients, buttonStyles } from '@/constants/colors';
 import { typography } from '@/constants/typography';

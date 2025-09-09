@@ -18,6 +18,10 @@ export default {
       bundleIdentifier: "app.dense",
       infoPlist: {
         NSCameraUsageDescription: "This app uses the camera to scan food barcodes for nutrition tracking."
+      },
+      config: {
+        usesICloudStorage: false,
+        usesNonExemptEncryption: false
       }
     },
     android: {
@@ -54,6 +58,8 @@ export default {
     ],
     extra: {
       geminiApiKey: process.env.GEMINI_API_KEY
-    }
+    },
+    privacy: "public",
+    privacyPolicyUrl: "https://lazarovtwins.com/dense/privacy-policy"
   }
 };

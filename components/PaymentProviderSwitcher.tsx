@@ -11,7 +11,7 @@ import {
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
-import { subscriptionService } from '@/services/subscription-service';
+import { subscriptionService } from '@/services/subscription-service.js';
 import { paymentConfig } from '@/services/payment-config';
 import * as Haptics from 'expo-haptics';
 
