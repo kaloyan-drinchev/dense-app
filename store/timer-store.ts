@@ -23,8 +23,6 @@ interface WorkoutTimerState {
   updateTimeElapsed: () => void;
   setTimeElapsed: (seconds: number) => void;
   stopWorkoutOnExpiration: () => void;
-  // 🚨 TESTING ONLY - Remove before production
-  clearAllTimerData: () => Promise<void>;
 }
 
 export const useTimerStore = create<WorkoutTimerState>()(
@@ -156,27 +154,6 @@ export const useTimerStore = create<WorkoutTimerState>()(
         }
       },
 
-      // 🚨 TESTING ONLY - Remove before production
-      clearAllTimerData: async () => {
-        // Clear in-memory state
-        set({
-          isWorkoutActive: false,
-          timeElapsed: 0,
-          isRunning: false,
-          workoutStartTime: null,
-          lastPauseTime: null,
-          currentWorkoutId: null,
-          workoutName: null,
-        });
-        
-        // Also clear the persisted data from AsyncStorage
-        try {
-          await AsyncStorage.removeItem('workout-timer-storage');
-          console.log('🗑️ Timer AsyncStorage cleared');
-        } catch (error) {
-          console.error('❌ Failed to clear timer AsyncStorage:', error);
-        }
-      },
     }),
     {
       name: 'workout-timer-storage',

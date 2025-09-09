@@ -80,20 +80,9 @@ export const useAuthStore = create<AuthState>()(
 
       // Logout function (simplified - just clears data)
       logout: async () => {
-        // Clear workout store user profile and progress
+        // Clear workout store user profile
         const { useWorkoutStore } = await import('@/store/workout-store');
         useWorkoutStore.getState().clearUserProfile();
-        // 🚨 TESTING ONLY - Remove resetProgress call before production
-        useWorkoutStore.getState().resetProgress();
-        
-        // 🚨 TESTING ONLY - Remove timer clearing before production
-        try {
-          const { useTimerStore } = await import('@/store/timer-store');
-          await useTimerStore.getState().clearAllTimerData();
-          console.log('⏱️ Timer data cleared during logout');
-        } catch (error) {
-          console.error('❌ Failed to clear timer data during logout:', error);
-        }
         
         set({ 
           user: null, 

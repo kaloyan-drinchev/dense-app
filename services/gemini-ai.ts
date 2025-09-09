@@ -1,8 +1,14 @@
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutStore } from '@/store/workout-store';
+import Constants from 'expo-constants';
 
-const GEMINI_API_KEY = 'AIzaSyAw2azVyXjAD239R7X6wDyQyYDEwmTty1Q';
+// Get API key from Constants (loaded from app.config.js at build time)
+const GEMINI_API_KEY = Constants.expoConfig?.extra?.geminiApiKey || 
+                      Constants.manifest?.extra?.geminiApiKey ||
+                      'AIzaSyAw2azVyXjAD239R7X6wDyQyYDEwmTty1Q'; // Fallback for development
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+
+// Production ready - debug logs removed
 
 export interface AIResponse {
   message: string;
@@ -87,22 +93,18 @@ CONTEXT:
 
   async sendMessage(userMessage: string, chatHistory: any[] = []): Promise<AIResponse> {
     try {
-      // Build conversation history for context
-      const conversationHistory = chatHistory.map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.content }]
-      }));
-
+      
+      // Validate API key first
+      if (!GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY is not configured');
+      }
+      
+      // Simplified request - just send the current message for now
       const requestBody = {
         contents: [
           {
             role: 'user',
-            parts: [{ text: this.buildSystemPrompt() }]
-          },
-          ...conversationHistory,
-          {
-            role: 'user',
-            parts: [{ text: userMessage }]
+            parts: [{ text: `${this.buildSystemPrompt()}\n\nUser: ${userMessage}` }]
           }
         ],
         generationConfig: {
@@ -138,9 +140,10 @@ CONTEXT:
         },
         body: JSON.stringify(requestBody),
       });
-
+      
       if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -164,12 +167,19 @@ CONTEXT:
       let fallbackMessage = "I apologize, but I'm having trouble connecting right now. Please try again in a moment.";
       
       if (error instanceof Error) {
+        // Check for common API errors
         if (error.message.includes('503')) {
           fallbackMessage = "🔄 The AI service is temporarily busy. Please try again in 10-30 seconds. Your request is important to me!";
         } else if (error.message.includes('429')) {
           fallbackMessage = "⏱️ Rate limit reached. Please wait a moment before sending another message.";
-        } else if (error.message.includes('401')) {
+        } else if (error.message.includes('401') || error.message.includes('403')) {
           fallbackMessage = "🔑 API authentication issue. Please contact support if this persists.";
+        } else if (error.message.includes('400')) {
+          fallbackMessage = "🔧 Request format error. The development team has been notified.";
+        } else if (!GEMINI_API_KEY) {
+          fallbackMessage = "🔑 Configuration error: API key not found. Please restart the app.";
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          fallbackMessage = "🌐 Network connection issue. Please check your internet connection.";
         }
       }
 

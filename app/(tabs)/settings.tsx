@@ -26,7 +26,7 @@ import * as Haptics from 'expo-haptics';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { userProfile, resetProgress } = useWorkoutStore();
+  const { userProfile } = useWorkoutStore();
   const { user, logout } = useAuthStore();
   const { 
     hasActiveSubscription, 
@@ -40,7 +40,6 @@ export default function SettingsScreen() {
     refreshSubscriptionStatus
   } = useSubscriptionStore();
   const [notifications, setNotifications] = useState(true);
-  const [isResetting, setIsResetting] = useState(false);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number>(0);
   const [wizardData, setWizardData] = useState<any>(null);
 
@@ -152,17 +151,153 @@ export default function SettingsScreen() {
     router.push('/my-goals');
   };
 
-  // 🚨 TESTING ONLY - Remove before production
-  const handleResetProgress = () => {
-    if (isResetting) return; // Prevent multiple resets
-    
+
+
+
+  // 🧪 ENHANCED SUBSCRIPTION TESTING FUNCTIONS
+
+  const handleStartTrial = async () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
     Alert.alert(
-      'Reset ALL Progress & Subscriptions',
-      'This will clear ALL your data including subscriptions, trial status, wizard progress, and return you to the setup screen. This action cannot be undone.',
+      '🧪 Testing: Start 7-Day Trial',
+      'This will start a fresh 7-day trial (resets trial state). Perfect for testing the trial experience.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Start Trial',
+          style: 'default',
+          onPress: async () => {
+            try {
+              // Import subscription service functions
+              const { subscriptionService } = await import('@/services/subscription-service');
+              
+              // Clear existing trial data and start fresh
+              await subscriptionService.clearTrialData();
+              const result = await subscriptionService.startFreeTrial();
+              
+              if (result.success) {
+                await refreshSubscriptionStatus();
+                triggerNavigationRefresh();
+                
+                Alert.alert(
+                  '✅ Trial Started',
+                  `${result.message}\nTrial ends: ${result.trialEndDate ? new Date(result.trialEndDate).toLocaleDateString() : 'In 7 days'}`,
+                  [{ text: 'OK' }]
+                );
+              } else {
+                Alert.alert('Error', result.message, [{ text: 'OK' }]);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to start trial. Please try again.', [{ text: 'OK' }]);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleExpireTrial = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    Alert.alert(
+      '🧪 Testing: Expire Trial',
+      'This will expire your trial immediately, simulating what happens when the 7-day trial ends. You should be prompted to subscribe.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Expire Trial',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Import subscription service functions  
+              const { subscriptionService } = await import('@/services/subscription-service');
+              
+              const result = await subscriptionService.expireTrial();
+              
+              if (result.success) {
+                await refreshSubscriptionStatus();
+                triggerNavigationRefresh();
+                
+                Alert.alert(
+                  '✅ Trial Expired',
+                  'Your trial has ended. You should now be prompted to subscribe.',
+                  [{ text: 'OK' }]
+                );
+              } else {
+                Alert.alert('Error', result.message, [{ text: 'OK' }]);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to expire trial. Please try again.', [{ text: 'OK' }]);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSetSubscriptionDays = async (days: number) => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    const dayText = days === 1 ? '1 day' : `${days} days`;
+    const warningLevel = days === 1 ? 'critical' : days <= 3 ? 'warning' : 'info';
+
+    Alert.alert(
+      `🧪 Testing: ${dayText} remaining`,
+      `This will set your subscription to expire in ${dayText}. Perfect for testing ${warningLevel} expiration warnings.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: `Set ${dayText}`,
+          style: 'default',
+          onPress: async () => {
+            try {
+              const success = await setSubscriptionEndDate(days);
+              
+              if (success) {
+                await refreshSubscriptionStatus();
+                triggerNavigationRefresh();
+                
+                Alert.alert(
+                  '✅ Subscription Updated',
+                  `Your subscription now expires in ${dayText}. Check for expiration warnings throughout the app.`,
+                  [{ text: 'OK' }]
+                );
+              } else {
+                Alert.alert('Error', 'Failed to update subscription. Please try again.', [{ text: 'OK' }]);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to update subscription. Please try again.', [{ text: 'OK' }]);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleResetSubscriptionData = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    Alert.alert(
+      '🧪 Testing: Reset All Data',
+      'This will clear ALL subscription and trial data, returning you to a fresh state as if you just installed the app.',
       [
         {
           text: 'Cancel',
@@ -172,59 +307,34 @@ export default function SettingsScreen() {
           text: 'Reset Everything',
           style: 'destructive',
           onPress: async () => {
-            setIsResetting(true);
             try {
-              console.log('🧹 Starting complete reset...');
-              
-              // Import AsyncStorage dynamically
+              // Import AsyncStorage
               const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
               
-              // Clear subscription/trial data
+              // Clear all subscription-related storage
               await AsyncStorage.removeItem('user_subscription');
               await AsyncStorage.removeItem('user_trial_status');
               await AsyncStorage.removeItem('user_purchases');
               await AsyncStorage.removeItem('subscription_history');
               await AsyncStorage.removeItem('device_id');
               
-              // Clear wizard completion
-              await AsyncStorage.removeItem('user_wizard_completed');
-              await AsyncStorage.removeItem('user_first_time');
-              
-              // Clear user data  
-              await AsyncStorage.removeItem('user_profile');
-              await AsyncStorage.removeItem('user_data');
-              
-              console.log('✅ AsyncStorage cleared');
-              
-              // Reset workout progress data
-              await resetProgress();
-              console.log('✅ Workout progress reset');
-              
               // Refresh subscription status to reflect cleared state
               await refreshSubscriptionStatus();
-              console.log('✅ Subscription status refreshed');
+              triggerNavigationRefresh();
               
-              // Then logout to return to biometric setup
-              await logout();
-              console.log('✅ Logged out - ready for fresh start');
-              
-              if (Platform.OS !== 'web') {
-                Haptics.notificationAsync(
-                  Haptics.NotificationFeedbackType.Success
-                );
-              }
+              Alert.alert(
+                '✅ Reset Complete',
+                'All subscription and trial data has been cleared. You can now test the full onboarding flow.',
+                [{ text: 'OK' }]
+              );
             } catch (error) {
-              console.error('Reset progress error:', error);
-              Alert.alert('Error', 'Failed to reset progress. Please try again.');
-              setIsResetting(false);
+              Alert.alert('Error', 'Failed to reset data. Please try again.', [{ text: 'OK' }]);
             }
           },
         },
       ]
     );
   };
-
-
 
   const handleLogout = () => {
     if (Platform.OS !== 'web') {
@@ -523,28 +633,56 @@ export default function SettingsScreen() {
 
         {/* Developer & Testing Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Developer & Testing</Text>
+          <Text style={styles.sectionTitle}>🧪 Subscription Testing</Text>
 
-          {/* Connection Test Component */}
-          {/* <View style={styles.connectionTestContainer}>
-            <ConnectionTest />
-          </View> */}
-
+          {/* Trial Testing */}
           <TouchableOpacity 
-            style={[styles.settingItem, isResetting && styles.disabled]} 
-            onPress={handleResetProgress}
-            disabled={isResetting}
+            style={styles.settingItem} 
+            onPress={handleStartTrial}
           >
-            <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
-              <Icon name="trash-2" size={20} color={colors.white} />
+            <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
+              <Icon name="play" size={20} color={colors.black} />
             </View>
             <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>🚨 Reset All Progress & Subscriptions</Text>
+              <Text style={styles.settingTitle}>▶️ Start 7-Day Trial</Text>
               <Text style={styles.settingDescription}>
-                Clear ALL data (subscriptions, trials, progress) and return to setup
+                Start fresh trial (resets trial state)
               </Text>
             </View>
-            {!isResetting && <Icon name="chevron-right" size={20} color={colors.lightGray} />}
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.settingItem} 
+            onPress={handleExpireTrial}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.warning }]}>
+              <Icon name="clock" size={20} color={colors.white} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>⏰ Expire Trial (End of 7 Days)</Text>
+              <Text style={styles.settingDescription}>
+                Test what happens when free trial ends
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          {/* Subscription Expiration Testing */}
+          <TouchableOpacity 
+            style={styles.settingItem} 
+            onPress={() => handleSetSubscriptionDays(1)}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
+              <Icon name="alert-triangle" size={20} color={colors.white} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>🚨 1 Day Remaining</Text>
+              <Text style={styles.settingDescription}>
+                Test critical expiration warning
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -555,9 +693,9 @@ export default function SettingsScreen() {
               <Icon name="x-circle" size={20} color={colors.black} />
             </View>
             <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>🧪 Cancel Subscription</Text>
+              <Text style={styles.settingTitle}>❌ Cancel Subscription</Text>
               <Text style={styles.settingDescription}>
-                <Text>Set subscription to cancelled (3 days remaining)</Text>
+                Set to cancelled (3 days remaining)
               </Text>
             </View>
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
@@ -568,12 +706,29 @@ export default function SettingsScreen() {
             onPress={handleSetExpired}
           >
             <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
-              <Icon name="clock" size={20} color={colors.white} />
+              <Icon name="slash" size={20} color={colors.white} />
             </View>
             <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>🧪 Set Expired</Text>
+              <Text style={styles.settingTitle}>💀 Set Expired</Text>
               <Text style={styles.settingDescription}>
-                <Text>Set subscription to expired (immediate)</Text>
+                Immediate expiration - test access blocking
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          {/* Reset Testing */}
+          <TouchableOpacity 
+            style={styles.settingItem} 
+            onPress={handleResetSubscriptionData}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.success }]}>
+              <Icon name="refresh-cw" size={20} color={colors.white} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>🔄 Reset All Subscription Data</Text>
+              <Text style={styles.settingDescription}>
+                Clear all subscription/trial data for fresh testing
               </Text>
             </View>
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
@@ -652,14 +807,6 @@ export default function SettingsScreen() {
 
       </ScrollView>
 
-      {/* Loading Overlay */}
-      {isResetting && (
-        <View style={styles.loadingOverlay}>
-          <View style={{ backgroundColor: colors.darkGray, padding: 20, borderRadius: 12 }}>
-            <Text style={{ color: colors.white }}>Resetting progress...</Text>
-          </View>
-        </View>
-      )}
 
 
     </SafeAreaView>

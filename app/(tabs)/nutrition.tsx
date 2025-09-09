@@ -295,15 +295,15 @@ export default function NutritionScreen() {
             <Text style={styles.quickActionText}>Allowed Foods</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.quickActionButton}
             onPress={handleScanFood}
           >
             <Icon name="camera" size={18} color={colors.white} />
             <Text style={styles.quickActionText}>Scan Food</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={styles.quickActionButton}
             onPress={() => {
               setShowScanModal(true);
@@ -312,7 +312,7 @@ export default function NutritionScreen() {
           >
             <MaterialIcon name="qr-code" size={18} color={colors.white} />
             <Text style={styles.quickActionText}>Barcode</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {Object.keys(entriesByMeal).length > 0 ? (
