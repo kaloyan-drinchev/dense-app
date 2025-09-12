@@ -2,10 +2,10 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Conditionally import IAP to avoid native module errors in Expo Go
-let InAppPurchases = null;
+let RNIap = null;
 try {
   // This will fail in Expo Go, which is expected
-  InAppPurchases = require('expo-in-app-purchases');
+  RNIap = require('react-native-iap');
 } catch (error) {
   console.log('📱 Running in Expo Go - IAP module not available');
 }
@@ -32,8 +32,8 @@ class AppleIAPService {
    * Check if we're running in Expo Go (which doesn't support native IAP)
    */
   isExpoGo() {
-    // If InAppPurchases module is null, we're in Expo Go
-    return InAppPurchases === null;
+    // If RNIap module is null, we're in Expo Go
+    return RNIap === null;
   }
 
   /**
@@ -88,23 +88,19 @@ class AppleIAPService {
       }
 
       // Connect to the store (real IAP)
-      await InAppPurchases.connectAsync();
+      await RNIap.initConnection();
       console.log('✅ Connected to Apple App Store');
 
       // Set up purchase listener
-      this.purchaseListener = InAppPurchases.setPurchaseListener(({ responseCode, results, errorCode }) => {
-        console.log('🛒 Purchase listener triggered:', { responseCode, errorCode, results });
-        
-        if (responseCode === InAppPurchases.IAPResponseCode.OK) {
-          results?.forEach((purchase) => {
-            console.log('✅ Purchase successful:', purchase);
-            this.handlePurchaseSuccess(purchase);
-          });
-        } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-          console.log('❌ Purchase canceled by user');
-        } else {
-          console.log('❌ Purchase failed:', errorCode);
-        }
+      this.purchaseListener = RNIap.purchaseUpdatedListener((purchase) => {
+        console.log('🛒 Purchase listener triggered:', purchase);
+        console.log('✅ Purchase successful:', purchase);
+        this.handlePurchaseSuccess(purchase);
+      });
+
+      // Set up purchase error listener
+      this.purchaseErrorListener = RNIap.purchaseErrorListener((error) => {
+        console.log('❌ Purchase failed:', error);
       });
 
       // Load available products
@@ -131,14 +127,14 @@ class AppleIAPService {
       const productIds = Object.values(APPLE_PRODUCT_IDS);
       console.log('📦 Loading products:', productIds);
 
-      const { responseCode, results } = await InAppPurchases.getProductsAsync(productIds);
+      const results = await RNIap.getSubscriptions({ skus: productIds });
       
-      if (responseCode === InAppPurchases.IAPResponseCode.OK && results) {
+      if (results && results.length > 0) {
         this.products = results.map(product => ({
           productId: product.productId,
-          price: product.price,
-          priceAmountMicros: product.priceAmountMicros,
-          priceCurrencyCode: product.priceCurrencyCode,
+          price: product.localizedPrice,
+          priceAmountMicros: parseFloat(product.price) * 1000000,
+          priceCurrencyCode: product.currency,
           title: product.title,
           description: product.description,
           type: 'subscription'
@@ -209,19 +205,18 @@ class AppleIAPService {
       console.log('🛒 Purchasing product:', product);
 
       // Start the purchase flow
-      const { responseCode, results, errorCode } = await InAppPurchases.purchaseItemAsync(productId);
+      const purchase = await RNIap.requestSubscription({ sku: productId });
       
-      if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
-        const purchase = results[0];
+      if (purchase) {
         console.log('✅ Purchase completed:', purchase);
         
-        const iapPurchase: IAPPurchase = {
-          purchaseId: purchase.orderId || purchase.transactionId || `iap_${Date.now()}`,
+        const iapPurchase = {
+          purchaseId: purchase.transactionId || `iap_${Date.now()}`,
           productId: purchase.productId,
-          purchaseTime: purchase.purchaseTime || Date.now(),
+          purchaseTime: purchase.transactionDate || Date.now(),
           purchaseState: 'purchased',
-          isAcknowledged: purchase.acknowledged || false,
-          orderId: purchase.orderId || purchase.transactionId || '',
+          isAcknowledged: false,
+          orderId: purchase.transactionId || '',
           originalTransactionId: purchase.originalTransactionId,
           transactionReceipt: purchase.transactionReceipt || ''
         };
@@ -230,12 +225,8 @@ class AppleIAPService {
         await this.storePurchase(iapPurchase);
         
         return { success: true, purchase: iapPurchase };
-      } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-        console.log('❌ Purchase canceled by user');
-        return { success: false, error: 'Purchase canceled by user' };
       } else {
-        console.error('❌ Purchase failed:', errorCode);
-        return { success: false, error: `Purchase failed: ${errorCode}` };
+        return { success: false, error: 'Purchase failed' };
       }
     } catch (error) {
       console.error('❌ Purchase error:', error);
@@ -261,21 +252,21 @@ class AppleIAPService {
         return { success: true, restored: 0 };
       }
 
-      const { responseCode, results } = await InAppPurchases.getPurchaseHistoryAsync();
+      const results = await RNIap.getAvailablePurchases();
       
-      if (responseCode === InAppPurchases.IAPResponseCode.OK && results) {
+      if (results && results.length > 0) {
         console.log('📦 Found purchase history:', results);
         
         let restoredCount = 0;
         for (const purchase of results) {
           if (Object.values(APPLE_PRODUCT_IDS).includes(purchase.productId)) {
-            const iapPurchase: IAPPurchase = {
-              purchaseId: purchase.orderId || purchase.transactionId || `restored_${Date.now()}`,
+            const iapPurchase = {
+              purchaseId: purchase.transactionId || `restored_${Date.now()}`,
               productId: purchase.productId,
-              purchaseTime: purchase.purchaseTime || Date.now(),
+              purchaseTime: purchase.transactionDate || Date.now(),
               purchaseState: 'purchased',
-              isAcknowledged: purchase.acknowledged || false,
-              orderId: purchase.orderId || purchase.transactionId || '',
+              isAcknowledged: false,
+              orderId: purchase.transactionId || '',
               originalTransactionId: purchase.originalTransactionId,
               transactionReceipt: purchase.transactionReceipt || ''
             };
@@ -322,13 +313,11 @@ class AppleIAPService {
     try {
       console.log('🎉 Processing successful purchase:', purchase);
       
-      // Acknowledge the purchase if needed
-      if (!purchase.acknowledged) {
-        await InAppPurchases.finishTransactionAsync(purchase, false);
-      }
+      // Acknowledge the purchase 
+      await RNIap.finishTransaction({ purchase, isConsumable: false });
       
       // Store purchase record
-      const iapPurchase: IAPPurchase = {
+      const iapPurchase = {
         purchaseId: purchase.orderId || purchase.transactionId || `success_${Date.now()}`,
         productId: purchase.productId,
         purchaseTime: purchase.purchaseTime || Date.now(),
@@ -403,7 +392,7 @@ class AppleIAPService {
       // For subscriptions, we need to calculate expiry based on the product type
       // This is simplified - in production you'd validate with Apple's servers
       const purchaseDate = new Date(latestPurchase.purchaseTime);
-      let expiryDate: Date;
+      let expiryDate;
       
       if (latestPurchase.productId === APPLE_PRODUCT_IDS.monthly) {
         expiryDate = new Date(purchaseDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days
@@ -469,9 +458,14 @@ class AppleIAPService {
         this.purchaseListener.remove();
         this.purchaseListener = null;
       }
+
+      if (this.purchaseErrorListener) {
+        this.purchaseErrorListener.remove();
+        this.purchaseErrorListener = null;
+      }
       
       if (Platform.OS === 'ios') {
-        await InAppPurchases.disconnectAsync();
+        await RNIap.endConnection();
       }
       
       this.isInitialized = false;

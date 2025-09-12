@@ -39,7 +39,7 @@ export default {
       [
         "expo-router",
         {
-          origin: "https://rork.app/"
+          origin: "https://dense.app/"
         }
       ],
       [
@@ -47,7 +47,10 @@ export default {
         {
           cameraPermission: "Allow app to access camera for scanning food barcodes."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-sqlite", 
+      "expo-web-browser"
     ],
     experiments: {
       typedRoutes: true

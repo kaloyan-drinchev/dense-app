@@ -173,29 +173,6 @@ export default function NutritionScreen() {
     );
   };
 
-  const handleResetStats = () => {
-    Alert.alert(
-      'Reset All Nutrition Data',
-      'This will clear all your nutrition logs and reset your stats to 0. This action cannot be undone.\n\n⚠️ This is for testing purposes only.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Reset All Data',
-          style: 'destructive',
-          onPress: () => {
-            clearAllData();
-            if (Platform.OS !== 'web') {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            }
-            Alert.alert('✅ Data Cleared', 'All nutrition data has been reset to 0.');
-          },
-        },
-      ]
-    );
-  };
 
   const handleLogDaily = () => {
     const totalEntries = Object.keys(entriesByMeal).length;
@@ -256,14 +233,6 @@ export default function NutritionScreen() {
           onScanFood={handleScanFood}
         /> */}
 
-        {/* Reset Stats Button for Testing */}
-        <TouchableOpacity 
-          style={styles.resetButton}
-          onPress={handleResetStats}
-        >
-          <Icon name="trash-2" size={16} color={colors.error} />
-          <Text style={styles.resetButtonText}>Reset All Stats (Testing)</Text>
-        </TouchableOpacity>
 
         <NutritionSummary dailyLog={dailyLog} />
 
@@ -584,25 +553,6 @@ const styles = StyleSheet.create({
   closeModalButtonText: {
     ...typography.button,
     color: colors.white,
-  },
-  resetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.darkGray,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.error,
-    opacity: 0.8,
-  },
-  resetButtonText: {
-    ...typography.bodySmall,
-    color: colors.error,
-    marginLeft: 8,
-    fontWeight: '600',
   },
   dailyActions: {
     paddingHorizontal: 16,
