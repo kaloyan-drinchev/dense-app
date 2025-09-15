@@ -25,6 +25,7 @@ import {
 import { WorkoutStartModal } from '@/components/WorkoutStartModal';
 import { WorkoutUnavailableModal } from '@/components/WorkoutUnavailableModal';
 import { StatGroup } from '@/components/StatGroup';
+import { WeeklySchedule } from '@/components/WeeklySchedule';
 
 
 
@@ -414,6 +415,13 @@ export default function HomeScreen() {
             {formatDate(new Date().toISOString())}
           </Text>
         </View>
+
+        {/* Weekly Schedule */}
+        {generatedProgram && (
+          <WeeklySchedule 
+            trainingDays={generatedProgram.trainingSchedule || []} 
+          />
+        )}
 
         {/* Today's Workout Preview */}
         {generatedProgram && userProgressData && (
