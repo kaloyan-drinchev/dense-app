@@ -21,12 +21,15 @@ import { startMidnightLogger, checkForUnloggedMeals } from '@/utils/midnight-log
 import { FoodSearchBar } from '@/components/FoodSearchBar';
 import { FoodEntryForm } from '@/components/FoodEntryForm';
 import { NutritionSummary } from '@/components/NutritionSummary';
+import { NutritionProgressCharts } from '@/components/NutritionProgressCharts';
+import { DailyMacroTargets } from '@/components/DailyMacroTargets';
 import { MealSection } from '@/components/MealSection';
 import { TDEETargets } from '@/components/TDEETargets';
 
 import { FoodScanModal } from '@/components/FoodScanModal';
 import { ScanResultsModal } from '@/components/ScanResultsModal';
-import { FoodSelectionModal } from '@/components/FoodSelectionModal';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
+// import { FoodSelectionModal } from '@/components/FoodSelectionModal'; // Replaced with add-food-page
 import { FoodItem, MealType } from '@/types/nutrition';
 import { FoodItem as AllowedFoodItem } from '@/constants/allowed-foods';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
@@ -53,8 +56,10 @@ export default function NutritionScreen() {
   >([]);
   const [scanMealType, setScanMealType] = useState<MealType>('breakfast');
   const [showScanResults, setShowScanResults] = useState(false);
-  const [showFoodSelection, setShowFoodSelection] = useState(false);
+  // const [showFoodSelection, setShowFoodSelection] = useState(false); // Replaced with navigation
   const [barcodeData, setBarcodeData] = useState<string | null>(null);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<{ entryId: string; entryName: string } | null>(null);
 
   // Initialize nutrition goals based on user profile
   useEffect(() => {
@@ -109,45 +114,23 @@ export default function NutritionScreen() {
     setShowFoodForm(false);
   };
 
-  const handleFoodSelection = async (allowedFood: AllowedFoodItem, mealType: MealType) => {
-    try {
-      // Create nutrition entry with predefined portion
-      const nutritionEntry = {
-        id: `entry_${Date.now()}`,
-        foodId: `allowed_${allowedFood.name.toLowerCase().replace(/\s+/g, '_')}`,
-        name: allowedFood.name,
-        amount: 1, // Using 1 serving as defined
-        unit: allowedFood.servingSize,
-        mealType: mealType,
-        timestamp: new Date().toISOString(),
-        nutrition: {
-          calories: allowedFood.calories,
-          protein: allowedFood.protein,
-          carbs: allowedFood.carbs,
-          fat: allowedFood.fat,
-          fiber: 0,
-          sugar: 0,
-        },
-      };
+  // handleFoodSelection - REMOVED since we now use add-food-page instead of modal
 
-      // Add to daily log
-      await addFoodEntry(selectedDate, nutritionEntry);
-
-      if (Platform.OS !== 'web') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-    } catch (error) {
-      console.error('Failed to add food:', error);
-      Alert.alert('Error', 'Failed to add food to your log.');
-    }
+  const handleRemoveEntry = (entryId: string, entryName: string) => {
+    setEntryToDelete({ entryId, entryName });
+    setShowDeleteConfirmation(true);
   };
 
-  const handleRemoveEntry = (entryId: string) => {
-    removeFoodEntry(selectedDate, entryId);
+  const confirmRemoveEntry = () => {
+    if (entryToDelete) {
+      removeFoodEntry(selectedDate, entryToDelete.entryId);
 
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
     }
+    setEntryToDelete(null);
+    setShowDeleteConfirmation(false);
   };
 
   const handleScanFood = () => {
@@ -218,15 +201,18 @@ export default function NutritionScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Nutrition Tracker</Text>
+        {/* <View style={styles.header}>
           <TouchableOpacity style={styles.dateButton}>
             <Icon name="calendar" size={16} color={colors.white} />
             <Text style={styles.dateText}>Today</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
 
-        <TDEETargets />
+        {/* TDEETargets - Removed as requested */}
+        {/* <TDEETargets /> */}
+
+        {/* Daily Macro Targets */}
+        <DailyMacroTargets nutritionGoals={nutritionGoals} />
 
         {/* FoodSearchBar - Temporarily commented out */}
         {/* <FoodSearchBar
@@ -235,13 +221,13 @@ export default function NutritionScreen() {
         /> */}
 
 
-        <NutritionSummary dailyLog={dailyLog} />
+        <NutritionProgressCharts dailyLog={dailyLog} />
 
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickActionButton}
             onPress={() => {
-              // Check meal limit before opening modal
+              // Check meal limit before navigating
               if (dailyLog.entries.length >= 10) {
                 Alert.alert(
                   'Meal Limit Reached',
@@ -250,7 +236,8 @@ export default function NutritionScreen() {
                 );
                 return;
               }
-              setShowFoodSelection(true);
+              // Navigate to add food page
+              router.push('/add-food-page');
             }}
           >
             <Icon name="plus" size={18} color={colors.white} />
@@ -285,13 +272,17 @@ export default function NutritionScreen() {
           </TouchableOpacity> */}
         </View>
 
+        {/* Meal Entries Display - Individual foods removed, full meals kept */}
         {Object.keys(entriesByMeal).length > 0 ? (
           <>
             {entriesByMeal.breakfast && (
               <MealSection
                 mealType="breakfast"
                 entries={entriesByMeal.breakfast}
-                onRemoveEntry={handleRemoveEntry}
+                onRemoveEntry={(entryId) => {
+                  const entry = entriesByMeal.breakfast.find(e => e.id === entryId);
+                  handleRemoveEntry(entryId, entry?.name || 'Unknown item');
+                }}
               />
             )}
 
@@ -299,7 +290,10 @@ export default function NutritionScreen() {
               <MealSection
                 mealType="brunch"
                 entries={entriesByMeal.brunch}
-                onRemoveEntry={handleRemoveEntry}
+                onRemoveEntry={(entryId) => {
+                  const entry = entriesByMeal.brunch.find(e => e.id === entryId);
+                  handleRemoveEntry(entryId, entry?.name || 'Unknown item');
+                }}
               />
             )}
 
@@ -307,7 +301,10 @@ export default function NutritionScreen() {
               <MealSection
                 mealType="lunch"
                 entries={entriesByMeal.lunch}
-                onRemoveEntry={handleRemoveEntry}
+                onRemoveEntry={(entryId) => {
+                  const entry = entriesByMeal.lunch.find(e => e.id === entryId);
+                  handleRemoveEntry(entryId, entry?.name || 'Unknown item');
+                }}
               />
             )}
 
@@ -315,7 +312,10 @@ export default function NutritionScreen() {
               <MealSection
                 mealType="pre-workout"
                 entries={entriesByMeal['pre-workout']}
-                onRemoveEntry={handleRemoveEntry}
+                onRemoveEntry={(entryId) => {
+                  const entry = entriesByMeal['pre-workout'].find(e => e.id === entryId);
+                  handleRemoveEntry(entryId, entry?.name || 'Unknown item');
+                }}
               />
             )}
 
@@ -323,7 +323,10 @@ export default function NutritionScreen() {
               <MealSection
                 mealType="post-workout"
                 entries={entriesByMeal['post-workout']}
-                onRemoveEntry={handleRemoveEntry}
+                onRemoveEntry={(entryId) => {
+                  const entry = entriesByMeal['post-workout'].find(e => e.id === entryId);
+                  handleRemoveEntry(entryId, entry?.name || 'Unknown item');
+                }}
               />
             )}
 
@@ -331,7 +334,10 @@ export default function NutritionScreen() {
               <MealSection
                 mealType="dinner"
                 entries={entriesByMeal.dinner}
-                onRemoveEntry={handleRemoveEntry}
+                onRemoveEntry={(entryId) => {
+                  const entry = entriesByMeal.dinner.find(e => e.id === entryId);
+                  handleRemoveEntry(entryId, entry?.name || 'Unknown item');
+                }}
               />
             )}
 
@@ -339,7 +345,10 @@ export default function NutritionScreen() {
               <MealSection
                 mealType="snack"
                 entries={entriesByMeal.snack}
-                onRemoveEntry={handleRemoveEntry}
+                onRemoveEntry={(entryId) => {
+                  const entry = entriesByMeal.snack.find(e => e.id === entryId);
+                  handleRemoveEntry(entryId, entry?.name || 'Unknown item');
+                }}
               />
             )}
           </>
@@ -351,9 +360,9 @@ export default function NutritionScreen() {
                 For pre-workout and pump recipes ask the AI chat
               </Text>
             </View>
-            <Text style={styles.emptyTitle}>No foods logged yet</Text>
+            <Text style={styles.emptyTitle}>No meals logged yet</Text>
             <Text style={styles.emptyText}>
-              Search for foods or use camera input to log your meals
+              Add meal recipes using the "Add Foods" button above
             </Text>
           </View>
         )}
@@ -381,8 +390,9 @@ export default function NutritionScreen() {
         </View>
       </ScrollView>
 
+      {/* Individual Food Tracking Modals - COMMENTED OUT */}
       {/* Food Entry Form Modal */}
-      <Modal
+      {/* <Modal
         visible={showFoodForm && selectedFood !== null}
         transparent={true}
         animationType="slide"
@@ -398,20 +408,20 @@ export default function NutritionScreen() {
             )}
           </View>
         </View>
-      </Modal>
+      </Modal> */}
 
 
 
       {/* Food Scan Modal */}
-      <FoodScanModal
+      {/* <FoodScanModal
         visible={showScanModal}
         onClose={() => setShowScanModal(false)}
         onScanResult={handleScanResult}
         onBarcodeScanned={handleBarcodeScanned}
-      />
+      /> */}
 
       {/* Scan Results Modal */}
-      <ScanResultsModal
+      {/* <ScanResultsModal
         visible={showScanResults}
         onClose={() => setShowScanResults(false)}
         scanResults={scanResults}
@@ -446,13 +456,41 @@ export default function NutritionScreen() {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           }
         }}
-      />
+      /> */}
 
-      {/* Food Selection Modal */}
-      <FoodSelectionModal
+      {/* Food Selection Modal - REPLACED WITH add-food-page */}
+      {/* <FoodSelectionModal
         visible={showFoodSelection}
         onClose={() => setShowFoodSelection(false)}
         onSelectFood={handleFoodSelection}
+      /> */}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        visible={showDeleteConfirmation}
+        onClose={() => {
+          setShowDeleteConfirmation(false);
+          setEntryToDelete(null);
+        }}
+        title="Delete Food Entry"
+        message={`Are you sure you want to remove "${entryToDelete?.entryName}" from your meal log? This action cannot be undone.`}
+        iconName="trash-2"
+        iconColor={colors.error}
+        buttons={[
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => {
+              setShowDeleteConfirmation(false);
+              setEntryToDelete(null);
+            },
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: confirmRemoveEntry,
+          },
+        ]}
       />
     </SafeAreaView>
   );

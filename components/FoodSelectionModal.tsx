@@ -8,6 +8,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
@@ -20,13 +21,70 @@ interface FoodSelectionModalProps {
   onSelectFood: (food: FoodItem, mealType: MealType) => void;
 }
 
+// Comprehensive nutrition database for all recipes
+const recipeNutritionDatabase: Record<string, { calories: number; protein: number; carbs: number; fat: number }> = {
+  // Breakfast Options
+  'egg-bell-pepper': { calories: 190, protein: 15, carbs: 8, fat: 12 },
+  'egg-white-omelette': { calories: 160, protein: 24, carbs: 3, fat: 5 },
+  'protein-yogurt-bowl': { calories: 240, protein: 22, carbs: 35, fat: 2 },
+  'oats-banana-fuel': { calories: 260, protein: 8, carbs: 58, fat: 3 },
+  'avocado-eggs-toast': { calories: 420, protein: 20, carbs: 25, fat: 28 },
+
+  // Chicken Meals
+  'classic-chicken-rice': { calories: 540, protein: 50, carbs: 48, fat: 8 },
+  'soy-garlic-chicken': { calories: 520, protein: 48, carbs: 45, fat: 9 },
+  'chicken-potato-salad': { calories: 480, protein: 46, carbs: 38, fat: 7 },
+  'mediterranean-chicken': { calories: 420, protein: 45, carbs: 12, fat: 18 },
+  'spicy-chicken-bowl': { calories: 520, protein: 48, carbs: 44, fat: 8 },
+  'chicken-salad-bowl': { calories: 380, protein: 46, carbs: 8, fat: 15 },
+  'chicken-popcorn-combo': { calories: 460, protein: 45, carbs: 22, fat: 6 },
+  'buffalo-chicken-salad': { calories: 360, protein: 46, carbs: 10, fat: 14 },
+
+  // Beef Meals
+  'steak-potato-plate': { calories: 550, protein: 42, carbs: 35, fat: 20 },
+  'beef-chili-bowl': { calories: 520, protein: 40, carbs: 44, fat: 16 },
+  'asian-beef-stir-fry': { calories: 480, protein: 38, carbs: 42, fat: 14 },
+  'steakhouse-beef-bowl': { calories: 500, protein: 40, carbs: 40, fat: 16 },
+  'beef-avocado-salad': { calories: 450, protein: 38, carbs: 15, fat: 26 },
+  'beef-pickle-plate': { calories: 520, protein: 42, carbs: 32, fat: 20 },
+  'beef-burger-bowl': { calories: 380, protein: 40, carbs: 12, fat: 18 },
+  'beef-broccoli-bowl': { calories: 480, protein: 38, carbs: 42, fat: 14 },
+
+  // Egg-Based Meals
+  'egg-steak-breakfast': { calories: 380, protein: 32, carbs: 4, fat: 24 },
+  'scrambled-eggs-veggies': { calories: 250, protein: 20, carbs: 8, fat: 15 },
+  'egg-white-wrap': { calories: 320, protein: 38, carbs: 8, fat: 12 },
+  'egg-salad-mix': { calories: 230, protein: 20, carbs: 6, fat: 15 },
+  'egg-white-protein-wrap': { calories: 300, protein: 36, carbs: 6, fat: 10 },
+
+  // Snack Options
+  'protein-shake-rice-cakes': { calories: 380, protein: 28, carbs: 42, fat: 12 },
+  'yogurt-almonds-bowl': { calories: 320, protein: 22, carbs: 18, fat: 18 },
+  'cottage-cheese-cucumber': { calories: 180, protein: 25, carbs: 8, fat: 4 },
+  'banana-peanut-butter': { calories: 250, protein: 6, carbs: 30, fat: 12 },
+  'peanut-butter-rice-cakes': { calories: 290, protein: 10, carbs: 32, fat: 14 },
+  'bagel-protein-sandwich': { calories: 420, protein: 35, carbs: 45, fat: 8 },
+  'rice-cakes-skyr': { calories: 220, protein: 18, carbs: 32, fat: 2 },
+
+  // Sweet Options
+  'blueberry-protein-cream': { calories: 200, protein: 20, carbs: 22, fat: 3 },
+  'frozen-berry-yogurt': { calories: 180, protein: 18, carbs: 20, fat: 3 },
+  'strawberry-skyr-mix': { calories: 160, protein: 16, carbs: 18, fat: 2 },
+};
+
+const getRecipeNutrition = (recipeId: string) => {
+  return recipeNutritionDatabase[recipeId] || { calories: 400, protein: 25, carbs: 35, fat: 10 };
+};
+
 export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
   visible,
   onClose,
   onSelectFood,
 }) => {
+  const router = useRouter();
   const [selectedMealType, setSelectedMealType] = useState<MealType>('breakfast');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+
 
   const mealTypes: { id: MealType; label: string; icon: string }[] = [
     { id: 'breakfast', label: 'Breakfast', icon: '🌅' },
@@ -97,6 +155,7 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
                     selectedMealType === mealType.id && styles.selectedMealType,
                   ]}
                   onPress={() => setSelectedMealType(mealType.id)}
+                  activeOpacity={1}
                 >
                   <Text style={styles.mealTypeIcon}>{mealType.icon}</Text>
                   <Text
@@ -114,7 +173,7 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
 
           {/* Meal Recipes */}
           <Text style={styles.instructionText}>
-            👇 Select a {selectedMealType} recipe or individual food:
+            👇 Select a {selectedMealType} meal recipe:
           </Text>
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
             {currentMealRecipes.map((category) => (
@@ -122,6 +181,7 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
                 <TouchableOpacity
                   style={styles.categoryHeader}
                   onPress={() => toggleCategory(category.id)}
+                  activeOpacity={0.7}
                 >
                   <View style={styles.categoryTitleContainer}>
                     <Text style={styles.categoryTitle}>{category.name}</Text>
@@ -141,26 +201,39 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
                         key={recipe.id}
                         style={styles.recipeItem}
                         onPress={() => {
-                          // Create a meal entry from the recipe
-                          const mealFood: FoodItem = {
-                            name: recipe.name,
-                            details: recipe.description,
-                            servingSize: '1 meal',
-                            calories: 450, // Average meal calories
-                            protein: 30,   // Average protein
-                            carbs: 40,     // Average carbs  
-                            fat: 15        // Average fat
-                          };
-                          handleFoodSelect(mealFood);
+                          // Close the modal first
+                          onClose();
+                          // Then navigate to single recipe view
+                          router.push({
+                            pathname: '/single-recipe-view',
+                            params: {
+                              recipeId: recipe.id,
+                              mealType: selectedMealType,
+                              recipeName: recipe.name,
+                              recipeDescription: recipe.description,
+                            }
+                          });
                         }}
+                        activeOpacity={0.8}
                       >
                         <View style={styles.recipeInfo}>
                           <Text style={styles.recipeName}>{recipe.name}</Text>
                           <Text style={styles.recipeDescription}>{recipe.description}</Text>
                         </View>
                         <View style={styles.recipeNutrition}>
-                          <Text style={styles.caloriesBadge}>~450 cal</Text>
-                          <Text style={styles.macroText}>Complete meal</Text>
+                          {(() => {
+                            const nutrition = getRecipeNutrition(recipe.id);
+                            return (
+                              <>
+                                <Text style={styles.caloriesBadge}>{nutrition.calories} cal</Text>
+                                <View style={styles.macroInfo}>
+                                  <Text style={styles.macroText}>P: {nutrition.protein}g</Text>
+                                  <Text style={styles.macroText}>C: {nutrition.carbs}g</Text>
+                                  <Text style={styles.macroText}>F: {nutrition.fat}g</Text>
+                                </View>
+                              </>
+                            );
+                          })()}
                         </View>
                       </TouchableOpacity>
                     ))}
@@ -169,8 +242,8 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
               </View>
             ))}
             
-            {/* Individual Foods - Always displayed */}
-            <View style={styles.individualFoodsSection}>
+            {/* Individual Foods - COMMENTED OUT */}
+            {/* <View style={styles.individualFoodsSection}>
               <Text style={styles.sectionTitle}>Individual Foods</Text>
               {allowedFoodCategories.map((category) => (
                 <View key={category.id} style={styles.categoryContainer}>
@@ -217,7 +290,7 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
                   )}
                 </View>
               ))}
-            </View>
+            </View> */}
           </ScrollView>
         </View>
       </View>

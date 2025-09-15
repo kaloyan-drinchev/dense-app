@@ -210,7 +210,7 @@ export class ProgramGenerator {
     const pumpWork = this.addPumpWork(responses.pumpWorkPreference, responses.musclePriorities);
     
     // 5. Generate workout days with DENSE programming
-    const weeklyStructure = this.buildWeeklyStructure(split, exerciseSelection, volumeDistribution, pumpWork, responses.trainingExperience);
+    const weeklyStructure = this.buildWeeklyStructure(split, exerciseSelection, volumeDistribution, pumpWork, responses.trainingExperience, 1, responses.programDurationWeeks);
     
     // 6. Create program overview
     const programDetails = this.createProgramDetails(responses, split);
@@ -228,6 +228,38 @@ export class ProgramGenerator {
       trainingSchedule: schedule.workoutDays,
       restDays: schedule.restDays
     };
+  }
+
+  // Helper method to generate week structures for different week ranges (for Single Program View)
+  static generateWeekStructureForRange(responses: WizardResponses, weekNumber: number): WorkoutDay[] {
+    // Regenerate the same structure but with different week parameters
+    const split = this.calculateTrainingSplit(responses.trainingDaysPerWeek, responses.recoveryProfile);
+    const volumeDistribution = this.calculateVolumeDistribution(responses.musclePriorities);
+    const exerciseSelection = this.selectExercises(responses.musclePriorities, responses.trainingExperience);
+    const pumpWork = this.addPumpWork(responses.pumpWorkPreference, responses.musclePriorities);
+    
+    return this.buildWeeklyStructure(split, exerciseSelection, volumeDistribution, pumpWork, responses.trainingExperience, weekNumber, responses.programDurationWeeks);
+  }
+
+  // Helper method to get week ranges for program duration (for Single Program View grouping)
+  static getWeekRanges(totalWeeks: number): Array<{range: string, startWeek: number, endWeek: number, sets: number}> {
+    const ranges = [];
+    
+    if (totalWeeks <= 4) {
+      ranges.push({range: "Weeks 1-4", startWeek: 1, endWeek: totalWeeks, sets: 2});
+    } else if (totalWeeks <= 6) {
+      ranges.push({range: "Weeks 1-4", startWeek: 1, endWeek: 4, sets: 2});
+      ranges.push({range: "Weeks 5-6", startWeek: 5, endWeek: totalWeeks, sets: 3});
+    } else if (totalWeeks <= 8) {
+      ranges.push({range: "Weeks 1-4", startWeek: 1, endWeek: 4, sets: 2});
+      ranges.push({range: "Weeks 5-8", startWeek: 5, endWeek: totalWeeks, sets: 3});
+    } else {
+      ranges.push({range: "Weeks 1-4", startWeek: 1, endWeek: 4, sets: 2});
+      ranges.push({range: "Weeks 5-8", startWeek: 5, endWeek: 8, sets: 3});
+      ranges.push({range: "Weeks 9-12", startWeek: 9, endWeek: totalWeeks, sets: 4});
+    }
+    
+    return ranges;
   }
   
   private static calculateTrainingSplit(daysPerWeek: number, recovery: string) {
@@ -350,7 +382,9 @@ export class ProgramGenerator {
     exercises: any, 
     volume: any, 
     pumpWork: Exercise[], 
-    experience: string
+    experience: string,
+    weekNumber: number = 1,
+    totalWeeks: number = 12
   ): WorkoutDay[] {
     const structure: WorkoutDay[] = [];
     let workoutDayNumber = 1;
@@ -368,9 +402,9 @@ export class ProgramGenerator {
         case 'push':
           dayName = `Day ${workoutDayNumber}: Push (Chest, Shoulders, Triceps)`;
           dayExercises = [
-            ...this.convertToExercises(exercises.chest, volume.chest, 'compound'),
-            ...this.convertToExercises(exercises.shoulders, volume.shoulders, 'compound'),
-            ...this.convertToExercises(exercises.triceps, volume.triceps, 'isolation'),
+            ...this.convertToExercises(exercises.chest, volume.chest, 'compound', weekNumber, totalWeeks),
+            ...this.convertToExercises(exercises.shoulders, volume.shoulders, 'compound', weekNumber, totalWeeks),
+            ...this.convertToExercises(exercises.triceps, volume.triceps, 'isolation', weekNumber, totalWeeks),
             ...pumpWork.filter(ex => ['chest', 'shoulders', 'triceps'].some(muscle => 
               ex.name.toLowerCase().includes(muscle) || 
               ex.name.toLowerCase().includes('lateral') || 
@@ -382,8 +416,8 @@ export class ProgramGenerator {
         case 'pull':
           dayName = `Day ${workoutDayNumber}: Pull (Back, Biceps)`;
           dayExercises = [
-            ...this.convertToExercises(exercises.back, volume.back, 'compound'),
-            ...this.convertToExercises(exercises.biceps, volume.biceps, 'isolation'),
+            ...this.convertToExercises(exercises.back, volume.back, 'compound', weekNumber, totalWeeks),
+            ...this.convertToExercises(exercises.biceps, volume.biceps, 'isolation', weekNumber, totalWeeks),
             ...pumpWork.filter(ex => ['back', 'biceps', 'pull'].some(muscle => 
               ex.name.toLowerCase().includes(muscle) || 
               ex.name.toLowerCase().includes('curl')
@@ -394,9 +428,9 @@ export class ProgramGenerator {
         case 'legs':
           dayName = `Day ${workoutDayNumber}: Legs (Quads, Hamstrings, Glutes)`;
           dayExercises = [
-            ...this.convertToExercises(exercises.quads, volume.quads, 'compound'),
-            ...this.convertToExercises(exercises.hamstrings, volume.hamstrings, 'compound'),
-            ...this.convertToExercises(exercises.legs_iso, volume.legs_iso || 8, 'isolation'),
+            ...this.convertToExercises(exercises.quads, volume.quads, 'compound', weekNumber, totalWeeks),
+            ...this.convertToExercises(exercises.hamstrings, volume.hamstrings, 'compound', weekNumber, totalWeeks),
+            ...this.convertToExercises(exercises.legs_iso, volume.legs_iso || 8, 'isolation', weekNumber, totalWeeks),
             ...pumpWork.filter(ex => ['leg', 'squat', 'lunge', 'calf'].some(muscle => 
               ex.name.toLowerCase().includes(muscle)
             ))
@@ -420,16 +454,33 @@ export class ProgramGenerator {
     return structure;
   }
   
-  private static convertToExercises(exerciseList: any[], totalVolume: number, exerciseType: string): Exercise[] {
+  private static calculateSetsForWeek(weekNumber: number, totalWeeks: number): number {
+    // Progressive sets based on week and program duration
+    if (totalWeeks <= 4) {
+      return 2; // Short programs stay at 2 sets
+    } else if (totalWeeks <= 6) {
+      return weekNumber <= 4 ? 2 : 3; // Weeks 1-4: 2 sets, Weeks 5-6: 3 sets
+    } else if (totalWeeks <= 8) {
+      return weekNumber <= 4 ? 2 : 3; // Weeks 1-4: 2 sets, Weeks 5-8: 3 sets
+    } else {
+      // 12+ week programs
+      if (weekNumber <= 4) return 2; // Weeks 1-4: 2 sets
+      if (weekNumber <= 8) return 3; // Weeks 5-8: 3 sets
+      return 4; // Weeks 9+: 4 sets
+    }
+  }
+
+  private static convertToExercises(exerciseList: any[], totalVolume: number, exerciseType: string, weekNumber: number = 1, totalWeeks: number = 12): Exercise[] {
     const exercises: Exercise[] = [];
     const setsPerExercise = Math.ceil(totalVolume / exerciseList.length);
+    const progressiveSets = this.calculateSetsForWeek(weekNumber, totalWeeks);
     
     exerciseList.forEach(ex => {
       const isCompound = exerciseType === 'compound';
       
       exercises.push({
         name: ex.name,
-        sets: 2, // DENSE: Start with 2 working sets (Weeks 1-5)
+        sets: progressiveSets, // DENSE: Progressive sets based on week and program duration
         reps: ex.repRange || (isCompound ? '6-12' : '10-15'),
         restSeconds: isCompound ? 180 : 90, // Compounds: 3min, Isolation: 90s
         type: exerciseType as 'compound' | 'isolation',

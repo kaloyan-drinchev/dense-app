@@ -412,6 +412,18 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="single-recipe-view" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="add-food-page" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
         name="nutrition-detail" 
         options={{ 
           headerShown: false,

@@ -15,6 +15,7 @@ import { typography } from '@/constants/typography';
 import { wizardResultsService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
 import { ensureMinimumDuration } from '@/utils/workout-duration';
+import { ProgramGenerator } from '@/utils/program-generator';
 
 // Helper function to format overview text as bullet points
 const formatOverviewAsBullets = (overview: string): string[] => {
@@ -124,8 +125,9 @@ const generateDefaultSchedule = (trainingDays: number) => {
 const SingleProgramView = () => {
   const router = useRouter();
   const { user } = useAuthStore();
-  const [currentWeek, setCurrentWeek] = useState(1);
+  const [selectedRangeIndex, setSelectedRangeIndex] = useState(0);
   const [generatedProgram, setGeneratedProgram] = useState<any>(null);
+  const [wizardResponses, setWizardResponses] = useState<any>(null);
 
   React.useEffect(() => {
     loadGeneratedProgram();
@@ -144,6 +146,22 @@ const SingleProgramView = () => {
       
       if (wizardResults && wizardResults.generatedSplit) {
         const program = JSON.parse(wizardResults.generatedSplit);
+        
+        // Reconstruct wizard responses from the individual fields
+        const responses = {
+          squatKg: wizardResults.squatKg,
+          benchKg: wizardResults.benchKg,
+          deadliftKg: wizardResults.deadliftKg,
+          trainingExperience: wizardResults.trainingExperience,
+          bodyFatLevel: wizardResults.bodyFatLevel,
+          trainingDaysPerWeek: wizardResults.trainingDaysPerWeek,
+          preferredTrainingDays: wizardResults.preferredTrainingDays ? JSON.parse(wizardResults.preferredTrainingDays) : [],
+          musclePriorities: wizardResults.musclePriorities ? JSON.parse(wizardResults.musclePriorities) : [],
+          pumpWorkPreference: wizardResults.pumpWorkPreference,
+          recoveryProfile: wizardResults.recoveryProfile,
+          programDurationWeeks: wizardResults.programDurationWeeks,
+        };
+        
         console.log('✅ Program loaded:', program.programName);
         console.log('🗓️ Training schedule debug:', {
           hasTrainingSchedule: !!program.trainingSchedule,
@@ -153,6 +171,7 @@ const SingleProgramView = () => {
           allKeys: Object.keys(program)
         });
         setGeneratedProgram(program);
+        setWizardResponses(responses);
       } else {
         console.log('⚠️ No generated program found');
       }
@@ -174,7 +193,15 @@ const SingleProgramView = () => {
     );
   }
 
-  const weekNumbers = Array.from({ length: generatedProgram.totalWeeks }, (_, i) => i + 1);
+  // Get week ranges instead of individual weeks
+  const weekRanges = wizardResponses ? ProgramGenerator.getWeekRanges(generatedProgram.totalWeeks) : [];
+  
+  // Get the current week structure for the selected range
+  const getCurrentWeekStructure = () => {
+    if (!wizardResponses || !weekRanges[selectedRangeIndex]) return generatedProgram?.weeklyStructure || [];
+    const selectedRange = weekRanges[selectedRangeIndex];
+    return ProgramGenerator.generateWeekStructureForRange(wizardResponses, selectedRange.startWeek);
+  };
 
   return (
     <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
@@ -292,26 +319,26 @@ const SingleProgramView = () => {
             </View>
           )}
 
-          {/* Week Selector */}
+          {/* Week Range Selector */}
           <View style={styles.weekSelector}>
-            <Text style={styles.sectionTitle}>Select Week</Text>
+            <Text style={styles.sectionTitle}>Training Phases</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.weekScrollView}>
-              {weekNumbers.map((week) => (
+              {weekRanges.map((range, index) => (
                 <TouchableOpacity
-                  key={week}
+                  key={index}
                   style={[
                     styles.weekButton,
-                    currentWeek === week && styles.selectedWeekButton,
+                    selectedRangeIndex === index && styles.selectedWeekButton,
                   ]}
-                  onPress={() => setCurrentWeek(week)}
+                  onPress={() => setSelectedRangeIndex(index)}
                 >
                   <Text
                     style={[
                       styles.weekButtonText,
-                      currentWeek === week && styles.selectedWeekButtonText,
+                      selectedRangeIndex === index && styles.selectedWeekButtonText,
                     ]}
                   >
-                    Week {week}
+                    {range.range}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -320,8 +347,10 @@ const SingleProgramView = () => {
 
           {/* Weekly Workouts */}
           <View style={styles.weeklyWorkouts}>
-            <Text style={styles.sectionTitle}>Week {currentWeek} Workouts</Text>
-            {generatedProgram.weeklyStructure.map((day: any, index: number) => (
+            <Text style={styles.sectionTitle}>
+              {weekRanges[selectedRangeIndex]?.range || 'Week 1'} Workouts
+            </Text>
+            {getCurrentWeekStructure().map((day: any, index: number) => (
               <View key={index} style={styles.workoutCard}>
                 <View style={styles.workoutHeader}>
                   <Text style={styles.workoutDay}>Day {index + 1}</Text>
@@ -593,7 +622,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   selectedWeekButton: {
-    backgroundColor: colors.primary + '20',
+    backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   weekButtonText: {
@@ -601,7 +630,8 @@ const styles = StyleSheet.create({
     color: colors.lightGray,
   },
   selectedWeekButtonText: {
-    color: colors.primary,
+    color: colors.black,
+    fontWeight: '600',
   },
   weeklyWorkouts: {
     paddingBottom: 20,
