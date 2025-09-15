@@ -272,7 +272,7 @@ function AppNavigator() {
         console.log('🔍 Navigation Debug - Status type:', statusType);
         console.log('🔍 Navigation Debug - Raw status:', rawStatus);
         
-        if (statusType === 'expired' || statusType === 'none') {
+        if (statusType === 'subscription_expired' || statusType === 'no_subscription') {
           // Force expired or no subscription users to subscription screen
           console.log(`🚫 Access blocked - user status: ${statusType}`);
           setShowWizard(false);

@@ -168,8 +168,9 @@ export default function NutritionScreen() {
     setBarcodeData(barcode);
     // In a real app, you would query a food database with this barcode
     // For now, we'll just show a message
-    alert(
-      `Barcode scanned: ${barcode}\nThis would search a food database in a production app.`
+    Alert.alert(
+      'Barcode Scanned',
+      `Barcode: ${barcode}\nThis would search a food database in a production app.`
     );
   };
 

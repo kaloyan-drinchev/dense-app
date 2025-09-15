@@ -11,7 +11,7 @@ import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
 import { colors, gradients } from '@/constants/colors';
 import { typography } from '@/constants/typography';
-import { wizardResultsService, userProgressService } from '@/db/services';
+// Services now imported dynamically to match working Programs tab pattern
 import { WorkoutProgressCharts } from '@/components/WorkoutProgressCharts';
 import { WeightTracker } from '@/components/WeightTracker';
 import { calculateWorkoutProgress } from '@/utils/progress-calculator';
@@ -41,13 +41,25 @@ export default function ProgressScreen() {
     
     try {
       setLoadingProgram(true);
+      
+      // Use dynamic import like Programs tab does
+      const { wizardResultsService } = await import('@/db/services');
       const wizardResults = await wizardResultsService.getByUserId(user.id);
+      
       if (wizardResults?.generatedSplit) {
         const generatedProgram = JSON.parse(wizardResults.generatedSplit);
+        
+        // Create a better program title based on muscle priorities (like Programs tab)
+        if (wizardResults.musclePriorities) {
+          const priorities = JSON.parse(wizardResults.musclePriorities);
+          const priorityText = priorities.slice(0, 2).join(' & ').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+          generatedProgram.displayTitle = `${priorityText} Focus`;
+        }
+        
         setGeneratedProgram(generatedProgram);
       }
     } catch (error) {
-      console.error('Error loading generated program:', error);
+      console.error('❌ Progress: Error loading generated program:', error);
     } finally {
       setLoadingProgram(false);
     }
@@ -59,12 +71,15 @@ export default function ProgressScreen() {
     
     try {
       setLoadingProgress(true);
+      
+      const { userProgressService } = await import('@/db/services');
       const progress = await userProgressService.getByUserId(user.id);
+      
       if (progress) {
         setUserProgressData(progress);
       }
     } catch (error) {
-      console.error('Error loading user progress:', error);
+      console.error('❌ Progress: Error loading user progress:', error);
     } finally {
       setLoadingProgress(false);
     }
@@ -76,10 +91,13 @@ export default function ProgressScreen() {
     
     try {
       setLoadingWizard(true);
+      
+      const { wizardResultsService } = await import('@/db/services');
       const wizardResults = await wizardResultsService.getByUserId(user.id);
+      
       setWizardData(wizardResults);
     } catch (error) {
-      console.error('Error loading wizard data:', error);
+      console.error('❌ Progress: Error loading wizard data:', error);
     } finally {
       setLoadingWizard(false);
     }
@@ -99,17 +117,20 @@ export default function ProgressScreen() {
     return calculateWorkoutProgress(generatedProgram, userProgressData);
   }, [generatedProgram, userProgressData]);
 
+
   if (loadingProgram || loadingProgress || loadingWizard) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.dark }]}>
+      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
-          <View style={styles.loadingContainer} />
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading progress data...</Text>
+          </View>
         </SafeAreaView>
-      </View>
+      </LinearGradient>
     );
   }
 
-  if (!generatedProgram || !userProgressData) {
+  if (!generatedProgram && !userProgressData) {
     return (
       <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
@@ -123,32 +144,42 @@ export default function ProgressScreen() {
       </LinearGradient>
     );
   }
-
+  
   return (
     <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Your Progress</Text>
-            <Text style={styles.subtitle}>Track your workout journey and consistency</Text>
+            <Text style={styles.title}>Track your consistency</Text>
           </View>
 
-          {/* Workout Progress Charts */}
-          <WorkoutProgressCharts
-            currentWeek={progressData.currentWeek}
-            currentDay={progressData.currentDay}
-            totalWeeks={progressData.totalWeeks}
-            daysPerWeek={progressData.daysPerWeek}
-          />
+          {/* Workout Progress Charts - only show if we have data */}
+          {generatedProgram && (
+            <WorkoutProgressCharts
+              currentWeek={progressData.currentWeek}
+              currentDay={progressData.currentDay}
+              totalWeeks={progressData.totalWeeks}
+              daysPerWeek={progressData.daysPerWeek}
+            />
+          )}
 
-          {/* Weight Progress Section */}
+          {/* Weight Progress Section - always show */}
           <View style={styles.section}>
             <WeightTracker
-              targetWeight={userProfile?.targetWeight}
+              targetWeight={userProfile?.['targetWeight'] as number | undefined}
               initialWeight={wizardData?.weight}
             />
           </View>
+
+          {/* Debug info at bottom if needed */}
+          {!generatedProgram && (
+            <View style={styles.section}>
+              <Text style={styles.emptyText}>
+                Complete your workout program setup to see workout progress charts
+              </Text>
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>

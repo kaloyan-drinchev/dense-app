@@ -48,8 +48,13 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
   // Load completion data
   const loadCompletionData = useCallback(async () => {
     if (user?.id) {
-      const data = await getWorkoutCompletionData(user.id);
-      setCompletionData(data);
+      try {
+        const data = await getWorkoutCompletionData(user.id);
+        setCompletionData(data);
+      } catch (error) {
+        console.error('❌ WorkoutProgressCharts: Error loading completion data:', error);
+        // Keep default completion data to prevent crash
+      }
     }
   }, [user?.id]);
 
@@ -77,7 +82,7 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
   };
 
   return (
-    <Animated.View style={[styles.container, animatedStyle]}>
+    <View style={styles.container}>
       <Text style={styles.sectionTitle}>Progress Tracking</Text>
       
       <View style={styles.chartsRow}>
@@ -136,7 +141,7 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
         startDate={completionData.startDate}
         currentWeek={currentWeek}
       />
-    </Animated.View>
+    </View>
   );
 };
 
@@ -146,6 +151,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginVertical: 16,
+    marginHorizontal: 16,
     borderWidth: 1,
     borderColor: colors.darkGray,
   },

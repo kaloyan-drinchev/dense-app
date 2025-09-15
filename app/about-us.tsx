@@ -16,6 +16,61 @@ import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LEGAL_URLS, openLegalURL } from '@/constants/legal';
 
+// Helper function to render text with DENSE and random letters highlighted in green
+const renderTextWithHighlight = (text: string, baseStyle: any) => {
+  // First, handle DENSE highlighting
+  const parts = text.split(/(DENSE)/g);
+  
+  return parts.map((part, index) => {
+    if (part === 'DENSE') {
+      return (
+        <Text key={index} style={[baseStyle, styles.highlightedText]}>
+          {part}
+        </Text>
+      );
+    } else if (part.length > 0) {
+      // For non-DENSE parts, randomly highlight 2 letters
+      return renderRandomHighlights(part, index, baseStyle);
+    }
+    return (
+      <Text key={index} style={baseStyle}>
+        {part}
+      </Text>
+    );
+  }).flat(); // Flatten the array since renderRandomHighlights returns an array
+};
+
+// Helper function to randomly highlight 2 letters in a text part
+const renderRandomHighlights = (text: string, partIndex: number, baseStyle: any) => {
+  // Get only letters (exclude spaces and punctuation)
+  const letters = text.split('').map((char, index) => ({ char, index }))
+    .filter(item => /[a-zA-Z]/.test(item.char));
+  
+  if (letters.length < 2) {
+    return [<Text key={`${partIndex}-text`} style={baseStyle}>{text}</Text>]; // Not enough letters to highlight
+  }
+  
+  // Randomly select 2 different letter positions
+  const shuffled = [...letters].sort(() => Math.random() - 0.5);
+  const highlightIndices = new Set([shuffled[0].index, shuffled[1].index]);
+  
+  // Render text with highlighted letters
+  return text.split('').map((char, index) => {
+    if (highlightIndices.has(index)) {
+      return (
+        <Text key={`${partIndex}-${index}`} style={[baseStyle, styles.highlightedText]}>
+          {char}
+        </Text>
+      );
+    }
+    return (
+      <Text key={`${partIndex}-${index}`} style={baseStyle}>
+        {char}
+      </Text>
+    );
+  });
+};
+
 export default function AboutUsScreen() {
   const router = useRouter();
 
@@ -69,7 +124,7 @@ export default function AboutUsScreen() {
           <View style={styles.logoContainer}>
             <Icon name="zap" size={64} color={colors.primary} />
           </View>
-          <Text style={styles.appName}>RORK DENSE</Text>
+          <Text style={styles.appName}>DENSE</Text>
           <Text style={styles.tagline}>
             Revolutionary fitness training powered by AI
           </Text>
@@ -79,13 +134,16 @@ export default function AboutUsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Our Story</Text>
           <Text style={styles.bodyText}>
-            DENSE was born from a simple belief: everyone deserves access to personalized, 
-            effective fitness training. Our team combines decades of experience in fitness, 
-            technology, and sports science to create the ultimate workout companion.
+            {renderTextWithHighlight(
+              "DENSE was born from a simple belief: everyone deserves access to personalized, effective fitness training. Our team combines decades of experience in fitness, technology, and sports science to create the ultimate workout companion.",
+              styles.bodyText
+            )}
           </Text>
           <Text style={styles.bodyText}>
-            We've built this app to bring you the power of AI-driven program generation, 
-            ensuring every workout is tailored specifically to your goals, preferences, and progress.
+            {renderTextWithHighlight(
+              "We've built this app to bring you the power of AI-driven program generation, ensuring every workout is tailored specifically to your goals, preferences, and progress.",
+              styles.bodyText
+            )}
           </Text>
         </View>
 
@@ -366,6 +424,10 @@ const styles = StyleSheet.create({
     color: colors.lighterGray,
     lineHeight: 24,
     marginBottom: 16,
+  },
+  highlightedText: {
+    color: colors.primary,
+    fontWeight: 'bold',
   },
   teamMember: {
     flexDirection: 'row',
