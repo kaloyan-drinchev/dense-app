@@ -1199,6 +1199,17 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
             </View>
           ))}
           
+          {/* Cloud Backup Callout */}
+          <View style={styles.cloudBackupCallout}>
+            <View style={styles.cloudBackupHeader}>
+              <Text style={styles.cloudBackupIcon}>☁️</Text>
+              <Text style={styles.cloudBackupTitle}>Protect Your Progress</Text>
+            </View>
+            <Text style={styles.cloudBackupDescription}>
+              Want to keep your workout data safe? Setup iCloud backup in Settings → iCloud Backup to never lose your progress.
+            </Text>
+          </View>
+          
           <TouchableOpacity 
             style={styles.finishButton}
             onPress={() => {

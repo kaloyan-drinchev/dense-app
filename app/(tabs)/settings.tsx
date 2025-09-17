@@ -9,6 +9,8 @@ import {
   Alert,
   Platform,
   Image,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -28,7 +30,7 @@ import { LEGAL_URLS, openLegalURL } from '@/constants/legal.js';
 export default function SettingsScreen() {
   const router = useRouter();
   const { userProfile } = useWorkoutStore();
-  const { user, logout } = useAuthStore();
+  const { user, logout, createCloudAccount, backupToCloud, checkCloudStatus } = useAuthStore();
   const { 
     hasActiveSubscription, 
     getDaysUntilExpiry, 
@@ -43,6 +45,9 @@ export default function SettingsScreen() {
   const [notifications, setNotifications] = useState(true);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number>(0);
   const [wizardData, setWizardData] = useState<any>(null);
+  const [cloudEmail, setCloudEmail] = useState('');
+  const [showCloudEmailInput, setShowCloudEmailInput] = useState(false);
+  const [isCloudProcessing, setIsCloudProcessing] = useState(false);
 
 
   // Load trial days remaining and wizard data when screen loads
@@ -715,6 +720,57 @@ export default function SettingsScreen() {
     );
   };
 
+  // iCloud Backup Handlers
+  const handleCreateCloudAccount = async () => {
+    if (!cloudEmail.trim()) {
+      Alert.alert('Email Required', 'Please enter your iCloud email address to setup backup.');
+      return;
+    }
+
+    setIsCloudProcessing(true);
+
+    try {
+      const result = await createCloudAccount(cloudEmail.trim());
+      
+      if (result.success) {
+        Alert.alert(
+          'Backup Setup Complete!',
+          'Your workout data has been backed up to iCloud and will sync automatically.',
+          [{ text: 'OK', onPress: () => {
+            setShowCloudEmailInput(false);
+            setCloudEmail('');
+            // Refresh cloud status
+            checkCloudStatus();
+          }}]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'Failed to setup iCloud backup.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to setup iCloud backup. Please try again.');
+    } finally {
+      setIsCloudProcessing(false);
+    }
+  };
+
+  const handleBackupToCloud = async () => {
+    setIsCloudProcessing(true);
+
+    try {
+      const result = await backupToCloud();
+      
+      if (result.success) {
+        Alert.alert('Backup Complete!', 'Your workout data has been successfully backed up to iCloud.');
+      } else {
+        Alert.alert('Backup Failed', result.error || 'Failed to backup data to iCloud.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to backup data. Please try again.');
+    } finally {
+      setIsCloudProcessing(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView 
@@ -728,7 +784,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Profile Card */}
-        <TouchableOpacity style={styles.profileCard} onPress={handleEditProfile}>
+        <TouchableOpacity style={styles.profileCard} onPress={handleEditProfile} activeOpacity={1}>
           <View style={styles.profileAvatar}>
             {userProfile?.profilePicture ? (
               <Image 
@@ -779,7 +835,7 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About</Text>
           
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity style={styles.settingItem} activeOpacity={1}>
             <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
               <Icon name="help-circle" size={20} color={colors.black} />
             </View>
@@ -792,7 +848,7 @@ export default function SettingsScreen() {
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={() => router.push('/about-us')}>
+          <TouchableOpacity style={styles.settingItem} onPress={() => router.push('/about-us')} activeOpacity={1}>
             <View style={[styles.settingIcon, { backgroundColor: colors.warning }]}>
               <Icon name="info" size={20} color={colors.black} />
             </View>
@@ -805,7 +861,7 @@ export default function SettingsScreen() {
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={handleMyGoals}>
+          <TouchableOpacity style={styles.settingItem} onPress={handleMyGoals} activeOpacity={1}>
             <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
               <Icon name="target" size={20} color={colors.black} />
             </View>
@@ -824,7 +880,7 @@ export default function SettingsScreen() {
         {/* <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           
-          <TouchableOpacity style={styles.settingItem} onPress={handleLogout}>
+          <TouchableOpacity style={styles.settingItem} onPress={handleLogout} activeOpacity={1}>
             <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
               <Icon name="log-out" size={20} color={colors.white} />
             </View>
@@ -844,7 +900,7 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Subscription</Text>
           
-          <TouchableOpacity style={styles.settingItem} onPress={handleSubscriptionPress}>
+          <TouchableOpacity style={styles.settingItem} onPress={handleSubscriptionPress} activeOpacity={1}>
             <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
               <Icon name="zap" size={20} color={colors.black} />
             </View>
@@ -894,6 +950,7 @@ export default function SettingsScreen() {
             <TouchableOpacity 
               style={styles.settingItem}
               onPress={handleManageSubscription}
+              activeOpacity={1}
             >
               <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
                 <Icon name="settings" size={20} color={colors.black} />
@@ -909,11 +966,105 @@ export default function SettingsScreen() {
           )}
         </View>
 
+        {/* iCloud Backup */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>iCloud Backup</Text>
+          
+          {user?.hasCloudAccount ? (
+            <>
+              {/* iCloud Backup Active */}
+              <TouchableOpacity style={styles.settingItem} onPress={() => {}} disabled activeOpacity={1}>
+                <View style={[styles.settingIcon, { backgroundColor: colors.success }]}>
+                  <Icon name="cloud" size={20} color={colors.white} />
+                </View>
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Backup Active</Text>
+                  <Text style={styles.settingDescription}>
+                    {user.email} • Last backup: {user.lastSyncAt ? new Date(user.lastSyncAt).toLocaleDateString() : 'Never'}
+                  </Text>
+                </View>
+                <Icon name="check-circle" size={20} color={colors.success} />
+              </TouchableOpacity>
+
+              {/* Manual Backup */}
+              <TouchableOpacity 
+                style={styles.settingItem} 
+                onPress={handleBackupToCloud}
+                disabled={isCloudProcessing}
+                activeOpacity={1}
+              >
+                <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
+                  <Icon name="upload-cloud" size={20} color={colors.black} />
+                </View>
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Backup Now</Text>
+                  <Text style={styles.settingDescription}>
+                    Manually backup all your data to iCloud
+                  </Text>
+                </View>
+                {isCloudProcessing ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Icon name="chevron-right" size={20} color={colors.lightGray} />
+                )}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {/* Setup iCloud Backup */}
+              <TouchableOpacity 
+                style={styles.settingItem} 
+                onPress={() => setShowCloudEmailInput(!showCloudEmailInput)}
+                activeOpacity={1}
+              >
+                <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
+                  <Icon name="cloud-off" size={20} color={colors.black} />
+                </View>
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Setup iCloud Backup</Text>
+                  <Text style={styles.settingDescription}>
+                    Save your workout data to never lose progress
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.lightGray} />
+              </TouchableOpacity>
+
+              {/* Email Input (conditionally shown) */}
+              {showCloudEmailInput && (
+                <View style={styles.emailInputSection}>
+                  <TextInput
+                    style={styles.emailInput}
+                    placeholder="Enter your iCloud email address"
+                    placeholderTextColor={colors.lightGray}
+                    value={cloudEmail}
+                    onChangeText={setCloudEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    style={[styles.createAccountButton, isCloudProcessing && styles.createAccountButtonDisabled]}
+                    onPress={handleCreateCloudAccount}
+                    disabled={isCloudProcessing}
+                    activeOpacity={1}
+                  >
+                    {isCloudProcessing ? (
+                      <ActivityIndicator size="small" color={colors.black} />
+                    ) : (
+                      <Text style={styles.createAccountButtonText}>Setup Backup</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+
         {/* Developer Testing */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Developer Testing</Text>
           
-          <TouchableOpacity style={styles.settingItem} onPress={handleResetApp}>
+          <TouchableOpacity style={styles.settingItem} onPress={handleResetApp} activeOpacity={1}>
             <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
               <Icon name="trash-2" size={20} color={colors.white} />
             </View>
@@ -926,7 +1077,7 @@ export default function SettingsScreen() {
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={handleResetSubscriptionData}>
+          <TouchableOpacity style={styles.settingItem} onPress={handleResetSubscriptionData} activeOpacity={1}>
             <View style={[styles.settingIcon, { backgroundColor: colors.warning }]}>
               <Icon name="refresh-cw" size={20} color={colors.black} />
             </View>
@@ -939,7 +1090,7 @@ export default function SettingsScreen() {
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={handleStartTrial}>
+          <TouchableOpacity style={styles.settingItem} onPress={handleStartTrial} activeOpacity={1}>
             <View style={[styles.settingIcon, { backgroundColor: colors.success }]}>
               <Icon name="play" size={20} color={colors.white} />
             </View>
@@ -952,7 +1103,7 @@ export default function SettingsScreen() {
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={handleExpireTrial}>
+          <TouchableOpacity style={styles.settingItem} onPress={handleExpireTrial} activeOpacity={1}>
             <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
               <Icon name="clock" size={20} color={colors.black} />
             </View>
@@ -1260,5 +1411,37 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     color: colors.error,
     fontWeight: 'bold',
+  },
+
+  // Cloud Sync Styles
+  emailInputSection: {
+    backgroundColor: colors.dark,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    gap: 16,
+  },
+  emailInput: {
+    backgroundColor: colors.darkGray,
+    borderColor: colors.lightGray,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: colors.white,
+  },
+  createAccountButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+  },
+  createAccountButtonDisabled: {
+    opacity: 0.6,
+  },
+  createAccountButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.black,
   },
 });

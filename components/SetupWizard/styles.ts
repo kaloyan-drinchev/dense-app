@@ -840,4 +840,34 @@ export const styles = StyleSheet.create({
     color: colors.black,
     fontWeight: 'bold',
   },
+
+  // Cloud Backup Callout Styles
+  cloudBackupCallout: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 24,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+  },
+  cloudBackupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cloudBackupIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  cloudBackupTitle: {
+    ...typography.h3,
+    color: colors.white,
+    fontWeight: 'bold',
+  },
+  cloudBackupDescription: {
+    ...typography.body,
+    color: colors.lightGray,
+    lineHeight: 20,
+  },
 });

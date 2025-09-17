@@ -8,6 +8,8 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +18,7 @@ import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { subscriptionService, SUBSCRIPTION_PLANS } from '@/services/subscription-service.js';
+import { useAuthStore } from '@/store/auth-store';
 
 // Define SubscriptionPlan type locally
 interface SubscriptionPlan {
@@ -57,12 +60,16 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     isTrialActive,
     getDaysUntilExpiry
   } = useSubscriptionStore();
+  const { restoreFromCloud } = useAuthStore();
   const [selectedPlan, setSelectedPlan] = useState<string>('yearly'); // Default to popular Annual Pro plan
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isStartingTrial, setIsStartingTrial] = useState(false);
   const [canUserStartTrial, setCanUserStartTrial] = useState(false);
   const [isCancelledWithTimeLeft, setIsCancelledWithTimeLeft] = useState(false);
+  const [showCloudRestoreModal, setShowCloudRestoreModal] = useState(false);
+  const [restoreEmail, setRestoreEmail] = useState('');
+  const [isRestoringCloud, setIsRestoringCloud] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Check if user has active subscription to show X button
@@ -245,23 +252,89 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
         
+        // Show option to also restore cloud data
         Alert.alert(
-          'Purchases Restored!',
-          'Your subscription has been restored successfully.',
-          [{ text: 'Continue', onPress: () => {
-            setIsRestoring(true);
-            setTimeout(() => {
-              onSubscribed();
-            }, 100);
-          }}]
+          'Subscription Restored!',
+          'Your subscription has been restored successfully. Do you also want to restore your workout data from iCloud backup?',
+          [
+            { 
+              text: 'Skip for now', 
+              style: 'cancel',
+              onPress: () => {
+                setIsRestoring(true);
+                setTimeout(() => {
+                  onSubscribed();
+                }, 100);
+              }
+            },
+            { 
+              text: 'Restore Data', 
+              onPress: () => {
+                setIsRestoring(false);
+                setShowCloudRestoreModal(true);
+              }
+            }
+          ]
         );
       } else {
-        Alert.alert('No Purchases Found', 'No previous purchases were found to restore.');
+        // No subscription found, offer cloud restore only
+        Alert.alert(
+          'No Subscription Found', 
+          'No previous purchases were found. Would you like to restore your workout data from iCloud backup instead?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Restore Data', 
+              onPress: () => {
+                setIsRestoring(false);
+                setShowCloudRestoreModal(true);
+              }
+            }
+          ]
+        );
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to restore purchases. Please try again.');
-    } finally {
       setIsRestoring(false);
+    }
+  };
+
+  const handleCloudRestore = async () => {
+    if (!restoreEmail.trim()) {
+      Alert.alert('Email Required', 'Please enter the email address associated with your iCloud backup.');
+      return;
+    }
+
+    setIsRestoringCloud(true);
+
+    try {
+      const result = await restoreFromCloud(restoreEmail.trim());
+      
+      if (result.success) {
+        Alert.alert(
+          'Data Restored!',
+          'Your workout data has been successfully restored from iCloud backup.',
+          [{ 
+            text: 'Continue', 
+            onPress: () => {
+              setShowCloudRestoreModal(false);
+              setRestoreEmail('');
+              setTimeout(() => {
+                onSubscribed();
+              }, 100);
+            }
+          }]
+        );
+      } else {
+        Alert.alert(
+          'Restore Failed', 
+          result.error || 'No backup data found for this email address.'
+        );
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to restore data. Please try again.');
+    } finally {
+      setIsRestoringCloud(false);
     }
   };
 
@@ -459,6 +532,67 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           </View>
         )}
       </SafeAreaView>
+
+      {/* Cloud Restore Modal */}
+      <Modal
+        visible={showCloudRestoreModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCloudRestoreModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Restore from iCloud</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowCloudRestoreModal(false)}
+                activeOpacity={1}
+              >
+                <Icon name="x" size={24} color={colors.lightGray} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.modalDescription}>
+              Enter the email address associated with your iCloud backup to restore your workout data, nutrition logs, and progress.
+            </Text>
+            
+            <TextInput
+              style={styles.emailInput}
+              placeholder="Enter your iCloud email address"
+              placeholderTextColor={colors.lightGray}
+              value={restoreEmail}
+              onChangeText={setRestoreEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowCloudRestoreModal(false)}
+                activeOpacity={1}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalRestoreButton, isRestoringCloud && styles.modalRestoreButtonDisabled]}
+                onPress={handleCloudRestore}
+                disabled={isRestoringCloud}
+                activeOpacity={1}
+              >
+                {isRestoringCloud ? (
+                  <ActivityIndicator size="small" color={colors.black} />
+                ) : (
+                  <Text style={styles.modalRestoreText}>Restore Data</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 };
@@ -742,5 +876,84 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.white,
     marginTop: 16,
+  },
+  
+  // Cloud Restore Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalDescription: {
+    ...typography.body,
+    color: colors.lightGray,
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  emailInput: {
+    backgroundColor: colors.dark,
+    borderColor: colors.lightGray,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: colors.white,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: colors.dark,
+    borderColor: colors.lightGray,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.lightGray,
+  },
+  modalRestoreButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  modalRestoreButtonDisabled: {
+    opacity: 0.6,
+  },
+  modalRestoreText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.black,
   },
 });

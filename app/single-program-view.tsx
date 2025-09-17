@@ -212,7 +212,7 @@ const SingleProgramView = () => {
             const { setWizardCompleted } = useAuthStore.getState();
             setWizardCompleted();
             router.back();
-          }} style={styles.backButton}>
+          }} style={styles.backButton} activeOpacity={1}>
             <Icon name="arrow-back" size={24} color={colors.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Your Program</Text>
@@ -331,6 +331,7 @@ const SingleProgramView = () => {
                     selectedRangeIndex === index && styles.selectedWeekButton,
                   ]}
                   onPress={() => setSelectedRangeIndex(index)}
+                  activeOpacity={1}
                 >
                   <Text
                     style={[
