@@ -139,7 +139,6 @@ export const motivationOptions = [
   { id: 'build_muscle', label: 'Build Muscle & Size', emoji: '💪' },
   { id: 'get_stronger', label: 'Get Stronger', emoji: '🏋️' },
   { id: 'lose_weight', label: 'Lose Weight', emoji: '🔥' },
-  { id: 'tone_up', label: 'Tone Up & Define', emoji: '✨' },
   { id: 'improve_health', label: 'Improve Overall Health', emoji: '❤️' },
   { id: 'boost_confidence', label: 'Boost Confidence', emoji: '🚀' },
   { id: 'stress_relief', label: 'Stress Relief', emoji: '🧘' },

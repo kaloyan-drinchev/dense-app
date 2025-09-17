@@ -565,6 +565,156 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleResetApp = async () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    Alert.alert(
+      '🚨 RESET ENTIRE APP',
+      'This will DELETE ALL YOUR DATA and reset the app to the very beginning:\n\n• All workouts & progress\n• All nutrition data\n• Subscription status\n• User profile\n• Wizard responses\n\nYou will go through the welcome screen and 12-step wizard again. This cannot be undone!',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'DELETE EVERYTHING',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('🚨 RESET APP: Starting complete app reset...');
+              
+              // Import AsyncStorage
+              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+              
+              // Clear all Zustand stores
+              console.log('🚨 RESET APP: Clearing Zustand stores...');
+              await AsyncStorage.removeItem('auth-storage');
+              await AsyncStorage.removeItem('subscription-storage');
+              await AsyncStorage.removeItem('workout-timer-storage');
+              await AsyncStorage.removeItem('workout-storage');
+              await AsyncStorage.removeItem('nutrition-storage');
+              
+              // Clear all subscription-related storage
+              console.log('🚨 RESET APP: Clearing subscription data...');
+              await AsyncStorage.removeItem('user_subscription');
+              await AsyncStorage.removeItem('user_trial_status');
+              await AsyncStorage.removeItem('user_purchases');
+              await AsyncStorage.removeItem('subscription_history');
+              await AsyncStorage.removeItem('device_id');
+              await AsyncStorage.removeItem('subscription_cancelled');
+              
+              // Clear Apple IAP storage
+              console.log('🚨 RESET APP: Clearing Apple IAP data...');
+              await AsyncStorage.removeItem('apple_iap_purchases');
+              
+              // Clear any other potential storage keys
+              console.log('🚨 RESET APP: Clearing additional data...');
+              const { 
+                wizardResultsService, 
+                userProfileService, 
+                dailyLogService, 
+                customMealService, 
+                userProgressService 
+              } = await import('@/db/services');
+              
+              // Clear all database tables (if user exists)
+              if (user?.id) {
+                try {
+                  // Clear wizard results
+                  const wizardData = await wizardResultsService.getByUserId(user.id);
+                  if (wizardData) {
+                    await wizardResultsService.delete(wizardData.id);
+                    console.log('✅ Cleared wizard results');
+                  }
+                } catch (error) {
+                  console.log('ℹ️ No wizard results to clear');
+                }
+                
+                try {
+                  await userProfileService.delete(user.id);
+                  console.log('✅ Cleared user profile');
+                } catch (error) {
+                  console.log('ℹ️ No user profile to clear');
+                }
+                
+                try {
+                  // Clear daily logs (nutrition data)
+                  const dailyLogs = await dailyLogService.getByUserId(user.id);
+                  for (const log of dailyLogs) {
+                    await dailyLogService.delete(log.id);
+                  }
+                  console.log('✅ Cleared daily logs');
+                } catch (error) {
+                  console.log('ℹ️ No daily logs to clear');
+                }
+                
+                try {
+                  // Clear custom meals
+                  const customMeals = await customMealService.getByUserId(user.id);
+                  for (const meal of customMeals) {
+                    await customMealService.delete(meal.id);
+                  }
+                  console.log('✅ Cleared custom meals');
+                } catch (error) {
+                  console.log('ℹ️ No custom meals to clear');
+                }
+                
+                try {
+                  // Clear user progress (workout data)
+                  const progress = await userProgressService.getByUserId(user.id);
+                  if (progress) {
+                    await userProgressService.delete(progress.id);
+                  }
+                  console.log('✅ Cleared user progress');
+                } catch (error) {
+                  console.log('ℹ️ No user progress to clear');
+                }
+              }
+              
+              console.log('🚨 RESET APP: Clearing auth state...');
+              
+              // Reset auth state to trigger complete restart
+              const { checkIfFirstTime, logout } = useAuthStore.getState();
+              
+              // Logout to clear auth state
+              logout();
+              
+              console.log('✅ RESET APP: Complete! App will restart from welcome screen.');
+              
+              if (Platform.OS !== 'web') {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+              
+              Alert.alert(
+                '✅ App Reset Complete',
+                'All data has been deleted. The app will now restart from the very beginning with the welcome screen and wizard.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      // Force app to restart completely
+                      router.replace('/');
+                    }
+                  }
+                ]
+              );
+              
+            } catch (error) {
+              console.error('❌ Error resetting app:', error);
+              Alert.alert(
+                'Error',
+                'Failed to reset app completely. Some data may remain. Please try again or restart the app manually.',
+                [{ text: 'OK' }]
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView 
@@ -757,6 +907,63 @@ export default function SettingsScreen() {
               <Icon name="external-link" size={20} color={colors.lightGray} />
             </TouchableOpacity>
           )}
+        </View>
+
+        {/* Developer Testing */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Developer Testing</Text>
+          
+          <TouchableOpacity style={styles.settingItem} onPress={handleResetApp}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
+              <Icon name="trash-2" size={20} color={colors.white} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Reset Entire App</Text>
+              <Text style={styles.settingDescription}>
+                Delete all data and restart from welcome screen
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={handleResetSubscriptionData}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.warning }]}>
+              <Icon name="refresh-cw" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Reset Subscription Data</Text>
+              <Text style={styles.settingDescription}>
+                Clear subscription & trial data only
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={handleStartTrial}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.success }]}>
+              <Icon name="play" size={20} color={colors.white} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Start 7-Day Trial</Text>
+              <Text style={styles.settingDescription}>
+                Test trial experience from beginning
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={handleExpireTrial}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
+              <Icon name="clock" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Expire Trial</Text>
+              <Text style={styles.settingDescription}>
+                End trial immediately, trigger subscription prompt
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
         </View>
 
       </ScrollView>

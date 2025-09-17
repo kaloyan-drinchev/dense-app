@@ -383,10 +383,13 @@ export const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 2,
     borderColor: 'transparent',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   selectedOption: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.primary, // Primary green background
+    borderColor: 'transparent',
   },
   disabledOption: {
     opacity: 0.5,
@@ -398,7 +401,7 @@ export const styles = StyleSheet.create({
   },
   selectedOptionText: {
     ...typography.button,
-    color: colors.black,
+    color: colors.black, // Black text on green background
   },
   scheduleContainer: {
     width: '100%',

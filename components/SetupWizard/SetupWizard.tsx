@@ -194,7 +194,10 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           return false;
         }
         if (preferences.musclePriorities.length > 3) {
-          setValidationError('Please select maximum 3 muscle groups');
+          // Auto-fix by keeping only first 3 selections
+          const fixedPriorities = preferences.musclePriorities.slice(0, 3);
+          handleInputChange('musclePriorities', fixedPriorities);
+          setValidationError('Maximum 3 muscle groups allowed - automatically adjusted');
           return false;
         }
         return true;
@@ -421,10 +424,17 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     const isSelected = current.includes(muscle);
     
     if (isSelected) {
+      // Always allow deselection
       handleInputChange('musclePriorities', current.filter(m => m !== muscle));
     } else {
+      // Only allow selection if under limit
       if (current.length < 3) {
         handleInputChange('musclePriorities', [...current, muscle]);
+      } else {
+        // Provide haptic feedback when limit reached
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
       }
     }
   };
@@ -469,9 +479,6 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
       case 'motivation':
         return (
           <View style={styles.optionsContainer}>
-            <Text style={styles.priorityHint}>
-              Choose what brings you to DENSE ({preferences.motivation.length} selected)
-            </Text>
             {motivationOptions.map((option) => (
               <TouchableOpacity
                 key={option.id}
@@ -485,18 +492,17 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                   }
                   toggleMotivation(option.id);
                 }}
+                activeOpacity={1}
               >
-                <View style={styles.motivationOption}>
-                  <Text style={styles.motivationEmoji}>{option.emoji}</Text>
-                  <Text
-                    style={[
-                      styles.optionText,
-                      preferences.motivation.includes(option.id) && styles.selectedOptionText,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </View>
+                <Text style={styles.motivationEmoji}>{option.emoji}</Text>
+                <Text
+                  style={[
+                    styles.optionText,
+                    preferences.motivation.includes(option.id) && styles.selectedOptionText,
+                  ]}
+                >
+                  {option.label}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -582,6 +588,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                   preferences.trainingExperience === option.id && styles.selectedOption,
                 ]}
                 onPress={() => handleInputChange('trainingExperience', option.id)}
+                activeOpacity={1}
               >
                 <Text
                   style={[
@@ -629,6 +636,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                         preferences.gender === option.id && styles.selectedOption,
                       ]}
                       onPress={() => handleInputChange('gender', option.id)}
+                      activeOpacity={1}
                     >
                       <Text
                         style={[
@@ -698,6 +706,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                       preferences.goal === option.id && styles.selectedOption,
                     ]}
                     onPress={() => handleInputChange('goal', option.id)}
+                    activeOpacity={1}
                   >
                     <Text
                       style={[
@@ -729,6 +738,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                       }
                       handleInputChange('trainingDaysPerWeek', option.id);
                     }}
+                    activeOpacity={1}
                   >
                     <View style={styles.trainingDayContent}>
                       <Text
@@ -827,31 +837,30 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
             <Text style={styles.priorityHint}>
               Choose up to 3 muscle groups to prioritize ({preferences.musclePriorities.length}/3)
             </Text>
-            {musclePriorityOptions.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={[
-                  styles.optionButton,
-                  preferences.musclePriorities.includes(option.id) && styles.selectedOption,
-                  preferences.musclePriorities.length >= 3 &&
-                  !preferences.musclePriorities.includes(option.id) && styles.disabledOption,
-                ]}
-                onPress={() => toggleMusclePriority(option.id)}
-                disabled={
-                  preferences.musclePriorities.length >= 3 &&
-                  !preferences.musclePriorities.includes(option.id)
-                }
-              >
-                <Text
+            {musclePriorityOptions.map((option) => {
+              const isSelected = preferences.musclePriorities.includes(option.id);
+              
+              return (
+                <TouchableOpacity
+                  key={option.id}
                   style={[
-                    styles.optionText,
-                    preferences.musclePriorities.includes(option.id) && styles.selectedOptionText,
+                    styles.optionButton,
+                    isSelected && styles.selectedOption,
                   ]}
+                  onPress={() => toggleMusclePriority(option.id)}
+                  activeOpacity={1}
                 >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.optionText,
+                      isSelected && styles.selectedOptionText,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         );
 
@@ -866,6 +875,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                   preferences.pumpWorkPreference === option.id && styles.selectedOption,
                 ]}
                 onPress={() => handleInputChange('pumpWorkPreference', option.id)}
+                activeOpacity={1}
               >
                 <Text
                   style={[
@@ -893,6 +903,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                   preferences.programDurationWeeks === option.id && styles.selectedOption,
                 ]}
                 onPress={() => handleInputChange('programDurationWeeks', option.id)}
+                activeOpacity={1}
               >
                 <Text
                   style={[
@@ -1194,6 +1205,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               const { setWizardCompleted } = useAuthStore.getState();
               setWizardCompleted();
             }}
+            activeOpacity={1}
           >
             <Text style={styles.finishButtonText}>Finish Setup</Text>
           </TouchableOpacity>
@@ -1245,6 +1257,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               setShowCheckProgramButton(false);
               setShowProgramView(true);
             }}
+            activeOpacity={1}
           >
             <Text style={styles.checkProgramButtonText}>Check Your Program</Text>
             <Icon name="arrow-right" size={20} color={colors.black} />
@@ -1256,6 +1269,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               const { setWizardCompleted } = useAuthStore.getState();
               setWizardCompleted();
             }}
+            activeOpacity={1}
           >
             <Text style={styles.viewLaterButtonText}>View Later in Programs Tab</Text>
           </TouchableOpacity>
@@ -1377,6 +1391,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           <TouchableOpacity 
             onPress={() => setCurrentStep(currentStep - 1)}
             style={styles.backButton}
+            activeOpacity={1}
           >
             <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
@@ -1387,6 +1402,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         <TouchableOpacity 
           onPress={handleNext}
           style={styles.nextButton}
+          activeOpacity={1}
         >
           <Text style={styles.nextButtonText}>
             {currentStep === steps.length - 1 ? 'Generate My Program! 💪' : 'Next'}

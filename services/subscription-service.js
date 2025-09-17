@@ -436,6 +436,51 @@ export const subscriptionService = {
     }
   },
 
+  // Check if trial is currently active
+  async isTrialActive() {
+    try {
+      const trialStatus = await this.getTrialStatus();
+      return trialStatus ? trialStatus.isActive : false;
+    } catch (error) {
+      console.error('❌ Error checking trial active status:', error);
+      return false;
+    }
+  },
+
+  // Check if user can start a trial
+  async canStartTrial() {
+    try {
+      console.log('🔍 Checking trial eligibility...');
+      
+      // Check if user already has an active subscription
+      const hasActiveSub = await this.hasActiveSubscription();
+      if (hasActiveSub) {
+        console.log('❌ Cannot start trial: user has active subscription');
+        return false;
+      }
+      
+      // Check if user has already used their trial
+      const trialStatus = await this.getTrialStatus();
+      if (trialStatus && trialStatus.startDate) {
+        console.log('❌ Cannot start trial: user already used their trial');
+        return false;
+      }
+      
+      // Check purchase history to see if user ever had a subscription
+      const purchaseHistory = await this.getPurchaseHistory();
+      if (purchaseHistory.length > 0) {
+        console.log('❌ Cannot start trial: user has purchase history');
+        return false;
+      }
+      
+      console.log('✅ User is eligible for trial');
+      return true;
+    } catch (error) {
+      console.error('❌ Error checking trial eligibility:', error);
+      return false;
+    }
+  },
+
   async clearTrialData() {
     try {
       await AsyncStorage.removeItem(TRIAL_STORAGE_KEY);

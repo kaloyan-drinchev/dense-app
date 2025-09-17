@@ -274,6 +274,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         style={[styles.planCard, isSelected && styles.planCardSelected]}
         onPress={() => handlePlanSelect(plan.id)}
         disabled={isProcessing}
+        activeOpacity={1}
       >
         {plan.isPopular && (
           <View style={styles.popularBadge}>
@@ -345,6 +346,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
               <TouchableOpacity 
                 style={styles.closeButton}
                 onPress={handleCancel}
+                activeOpacity={1}
               >
                 <Icon name="x" size={24} color={colors.lightGray} />
               </TouchableOpacity>
@@ -359,22 +361,6 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
             </Text>
           </View>
 
-          {/* Program Preview Teaser */}
-          {programPreview && (
-            <View style={styles.previewContainer}>
-              <Text style={styles.previewTitle}>Your Program is Ready!</Text>
-              <View style={styles.previewBox}>
-                <Text style={styles.previewName}>{programPreview.displayTitle || programPreview.programName}</Text>
-                <Text style={styles.previewDescription}>
-                  Custom {programPreview.split || 'Split'} • {programPreview.weeks?.length || 12} weeks
-                </Text>
-                <View style={styles.blurOverlay}>
-                  <Icon name="lock" size={32} color={colors.white} />
-                  <Text style={styles.blurText}>Subscribe to unlock</Text>
-                </View>
-              </View>
-            </View>
-          )}
 
           {/* Subscription Plans */}
           <View style={styles.plansContainer}>
@@ -412,6 +398,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
             style={[styles.subscribeButton, isProcessing && styles.subscribeButtonDisabled]}
             onPress={handlePurchase}
             disabled={isProcessing || isStartingTrial}
+            activeOpacity={1}
           >
             {isProcessing ? (
               <ActivityIndicator color={colors.black} />
@@ -439,6 +426,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
               style={styles.linkButton}
               onPress={handleRestorePurchases}
               disabled={isRestoring}
+              activeOpacity={1}
             >
               <Text style={styles.linkText}>
                 {isRestoring ? 'Restoring...' : 'Restore Purchases'}
@@ -449,6 +437,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
               <TouchableOpacity
                 style={styles.linkButton}
                 onPress={onSkip}
+                activeOpacity={1}
               >
                 <Text style={styles.linkText}>Maybe Later</Text>
               </TouchableOpacity>
@@ -520,49 +509,6 @@ const styles = StyleSheet.create({
     color: colors.lighterGray,
     textAlign: 'center',
     lineHeight: 24,
-  },
-  previewContainer: {
-    marginBottom: 32,
-  },
-  previewTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.white,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  previewBox: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 16,
-    padding: 20,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  previewName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 8,
-  },
-  previewDescription: {
-    fontSize: 14,
-    color: colors.lighterGray,
-  },
-  blurOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  blurText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 8,
   },
   plansContainer: {
     marginBottom: 32,

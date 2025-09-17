@@ -141,6 +141,37 @@ export const useSubscriptionStore = create()(
         };
       },
 
+      // Check if user can start a trial
+      canStartTrial: async () => {
+        try {
+          return await subscriptionService.canStartTrial();
+        } catch (error) {
+          console.error('Failed to check trial eligibility:', error);
+          return false;
+        }
+      },
+
+      // Start free trial
+      startFreeTrial: async () => {
+        try {
+          const result = await subscriptionService.startFreeTrial();
+          
+          if (result.success) {
+            // Refresh subscription status after starting trial
+            const { checkSubscriptionStatus } = get();
+            await checkSubscriptionStatus();
+          }
+          
+          return result;
+        } catch (error) {
+          console.error('Failed to start trial:', error);
+          return {
+            success: false,
+            message: 'Failed to start trial'
+          };
+        }
+      },
+
       setSubscriptionEndDate: async (days, disableAutoRenew = false) => {
         try {
           const result = await subscriptionService.setSubscriptionEndDate(days, disableAutoRenew);
