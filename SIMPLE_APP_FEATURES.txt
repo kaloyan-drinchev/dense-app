@@ -1,0 +1,125 @@
+DENSE FITNESS APP
+Simple Feature Overview
+
+
+NUTRITION TRACKING
+
+What it does:
+Track your daily food and reach your macro goals
+
+Key Features:
+• Beautiful circular progress charts for Calories, Protein, Carbs, Fat
+• Easy food logging by meal type (Breakfast, Lunch, Dinner, Snacks)
+• Recipe database with step-by-step cooking instructions
+• Daily macro targets displayed at the top
+• Nutrition history to see your progress over time
+• Delete confirmation to prevent accidental food removals
+
+Colors:
+• Calories: Green
+• Protein: Blue
+• Carbs: Dark Yellow
+• Fat: Orange
+
+
+AI COACHING
+
+What it does:
+Get personalized fitness and nutrition advice anytime
+
+Key Features:
+• 24/7 chat with AI coach for workout and nutrition questions
+• Personalized recommendations based on your goals
+• Exercise form tips and workout modifications
+• Meal planning suggestions and nutrition guidance
+• Progress analysis with actionable insights
+• Motivation and accountability when you need it
+
+
+WORKOUT TRAINING
+
+What it does:
+Follow personalized workout programs and track your progress
+
+Key Features:
+• Custom workout programs generated just for you
+• Exercise tracking with sets, reps, and weights
+• Workout calendar with visual heat map
+• Progress charts showing your strength gains
+• Phase-based training (Weeks 1-4, 5-8, 9-12)
+• Rest timer between sets
+• Workout history with detailed stats
+
+
+SETTINGS & PROFILE
+
+What it does:
+Manage your account, goals, and app preferences
+
+Key Features:
+• Profile management with photo and personal info
+• Edit fitness goals and macro targets
+• iCloud backup to save your data safely
+• Reset app option for fresh start
+• Subscription management for premium features
+• About & help sections
+
+
+PREMIUM FEATURES
+
+What you get with subscription:
+• Unlimited AI coaching (vs 3 free chats per month)
+• Access to all workout programs
+• Automatic iCloud backup and sync
+• Advanced progress analytics
+• Ad-free experience
+
+
+GETTING STARTED
+
+Setup Process:
+1. Welcome screen with app introduction
+2. 12-step wizard to understand your goals:
+   - Personal info (age, height, weight)
+   - Fitness goals (lose weight, build muscle, etc.)
+   - Experience level (beginner to advanced)
+   - Available equipment (home, gym, etc.)
+   - Schedule preferences
+3. Your program is ready! Start working out immediately
+
+
+HOW IT LOOKS
+
+Design:
+• Beautiful dark theme with gradient backgrounds
+• Clean, modern interface that's easy to use
+• Bottom tab navigation: Nutrition • Progress • Programs • Settings
+• Fast and smooth - works offline too
+
+Navigation:
+• Nutrition Tab: Track food, see macro circles, view history
+• Progress Tab: Workout calendar, strength charts, body stats
+• Programs Tab: Browse workouts, start training sessions
+• Settings Tab: Profile, goals, backup, subscription
+
+
+WHY IT'S SPECIAL
+
+• All-in-one: Nutrition + Training + Coaching in one app
+• AI-powered: Smart recommendations that learn from you
+• Visual progress: Beautiful charts make tracking fun
+• Never lose data: First fitness app with automatic backup
+• Beautiful design: Premium look and feel
+• Works offline: No internet? No problem!
+
+
+WHO IT'S FOR
+
+• Beginners who need guidance and structure
+• Intermediate users wanting better tracking
+• Advanced athletes seeking optimization
+• Anyone who wants a personal trainer in their pocket
+
+
+Simple. Powerful. Effective.
+

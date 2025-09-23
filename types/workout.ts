@@ -13,6 +13,7 @@ export type Exercise = {
   restTime: number; // in seconds
   notes?: string;
   imageUrl?: string;
+  videoUrl?: string;
   targetMuscle: string;
   isCompleted?: boolean;
   userSets?: ExerciseSet[];

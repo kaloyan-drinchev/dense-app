@@ -76,7 +76,11 @@ export default function ExerciseHistoryScreen() {
     }
   }, [user?.id, exerciseId]);
 
-  useFocusEffect(loadExerciseHistory);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadExerciseHistory();
+    }, [loadExerciseHistory])
+  );
 
   const currentPRs = exercisePRs[exerciseId];
 

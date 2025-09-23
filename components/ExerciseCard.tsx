@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { Exercise } from '@/types/workout';
@@ -6,6 +6,7 @@ import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
 import { formatTime } from '@/utils/helpers';
+import { ExerciseDemoModal } from './ExerciseDemoModal';
 
 interface ExerciseCardProps {
   exercise: Exercise;
@@ -22,8 +23,18 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   status = 'pending',
   prPotential = false,
 }) => {
+  const [showDemoModal, setShowDemoModal] = useState(false);
+  
   const statusLabel =
     status === 'completed' ? 'Completed' : status === 'in-progress' ? 'In Progress' : 'Pending';
+
+  const handleDemoPress = () => {
+    setShowDemoModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowDemoModal(false);
+  };
 
   return (
     <TouchableOpacity
@@ -34,58 +45,92 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <View style={styles.header}>
-        <View style={styles.indexContainer}>
-          <Text style={styles.indexText}>{index + 1}</Text>
-        </View>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>{exercise.name}</Text>
-          <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
-        </View>
-        <View style={styles.badgeContainer}>
-          {prPotential && status !== 'completed' && (
-            <View style={styles.prBadge}>
-              <Icon name="zap" size={12} color={colors.black} />
-              <Text style={styles.prText}>PR</Text>
+      <View style={styles.cardContent}>
+        {/* Left side - Image */}
+        <TouchableOpacity
+          style={styles.imageContainer}
+          onPress={handleDemoPress}
+          activeOpacity={0.8}
+        >
+          <Image
+            source={
+              exercise.imageUrl 
+                ? { uri: exercise.imageUrl }
+                : require('@/assets/images/barbell-bench-press.png')
+            }
+            style={styles.exerciseImage}
+            contentFit="cover"
+          />
+          <View style={styles.playOverlay}>
+            <Icon name="play" size={14} color={colors.white} />
+          </View>
+        </TouchableOpacity>
+
+        {/* Right side - Content */}
+        <View style={styles.contentContainer}>
+          {/* Top section - Exercise info */}
+          <View style={styles.topSection}>
+            <View style={styles.indexContainer}>
+              <Text style={styles.indexText}>{index + 1}</Text>
             </View>
-          )}
-          <View
-            style={[
-              styles.statusBadge,
-              status === 'completed'
-                ? styles.statusCompleted
-                : status === 'in-progress'
-                ? styles.statusInProgress
-                : styles.statusPending,
-            ]}
-          >
-            <Text style={[
-              styles.statusText,
-              status === 'completed' && styles.statusTextCompleted
-            ]}>{statusLabel}</Text>
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>{exercise.name}</Text>
+              <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
+            </View>
+            <View style={styles.badgeContainer}>
+              {prPotential && status !== 'completed' && (
+                <View style={styles.prBadge}>
+                  <Icon name="zap" size={12} color={colors.black} />
+                  <Text style={styles.prText}>PR</Text>
+                </View>
+              )}
+              <View
+                style={[
+                  styles.statusBadge,
+                  status === 'completed'
+                    ? styles.statusCompleted
+                    : status === 'in-progress'
+                    ? styles.statusInProgress
+                    : styles.statusPending,
+                ]}
+              >
+                <Text style={[
+                  styles.statusText,
+                  status === 'completed' && styles.statusTextCompleted
+                ]}>{statusLabel}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Bottom right - Compact exercise info */}
+          <View style={styles.compactInfoContainer}>
+            <View style={styles.compactInfoItem}>
+              <Text style={styles.compactInfoText}>{exercise.sets} sets</Text>
+            </View>
+            <Text style={styles.infoDivider}>•</Text>
+            <View style={styles.compactInfoItem}>
+              <Text style={styles.compactInfoText}>{exercise.reps} reps</Text>
+            </View>
+            <Text style={styles.infoDivider}>•</Text>
+            <View style={styles.compactInfoItem}>
+              <Icon name="clock" size={10} color={colors.lighterGray} />
+              <Text style={styles.compactInfoText}>{formatTime(exercise.restTime)}</Text>
+            </View>
           </View>
         </View>
       </View>
 
-      <View style={styles.infoContainer}>
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Sets</Text>
-          <Text style={styles.infoValue}>{exercise.sets}</Text>
-        </View>
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Reps</Text>
-          <Text style={styles.infoValue}>{exercise.reps}</Text>
-        </View>
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Rest</Text>
-          <View style={styles.restContainer}>
-            <Icon name="clock" size={12} color={colors.lighterGray} />
-            <Text style={styles.infoValue}>
-              {formatTime(exercise.restTime)}
-            </Text>
-          </View>
-        </View>
-      </View>
+      <ExerciseDemoModal
+        visible={showDemoModal}
+        onClose={handleCloseModal}
+        exercise={{
+          name: exercise.name,
+          targetMuscle: exercise.targetMuscle,
+          imageUrl: exercise.imageUrl,
+          videoUrl: exercise.videoUrl, // Will fall back to placeholder video
+          notes: exercise.notes,
+        }}
+      />
     </TouchableOpacity>
   );
 };
@@ -106,23 +151,59 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.success,
     borderLeftWidth: 4,
   },
-  header: {
+  cardContent: {
     flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  imageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.mediumGray,
+    position: 'relative',
+    marginRight: 16,
+  },
+  contentContainer: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  topSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  exerciseImage: {
+    width: '100%',
+    height: '100%',
+  },
+  playOverlay: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.white,
   },
   indexContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 8,
+    alignSelf: 'flex-start',
   },
   indexText: {
-    ...typography.bodySmall,
+    ...typography.caption,
     color: colors.black,
+    fontWeight: '700',
+    fontSize: 11,
   },
   titleContainer: {
     flex: 1,
@@ -150,28 +231,6 @@ const styles = StyleSheet.create({
   statusTextCompleted: {
     color: colors.black,
   },
-  infoContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-  },
-  infoItem: {
-    alignItems: 'center',
-  },
-  infoLabel: {
-    ...typography.caption,
-    color: colors.lightGray,
-    marginBottom: 4,
-  },
-  infoValue: {
-    ...typography.bodySmall,
-    color: colors.white,
-  },
-  restContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
   // Status colors
   statusPending: {
     backgroundColor: colors.mediumGray,
@@ -185,23 +244,47 @@ const styles = StyleSheet.create({
   
   // PR Indicator styles
   badgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 4,
   },
   prBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 2,
   },
   prText: {
     ...typography.caption,
     color: colors.black,
     fontWeight: '700',
+    fontSize: 9,
+  },
+  
+  // New compact info styles
+  compactInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    gap: 6,
+  },
+  compactInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  compactInfoText: {
+    ...typography.caption,
+    color: colors.lightGray,
+    fontSize: 11,
+  },
+  infoDivider: {
+    ...typography.caption,
+    color: colors.lighterGray,
     fontSize: 10,
   },
 });
