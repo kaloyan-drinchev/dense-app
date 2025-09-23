@@ -7,6 +7,7 @@ import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
 import { formatTime } from '@/utils/helpers';
 import { ExerciseDemoModal } from './ExerciseDemoModal';
+import { getExerciseThumbnailUrl } from '@/services/video-service';
 
 interface ExerciseCardProps {
   exercise: Exercise;
@@ -53,11 +54,7 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
           activeOpacity={0.8}
         >
           <Image
-            source={
-              exercise.imageUrl 
-                ? { uri: exercise.imageUrl }
-                : require('@/assets/images/barbell-bench-press.png')
-            }
+            source={{ uri: getExerciseThumbnailUrl(exercise.name) }}
             style={styles.exerciseImage}
             contentFit="cover"
           />
@@ -126,7 +123,7 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
         exercise={{
           name: exercise.name,
           targetMuscle: exercise.targetMuscle,
-          imageUrl: exercise.imageUrl,
+          imageUrl: getExerciseThumbnailUrl(exercise.name),
           videoUrl: exercise.videoUrl, // Will fall back to placeholder video
           notes: exercise.notes,
         }}
