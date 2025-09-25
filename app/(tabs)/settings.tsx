@@ -17,7 +17,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
 import { useSubscriptionStore } from '@/store/subscription-store.js';
-import { subscriptionService } from '@/services/subscription-service.js';
+import * as subscriptionService from '@/services/subscription-service.js';
 import { wizardResultsService } from '@/db/services';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
@@ -157,6 +157,13 @@ export default function SettingsScreen() {
     router.push('/my-goals');
   };
 
+  const handlePhotoEffects = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push('/photo-effects');
+  };
+
   const handleManageSubscription = async () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -217,12 +224,32 @@ export default function SettingsScreen() {
           style: 'default',
           onPress: async () => {
             try {
-              // Import subscription service functions
-              const { subscriptionService } = await import('@/services/subscription-service');
+              // Check if we're using legacy system (developer testing only works with legacy)
+              const subscriptionModule = await import('@/services/subscription-service');
+              const serviceInfo = subscriptionModule.getServiceInfo ? subscriptionModule.getServiceInfo() : null;
+              
+              if (serviceInfo && serviceInfo.service !== 'legacy') {
+                Alert.alert(
+                  '⚠️ Not Available',
+                  'Developer testing features are only available when using Legacy System. RevenueCat handles trials automatically.',
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+              
+              // Import legacy service directly for testing
+              const legacyModule = await import('@/services/subscription-service-legacy');
+              const legacyService = legacyModule.subscriptionService;
               
               // Clear existing trial data and start fresh
-              await subscriptionService.clearTrialData();
-              const result = await subscriptionService.startFreeTrial();
+              if (legacyService && legacyService.clearTrialData) {
+                await legacyService.clearTrialData();
+              }
+              
+              let result: { success: boolean; message: string; trialEndDate?: string | null } = { success: true, message: 'Trial started successfully!', trialEndDate: null };
+              if (legacyService && legacyService.startFreeTrial) {
+                result = await legacyService.startFreeTrial();
+              }
               
               if (result.success) {
                 await refreshSubscriptionStatus();
@@ -230,13 +257,14 @@ export default function SettingsScreen() {
                 
                 Alert.alert(
                   '✅ Trial Started',
-                  `${result.message}\nTrial ends: ${result.trialEndDate ? new Date(result.trialEndDate).toLocaleDateString() : 'In 7 days'}`,
+                  `${result.message || 'Free trial started successfully!'}\nTrial ends: ${result.trialEndDate ? new Date(result.trialEndDate).toLocaleDateString() : 'In 7 days'}`,
                   [{ text: 'OK' }]
                 );
               } else {
-                Alert.alert('Error', result.message, [{ text: 'OK' }]);
+                Alert.alert('Error', result.message || 'Failed to start trial', [{ text: 'OK' }]);
               }
             } catch (error) {
+              console.error('Start trial error:', error);
               Alert.alert('Error', 'Failed to start trial. Please try again.', [{ text: 'OK' }]);
             }
           },
@@ -263,10 +291,27 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Import subscription service functions  
-              const { subscriptionService } = await import('@/services/subscription-service');
+              // Check if we're using legacy system (developer testing only works with legacy)
+              const subscriptionModule = await import('@/services/subscription-service');
+              const serviceInfo = subscriptionModule.getServiceInfo ? subscriptionModule.getServiceInfo() : null;
               
-              const result = await subscriptionService.expireTrial();
+              if (serviceInfo && serviceInfo.service !== 'legacy') {
+                Alert.alert(
+                  '⚠️ Not Available',
+                  'Developer testing features are only available when using Legacy System. RevenueCat handles subscription status automatically.',
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+              
+              // Import legacy service directly for testing
+              const legacyModule = await import('@/services/subscription-service-legacy');
+              const legacyService = legacyModule.subscriptionService;
+              
+              let result = { success: true, message: 'Trial expired successfully!' };
+              if (legacyService && legacyService.expireTrial) {
+                result = await legacyService.expireTrial();
+              }
               
               if (result.success) {
                 await refreshSubscriptionStatus();
@@ -274,13 +319,14 @@ export default function SettingsScreen() {
                 
                 Alert.alert(
                   '✅ Trial Expired',
-                  'Your trial has ended. You should now be prompted to subscribe.',
+                  result.message || 'Your trial has ended. You should now be prompted to subscribe.',
                   [{ text: 'OK' }]
                 );
               } else {
-                Alert.alert('Error', result.message, [{ text: 'OK' }]);
+                Alert.alert('Error', result.message || 'Failed to expire trial', [{ text: 'OK' }]);
               }
             } catch (error) {
+              console.error('Expire trial error:', error);
               Alert.alert('Error', 'Failed to expire trial. Please try again.', [{ text: 'OK' }]);
             }
           },
@@ -875,6 +921,23 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Photo Effects */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Photo Effects</Text>
+          
+          <TouchableOpacity style={styles.settingItem} onPress={handlePhotoEffects} activeOpacity={1}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
+              <MaterialIcon name="photo-filter" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Photo Effects</Text>
+              <Text style={styles.settingDescription}>
+                Download presets to make you look stronger and leaner
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+        </View>
 
         {/* Account */}
         {/* <View style={styles.section}>
@@ -1058,6 +1121,48 @@ export default function SettingsScreen() {
               )}
             </>
           )}
+        </View>
+
+        {/* Subscription System Status */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Subscription System</Text>
+          
+          <TouchableOpacity style={styles.settingItem} onPress={() => {
+            // Import the subscription service to get current status
+            import('../../services/subscription-service').then((service) => {
+              const serviceInfo = service.getServiceInfo ? service.getServiceInfo() : 
+                { service: 'legacy', description: 'Legacy System (Development Mode)' };
+              
+              const isRevenueCat = serviceInfo.service === 'revenuecat';
+              
+              Alert.alert(
+                'Subscription System Status',
+                `Currently using: ${serviceInfo.description}\n\n${
+                  isRevenueCat 
+                    ? 'Your app is using secure server-side subscription validation through RevenueCat.'
+                    : 'Your app is in development mode. When you get your Apple Developer account:\n\n1. Set up RevenueCat dashboard\n2. Add API keys to environment\n3. System will automatically upgrade'
+                }`,
+                [{ text: 'Got it' }]
+              );
+            }).catch(() => {
+              Alert.alert(
+                'Subscription System Status',
+                'Currently using Legacy System (Development Mode)',
+                [{ text: 'Got it' }]
+              );
+            });
+          }} activeOpacity={1}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
+              <Icon name="credit-card" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Payment System</Text>
+              <Text style={styles.settingDescription}>
+                Hybrid System (Auto-detects RevenueCat)
+              </Text>
+            </View>
+            <Icon name="info" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
         </View>
 
         {/* Developer Testing */}

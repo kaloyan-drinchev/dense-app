@@ -239,6 +239,7 @@ export default function NutritionScreen() {
               // Navigate to add food page
               router.push('/add-food-page');
             }}
+            activeOpacity={1}
           >
             <Icon name="plus" size={18} color={colors.white} />
             <Text style={styles.quickActionText}>Add Foods</Text>
@@ -247,6 +248,7 @@ export default function NutritionScreen() {
           <TouchableOpacity
             style={styles.quickActionButton}
             onPress={() => router.push('/allowed-foods')}
+            activeOpacity={1}
           >
             <Icon name="list" size={18} color={colors.white} />
             <Text style={styles.quickActionText}>Allowed Foods</Text>
@@ -373,6 +375,7 @@ export default function NutritionScreen() {
             <TouchableOpacity
               style={styles.logDayButton}
               onPress={handleLogDaily}
+              activeOpacity={1}
             >
               <Icon name="check-circle" size={18} color={colors.black} />
               <Text style={styles.logDayButtonText}>Log Selected Meals</Text>
@@ -382,6 +385,7 @@ export default function NutritionScreen() {
           <TouchableOpacity
             style={styles.dailyActionButton}
             onPress={() => router.push('/nutrition-history')}
+            activeOpacity={1}
           >
             <Icon name="calendar" size={18} color={colors.primary} />
             <Text style={styles.dailyActionText}>See Previous Nutrition</Text>

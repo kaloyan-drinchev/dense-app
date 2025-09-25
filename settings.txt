@@ -1,2 +1,0 @@
-root: C:\dev2\nvm
-path: C:\dev2\nvm\nodejs

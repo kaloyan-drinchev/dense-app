@@ -27,6 +27,7 @@ export default function AllowedFoodsScreen() {
       <TouchableOpacity
         style={styles.categoryHeader}
         onPress={() => toggleCategory(category.id)}
+        activeOpacity={1}
       >
         <View style={styles.categoryTitleContainer}>
           <Text style={styles.categoryIcon}>{category.icon}</Text>
@@ -60,6 +61,7 @@ export default function AllowedFoodsScreen() {
       <TouchableOpacity
         style={styles.categoryHeader}
         onPress={() => toggleCategory(category.id)}
+        activeOpacity={1}
       >
         <View style={styles.categoryTitleContainer}>
           <Text style={styles.categoryTitle}>{category.name}</Text>
@@ -92,6 +94,7 @@ export default function AllowedFoodsScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
+          activeOpacity={1}
         >
           <Icon name="arrow-left" size={24} color={colors.white} />
         </TouchableOpacity>
@@ -104,6 +107,7 @@ export default function AllowedFoodsScreen() {
         <TouchableOpacity
           style={[styles.tab, activeTab === 'foods' && styles.activeTab]}
           onPress={() => setActiveTab('foods')}
+          activeOpacity={1}
         >
           <Text style={[styles.tabText, activeTab === 'foods' && styles.activeTabText]}>
             Approved Foods
@@ -112,6 +116,7 @@ export default function AllowedFoodsScreen() {
         <TouchableOpacity
           style={[styles.tab, activeTab === 'recipes' && styles.activeTab]}
           onPress={() => setActiveTab('recipes')}
+          activeOpacity={1}
         >
           <Text style={[styles.tabText, activeTab === 'recipes' && styles.activeTabText]}>
             25 Meal Recipes

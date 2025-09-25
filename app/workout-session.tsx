@@ -393,7 +393,7 @@ export default function WorkoutSessionScreen() {
       <LinearGradient colors={['#000000', '#0A0A0A']} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={1}>
               <Icon name="arrow-left" size={24} color={colors.white} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Workout Session</Text>
@@ -403,10 +403,11 @@ export default function WorkoutSessionScreen() {
             <Icon name="check-circle" size={64} color={colors.primary} />
             <Text style={styles.noWorkoutTitle}>All Done!</Text>
             <Text style={styles.noWorkoutText}>You've completed all workouts for today</Text>
-            <TouchableOpacity 
-              style={styles.backHomeButton}
-              onPress={() => router.push('/(tabs)')}
-            >
+              <TouchableOpacity 
+                style={styles.backHomeButton}
+                onPress={() => router.push('/(tabs)')}
+                activeOpacity={1}
+              >
               <Text style={styles.backHomeText}>Back to Home</Text>
             </TouchableOpacity>
           </View>
@@ -419,7 +420,7 @@ export default function WorkoutSessionScreen() {
     <LinearGradient colors={['#000000', '#0A0A0A']} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBackPress} style={styles.backButton} activeOpacity={1}>
             <Icon name="arrow-left" size={24} color={colors.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Today's Workout</Text>
@@ -438,6 +439,7 @@ export default function WorkoutSessionScreen() {
                   <TouchableOpacity 
                     style={[styles.timerButton, styles.resetButton]} 
                     onPress={handleResetTimer}
+                    activeOpacity={1}
                   >
                     <Icon name="refresh-cw" size={16} color={colors.white} />
                   </TouchableOpacity>
@@ -445,6 +447,7 @@ export default function WorkoutSessionScreen() {
                   <TouchableOpacity 
                     style={[styles.timerButton, isRunning ? styles.pauseButton : styles.playButton]} 
                     onPress={isRunning ? pauseTimer : resumeTimer}
+                    activeOpacity={1}
                   >
                     <Icon name={isRunning ? "pause" : "play"} size={16} color={colors.black} />
                   </TouchableOpacity>
@@ -452,6 +455,7 @@ export default function WorkoutSessionScreen() {
                   <TouchableOpacity 
                     style={[styles.timerButton, styles.stopButton]} 
                     onPress={handleStopWorkout}
+                    activeOpacity={1}
                   >
                     <Icon name="x" size={16} color={colors.white} />
                   </TouchableOpacity>
@@ -462,6 +466,7 @@ export default function WorkoutSessionScreen() {
                 <TouchableOpacity 
                   style={styles.startWorkoutButton}
                   onPress={handleStartWorkoutPress}
+                  activeOpacity={1}
                 >
                   <LinearGradient
                     colors={['#00FF88', '#00CC6A']}
@@ -525,7 +530,7 @@ export default function WorkoutSessionScreen() {
               <Text style={styles.noExercisesText}>No exercises found for today</Text>
             )}
             {workoutStarted && (
-              <TouchableOpacity style={styles.finishButton} onPress={handleFinishWorkout}>
+              <TouchableOpacity style={styles.finishButton} onPress={handleFinishWorkout} activeOpacity={1}>
                 <Text style={styles.finishButtonText}>
                   Finish Workout ({workoutProgress.percentage}%)
                 </Text>
@@ -600,6 +605,7 @@ export default function WorkoutSessionScreen() {
                           setShowWorkoutConfirmModal(false);
                           completeWorkoutWithPercentage();
                         }}
+                        activeOpacity={1}
                       >
                         <Text style={styles.confirmButtonText}>Finish Workout</Text>
                       </TouchableOpacity>
@@ -619,6 +625,7 @@ export default function WorkoutSessionScreen() {
                           setShowWorkoutConfirmModal(false);
                           completeWorkoutWithPercentage();
                         }}
+                        activeOpacity={1}
                       >
                         <Text style={styles.cancelButtonText}>Yes, Finish</Text>
                       </TouchableOpacity>
@@ -626,6 +633,7 @@ export default function WorkoutSessionScreen() {
                       <TouchableOpacity
                         style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
                         onPress={() => setShowWorkoutConfirmModal(false)}
+                        activeOpacity={1}
                       >
                         <Text style={styles.confirmButtonText}>Continue Workout</Text>
                       </TouchableOpacity>

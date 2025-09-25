@@ -159,6 +159,7 @@ export default function WorkoutDetailScreen() {
                   timer ? styles.timerButtonStop : styles.timerButtonStart,
                 ]}
                 onPress={handleStartTimer}
+                activeOpacity={1}
               >
                 <Text style={styles.timerButtonText}>
                   {timer ? 'Pause' : 'Start'}
@@ -167,6 +168,7 @@ export default function WorkoutDetailScreen() {
               <TouchableOpacity
                 style={styles.timerButtonReset}
                 onPress={resetTimer}
+                activeOpacity={1}
               >
                 <Text style={styles.timerButtonResetText}>Reset</Text>
               </TouchableOpacity>
@@ -215,6 +217,7 @@ export default function WorkoutDetailScreen() {
             <TouchableOpacity
               style={styles.completeButton}
               onPress={handleCompleteWorkout}
+              activeOpacity={1}
             >
               <Icon name="check-circle" size={20} color={colors.white} />
               <Text style={styles.completeButtonText}>Complete Workout</Text>

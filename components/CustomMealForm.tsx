@@ -196,7 +196,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
         <Text style={styles.title}>
           {existingMeal ? 'Edit Custom Meal' : 'Create Custom Meal'}
         </Text>
-        <TouchableOpacity style={styles.closeButton} onPress={onComplete}>
+        <TouchableOpacity style={styles.closeButton} onPress={onComplete} activeOpacity={1}>
           <Icon name="x" size={20} color={colors.white} />
         </TouchableOpacity>
       </View>
@@ -244,6 +244,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                   mealType === 'breakfast' && styles.selectedMealType,
                 ]}
                 onPress={() => setMealType('breakfast')}
+                activeOpacity={1}
               >
                 <Text
                   style={[
@@ -261,6 +262,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                   mealType === 'brunch' && styles.selectedMealType,
                 ]}
                 onPress={() => setMealType('brunch')}
+                activeOpacity={1}
               >
                 <Text
                   style={[
@@ -278,6 +280,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                   mealType === 'lunch' && styles.selectedMealType,
                 ]}
                 onPress={() => setMealType('lunch')}
+                activeOpacity={1}
               >
                 <Text
                   style={[
@@ -295,6 +298,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                   mealType === 'pre-workout' && styles.selectedMealType,
                 ]}
                 onPress={() => setMealType('pre-workout')}
+                activeOpacity={1}
               >
                 <Text
                   style={[
@@ -312,6 +316,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                   mealType === 'post-workout' && styles.selectedMealType,
                 ]}
                 onPress={() => setMealType('post-workout')}
+                activeOpacity={1}
               >
                 <Text
                   style={[
@@ -329,6 +334,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                   mealType === 'dinner' && styles.selectedMealType,
                 ]}
                 onPress={() => setMealType('dinner')}
+                activeOpacity={1}
               >
                 <Text
                   style={[
@@ -346,6 +352,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                   mealType === 'snack' && styles.selectedMealType,
                 ]}
                 onPress={() => setMealType('snack')}
+                activeOpacity={1}
               >
                 <Text
                   style={[
@@ -366,6 +373,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
             <TouchableOpacity
               style={styles.addFoodButton}
               onPress={() => setShowSearch(true)}
+              activeOpacity={1}
             >
               <Icon name="plus" size={16} color={colors.white} />
               <Text style={styles.addFoodButtonText}>Add Food</Text>
@@ -392,6 +400,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                 <TouchableOpacity
                   onPress={() => setShowSearch(false)}
                   style={styles.closeSearchButton}
+                  activeOpacity={1}
                 >
                   <Icon name="x" size={20} color={colors.lightGray} />
                 </TouchableOpacity>
@@ -404,6 +413,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                       key={food.id}
                       style={styles.searchResultItem}
                       onPress={() => handleAddFood(food)}
+                      activeOpacity={1}
                     >
                       <View style={styles.searchResultInfo}>
                         <Text style={styles.searchResultName}>{food.name}</Text>
@@ -442,6 +452,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                       <TouchableOpacity
                         style={styles.removeFoodButton}
                         onPress={() => handleRemoveFood(foodId)}
+                        activeOpacity={1}
                       >
                         <Icon name="x" size={16} color={colors.lightGray} />
                       </TouchableOpacity>
@@ -452,6 +463,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                         <TouchableOpacity
                           style={styles.amountButton}
                           onPress={() => adjustAmount(foodId, -5)}
+                          activeOpacity={1}
                         >
                           <Icon name="minus" size={14} color={colors.white} />
                         </TouchableOpacity>
@@ -463,6 +475,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
                         <TouchableOpacity
                           style={styles.amountButton}
                           onPress={() => adjustAmount(foodId, 5)}
+                          activeOpacity={1}
                         >
                           <Icon name="plus" size={14} color={colors.white} />
                         </TouchableOpacity>
@@ -516,6 +529,7 @@ export const CustomMealForm: React.FC<CustomMealFormProps> = ({
         ]}
         onPress={handleSave}
         disabled={!name.trim() || selectedFoods.length === 0}
+        activeOpacity={1}
       >
         <Icon name="check" size={20} color={colors.white} />
         <Text style={styles.saveButtonText}>Save Custom Meal</Text>

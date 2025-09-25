@@ -24,7 +24,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
         workout.isCompleted && styles.completedContainer,
       ]}
       onPress={onPress}
-      activeOpacity={0.8}
+      activeOpacity={1}
     >
       <View style={styles.header}>
         <View style={styles.titleContainer}>

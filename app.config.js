@@ -33,7 +33,8 @@ export default {
       permissions: ["CAMERA"]
     },
     web: {
-      favicon: "./assets/images/favicon.png"
+      favicon: "./assets/images/favicon.png",
+      bundler: "metro"
     },
     plugins: [
       [

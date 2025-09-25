@@ -115,7 +115,7 @@ export const AIFoodAnalysis: React.FC<AIFoodAnalysisProps> = ({
           I couldn't identify any foods in your input.
         </Text>
         <Text style={styles.inputText}>"{voiceInput}"</Text>
-        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+        <TouchableOpacity style={styles.cancelButton} onPress={onCancel} activeOpacity={1}>
           <Text style={styles.cancelButtonText}>Try Again</Text>
         </TouchableOpacity>
       </View>
@@ -141,6 +141,7 @@ export const AIFoodAnalysis: React.FC<AIFoodAnalysisProps> = ({
             <TouchableOpacity
               style={styles.addButton}
               onPress={() => handleAddFood(item.food, item.amount)}
+              activeOpacity={1}
             >
               <Icon name="check" size={16} color={colors.black} />
               <Text style={styles.addButtonText}>Add</Text>
@@ -149,7 +150,7 @@ export const AIFoodAnalysis: React.FC<AIFoodAnalysisProps> = ({
         ))}
       </View>
 
-      <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+      <TouchableOpacity style={styles.cancelButton} onPress={onCancel} activeOpacity={1}>
         <Icon name="x" size={16} color={colors.white} />
         <Text style={styles.cancelButtonText}>Cancel</Text>
       </TouchableOpacity>

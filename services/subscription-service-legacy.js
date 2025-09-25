@@ -436,6 +436,51 @@ export const subscriptionService = {
     }
   },
 
+  // Check if trial is currently active
+  async isTrialActive() {
+    try {
+      const trialStatus = await this.getTrialStatus();
+      return trialStatus ? trialStatus.isActive : false;
+    } catch (error) {
+      console.error('❌ Error checking trial active status:', error);
+      return false;
+    }
+  },
+
+  // Check if user can start a trial
+  async canStartTrial() {
+    try {
+      console.log('🔍 Checking trial eligibility...');
+      
+      // Check if user already has an active subscription
+      const hasActiveSub = await this.hasActiveSubscription();
+      if (hasActiveSub) {
+        console.log('❌ Cannot start trial: user has active subscription');
+        return false;
+      }
+      
+      // Check if user has already used their trial
+      const trialStatus = await this.getTrialStatus();
+      if (trialStatus && trialStatus.startDate) {
+        console.log('❌ Cannot start trial: user already used their trial');
+        return false;
+      }
+      
+      // Check purchase history to see if user ever had a subscription
+      const purchaseHistory = await this.getPurchaseHistory();
+      if (purchaseHistory.length > 0) {
+        console.log('❌ Cannot start trial: user has purchase history');
+        return false;
+      }
+      
+      console.log('✅ User is eligible for trial');
+      return true;
+    } catch (error) {
+      console.error('❌ Error checking trial eligibility:', error);
+      return false;
+    }
+  },
+
   async clearTrialData() {
     try {
       await AsyncStorage.removeItem(TRIAL_STORAGE_KEY);
@@ -499,7 +544,96 @@ export const subscriptionService = {
       console.error('❌ Error setting subscription end date:', error);
       return false;
     }
+  },
+
+  // Check if subscription is cancelled (has active subscription but is set to not renew)
+  async isSubscriptionCancelled() {
+    try {
+      console.log('🔍 Checking if subscription is cancelled...');
+      
+      // Use Apple IAP on iOS, mock check elsewhere
+      if (Platform.OS === 'ios') {
+        return await this.checkAppleSubscriptionCancelled();
+      } else {
+        return await this.checkMockSubscriptionCancelled();
+      }
+    } catch (error) {
+      console.error('❌ Error checking cancelled subscription:', error);
+      return false;
+    }
+  },
+
+  // Check Apple subscription cancellation status
+  async checkAppleSubscriptionCancelled() {
+    try {
+      const { appleIAPService } = await import('./apple-iap-service.js');
+      
+      if (!appleIAPService.isInitialized) {
+        console.log('⚠️ Apple IAP not initialized, assuming not cancelled');
+        return false;
+      }
+
+      // Get stored purchases to check cancellation status
+      const storedPurchases = await appleIAPService.getStoredPurchases();
+      
+      if (storedPurchases.length === 0) {
+        return false;
+      }
+
+      // In a real implementation, you would check with Apple's server-to-server notifications
+      // For now, we'll check if subscription is active but marked as cancelled in local storage
+      const cancelledFlag = await AsyncStorage.getItem('subscription_cancelled');
+      return cancelledFlag === 'true';
+    } catch (error) {
+      console.error('❌ Error checking Apple subscription cancellation:', error);
+      return false;
+    }
+  },
+
+  // Check mock subscription cancellation status
+  async checkMockSubscriptionCancelled() {
+    try {
+      const cancelledFlag = await AsyncStorage.getItem('subscription_cancelled');
+      return cancelledFlag === 'true';
+    } catch (error) {
+      console.error('❌ Error checking mock subscription cancellation:', error);
+      return false;
+    }
+  },
+
+  // Get subscription status type (for navigation logic)
+  async getSubscriptionStatusType() {
+    try {
+      console.log('🔍 Getting subscription status type...');
+      
+      const status = await this.getSubscriptionStatus();
+      const trialStatus = await this.getTrialStatus();
+      
+      // Priority: trial > active subscription > expired > none
+      if (trialStatus && trialStatus.isActive) {
+        return 'trial_active';
+      }
+      
+      if (status && status.isActive) {
+        const isCancelled = await this.isSubscriptionCancelled();
+        if (isCancelled) {
+          return 'subscription_cancelled';
+        }
+        return 'subscription_active';
+      }
+      
+      if (status && !status.isActive && status.endDate) {
+        const endDate = new Date(status.endDate);
+        const now = new Date();
+        if (now > endDate) {
+          return 'subscription_expired';
+        }
+      }
+      
+      return 'no_subscription';
+    } catch (error) {
+      console.error('❌ Error getting subscription status type:', error);
+      return 'no_subscription';
+    }
   }
 };
-
-

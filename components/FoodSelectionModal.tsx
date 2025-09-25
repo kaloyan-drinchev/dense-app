@@ -138,7 +138,7 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Add Food</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={1}>
               <Icon name="x" size={24} color={colors.lightGray} />
             </TouchableOpacity>
           </View>
@@ -181,7 +181,7 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
                 <TouchableOpacity
                   style={styles.categoryHeader}
                   onPress={() => toggleCategory(category.id)}
-                  activeOpacity={0.7}
+                  activeOpacity={1}
                 >
                   <View style={styles.categoryTitleContainer}>
                     <Text style={styles.categoryTitle}>{category.name}</Text>
@@ -214,7 +214,7 @@ export const FoodSelectionModal: React.FC<FoodSelectionModalProps> = ({
                             }
                           });
                         }}
-                        activeOpacity={0.8}
+                        activeOpacity={1}
                       >
                         <View style={styles.recipeInfo}>
                           <Text style={styles.recipeName}>{recipe.name}</Text>
