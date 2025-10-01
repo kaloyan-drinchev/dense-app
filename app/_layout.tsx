@@ -468,6 +468,18 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="check-our-progress" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="photo-effects" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
         name="exercise-history" 
         options={{ 
           headerShown: false,

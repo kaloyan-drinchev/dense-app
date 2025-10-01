@@ -164,6 +164,13 @@ export default function SettingsScreen() {
     router.push('/photo-effects');
   };
 
+  const handleCheckOurProgress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push('/check-our-progress');
+  };
+
   const handleManageSubscription = async () => {
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -915,6 +922,19 @@ export default function SettingsScreen() {
               <Text style={styles.settingTitle}>My Goals</Text>
               <Text style={styles.settingDescription}>
                 View your fitness goals and preferences
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={handleCheckOurProgress} activeOpacity={1}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
+              <Icon name="play-circle" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Check Our Progress!</Text>
+              <Text style={styles.settingDescription}>
+                See how DENSE is evolving and improving
               </Text>
             </View>
             <Icon name="chevron-right" size={20} color={colors.lightGray} />

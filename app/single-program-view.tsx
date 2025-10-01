@@ -386,7 +386,7 @@ const SingleProgramView = () => {
             <Text style={styles.sectionTitle}>Nutrition Tips</Text>
             {generatedProgram.nutritionTips.map((tip: string, index: number) => (
               <View key={index} style={styles.tipItem}>
-                <Icon name="lightbulb-outline" size={16} color={colors.primary} />
+                <Icon name="lightbulb-outline" size={20} color={colors.primary} />
                 <Text style={styles.tipText}>{tip}</Text>
               </View>
             ))}
@@ -396,7 +396,7 @@ const SingleProgramView = () => {
             <Text style={styles.sectionTitle}>Progression Notes</Text>
             {generatedProgram.progressionNotes.map((note: string, index: number) => (
               <View key={index} style={styles.tipItem}>
-                <Icon name="trending-up" size={16} color={colors.secondary} />
+                <Icon name="trending-up" size={20} color={colors.secondary} />
                 <Text style={styles.tipText}>{note}</Text>
               </View>
             ))}

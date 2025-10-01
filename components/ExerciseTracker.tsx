@@ -571,6 +571,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                   style={[styles.adjustButton, !editable && styles.disabledButton]}
                   onPress={() => handleAdjustWeight(set.id, unit === 'kg' ? -2.5 : -5)}
                   disabled={!editable}
+                  activeOpacity={1}
                 >
                   <Icon name="minus" size={16} color={colors.white} />
                 </TouchableOpacity>
@@ -589,6 +590,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                   style={[styles.adjustButton, !editable && styles.disabledButton]}
                   onPress={() => handleAdjustWeight(set.id, unit === 'kg' ? 2.5 : 5)}
                   disabled={!editable}
+                  activeOpacity={1}
                 >
                   <Icon name="plus" size={16} color={colors.white} />
                 </TouchableOpacity>
@@ -601,6 +603,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                   style={[styles.adjustButton, (!editable || set.reps <= 0) && styles.disabledButton]}
                   onPress={() => handleAdjustReps(set.id, -1)}
                   disabled={!editable || set.reps <= 0}
+                  activeOpacity={1}
                 >
                   <Icon name="minus" size={16} color={colors.white} />
                 </TouchableOpacity>
@@ -619,6 +622,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                   style={[styles.adjustButton, !editable && styles.disabledButton]}
                   onPress={() => handleAdjustReps(set.id, 1)}
                   disabled={!editable}
+                  activeOpacity={1}
                 >
                   <Icon name="plus" size={16} color={colors.white} />
                 </TouchableOpacity>

@@ -200,7 +200,6 @@ export default function AddFoodPage() {
                           }
                         });
                       }}
-                      activeOpacity={0.8}
                     >
                       <View style={styles.recipeInfo}>
                         <Text style={styles.recipeName}>{recipe.name}</Text>

@@ -26,6 +26,8 @@ import { WorkoutStartModal } from '@/components/WorkoutStartModal';
 import { WorkoutUnavailableModal } from '@/components/WorkoutUnavailableModal';
 import { StatGroup } from '@/components/StatGroup';
 import { WeeklySchedule } from '@/components/WeeklySchedule';
+import { HomepageVideoModal } from '@/components/HomepageVideoModal';
+import { Video, ResizeMode } from 'expo-av';
 
 
 
@@ -55,6 +57,7 @@ export default function HomeScreen() {
   const [userProgressData, setUserProgressData] = useState<any>(null);
   const [loadingProgress, setLoadingProgress] = useState(true);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(false);
   
 
   
@@ -423,6 +426,28 @@ export default function HomeScreen() {
           />
         )}
 
+        {/* Homepage Video */}
+        {/* <View style={styles.videoSection}>
+          <TouchableOpacity 
+            style={styles.videoContainer}
+            onPress={() => setShowVideoModal(true)}
+            activeOpacity={1}
+          >
+            <Video
+              style={styles.videoThumbnail}
+              source={{ uri: "https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/progress-videos/3-17.mp4" }}
+              resizeMode={ResizeMode.COVER}
+              shouldPlay={true}
+              isMuted={true}
+              isLooping={true}
+              positionMillis={0}
+            />
+            <View style={styles.videoPlayOverlay}>
+              <Icon name="play-circle" size={40} color={colors.white} />
+            </View>
+          </TouchableOpacity>
+        </View> */}
+
         {/* Today's Workout Preview */}
         {generatedProgram && userProgressData && (
           <View style={styles.todaysWorkout}>
@@ -607,6 +632,11 @@ export default function HomeScreen() {
         isCompletedToday={workoutAvailability?.isCompletedToday || false}
       />
 
+      {/* Homepage Video Modal */}
+      <HomepageVideoModal
+        visible={showVideoModal}
+        onClose={() => setShowVideoModal(false)}
+      />
 
     </SafeAreaView>
   );
@@ -864,6 +894,36 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.black,
     fontWeight: 'bold',
+  },
+
+  // Video Section Styles
+  videoSection: {
+    marginBottom: 24,
+  },
+  videoContainer: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    overflow: 'hidden',
+    aspectRatio: 16/9,
+    position: 'relative',
+  },
+  videoThumbnail: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.black,
+    position: 'relative',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+  },
+  videoPlayOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
 });

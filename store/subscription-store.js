@@ -18,7 +18,7 @@ export const useSubscriptionStore = create()(
         try {
           set({ isLoading: true, error: null });
           
-          const status = await subscriptionService.getSubscriptionStatus();
+          const status = await subscriptionService.checkSubscriptionStatus();
           const trialStatus = await subscriptionService.getTrialStatus();
           
           set({ 
@@ -194,6 +194,31 @@ export const useSubscriptionStore = create()(
         // This is used to trigger re-evaluation of subscription-based navigation
         // The actual navigation logic is in _layout.tsx
         console.log('🔄 Navigation refresh triggered from subscription store');
+      },
+
+      // Check if access should be blocked based on subscription status
+      shouldBlockAccess: () => {
+        const { subscriptionStatus, trialStatus } = get();
+        
+        // Check trial first - if trial is active, allow access
+        if (trialStatus?.isActive) {
+          return false;
+        }
+        
+        // Check subscription - if no active subscription, block access
+        if (!subscriptionStatus?.isActive) {
+          return true;
+        }
+        
+        // Check if subscription is expired
+        if (subscriptionStatus.isActive && subscriptionStatus.endDate) {
+          const now = new Date();
+          const endDate = new Date(subscriptionStatus.endDate);
+          return now >= endDate;
+        }
+        
+        // If subscription is active and not expired, allow access
+        return false;
       }
     }),
     {

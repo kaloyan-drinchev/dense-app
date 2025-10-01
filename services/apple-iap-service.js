@@ -188,7 +188,8 @@ class AppleIAPService {
       console.log('🛒 Starting purchase for plan:', planId);
 
       if (!this.isInitialized) {
-        throw new Error('IAP service not initialized. Call initialize() first.');
+        console.log('⚠️ IAP service not initialized, initializing now...');
+        await this.initialize();
       }
 
       if (Platform.OS !== 'ios') {
@@ -196,13 +197,19 @@ class AppleIAPService {
       }
 
       const productId = APPLE_PRODUCT_IDS[planId];
-      const product = this.getProduct(productId);
+      const product = this.products.find(p => p.productId === productId);
       
       if (!product) {
         throw new Error(`Product not found: ${productId}`);
       }
 
       console.log('🛒 Purchasing product:', product);
+
+      // Check if we're in Expo Go mode (mock payments)
+      if (this.isExpoGo()) {
+        console.log('📱 Mock purchase in Expo Go mode');
+        return await this.mockPurchase(planId);
+      }
 
       // Start the purchase flow
       const purchase = await RNIap.requestSubscription({ sku: productId });
@@ -483,6 +490,41 @@ class AppleIAPService {
       provider: 'apple',
       displayName: 'Apple In-App Purchases'
     };
+  }
+
+  /**
+   * Mock purchase for development/Expo Go
+   */
+  async mockPurchase(planId) {
+    try {
+      console.log('🎭 Processing mock purchase for plan:', planId);
+      
+      const productId = APPLE_PRODUCT_IDS[planId];
+      if (!productId) {
+        throw new Error(`Invalid plan ID: ${planId}`);
+      }
+
+      // Create mock purchase data
+      const mockPurchase = {
+        purchaseId: `mock_${Date.now()}`,
+        productId: productId,
+        purchaseTime: Date.now(),
+        purchaseState: 'purchased',
+        isAcknowledged: true,
+        orderId: `mock_order_${Date.now()}`,
+        originalTransactionId: `mock_trans_${Date.now()}`,
+        transactionReceipt: 'mock_receipt_data'
+      };
+
+      // Store the mock purchase
+      await this.storePurchase(mockPurchase);
+      
+      console.log('✅ Mock purchase completed:', mockPurchase);
+      return { success: true, purchase: mockPurchase };
+    } catch (error) {
+      console.error('❌ Mock purchase error:', error);
+      return { success: false, error: error.message };
+    }
   }
 }
 
