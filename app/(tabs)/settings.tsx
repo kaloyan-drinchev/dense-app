@@ -939,6 +939,19 @@ export default function SettingsScreen() {
             </View>
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={() => router.push('/notification-settings')} activeOpacity={1}>
+            <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
+              <Icon name="bell" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Notification Settings</Text>
+              <Text style={styles.settingDescription}>
+                Manage workout reminders and motivational messages
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
         </View>
 
         {/* Photo Effects */}
@@ -1243,7 +1256,6 @@ export default function SettingsScreen() {
         </View>
 
       </ScrollView>
-
 
 
     </SafeAreaView>

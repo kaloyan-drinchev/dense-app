@@ -25,6 +25,7 @@ import { initializeDatabase } from "@/db/migrations";
 import { useAuthStore } from "@/store/auth-store";
 import { useSubscriptionStore } from "@/store/subscription-store.js";
 import subscriptionService from "@/services/subscription-service.js";
+import { notificationService } from "@/services/notification-service";
 
 
 import { SetupWizard } from "@/components/SetupWizard";
@@ -43,6 +44,32 @@ export const unstable_settings = {
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+// Setup notifications
+const setupNotifications = async () => {
+  try {
+    // Request notification permissions
+    const hasPermission = await notificationService.requestPermissions();
+    if (hasPermission) {
+      console.log('✅ Notification permissions granted');
+      
+      // Schedule daily workout reminders (Monday, Wednesday, Friday at 6 PM)
+      await notificationService.scheduleDailyWorkoutReminders(
+        ['Monday', 'Wednesday', 'Friday'],
+        '18:00'
+      );
+      
+      // Schedule motivational reminders
+      await notificationService.scheduleMotivationalReminders();
+      
+      console.log('✅ Notifications scheduled successfully');
+    } else {
+      console.log('❌ Notification permissions denied');
+    }
+  } catch (error) {
+    console.error('❌ Error setting up notifications:', error);
+  }
+};
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -79,6 +106,10 @@ export default function RootLayout() {
           // Initialize subscription service
           console.log('🔄 Initializing subscription service...');
           await subscriptionService.initialize();
+          
+          // Initialize notifications
+          console.log('🔄 Setting up notifications...');
+          await setupNotifications();
           
           // Check if user exists and if it's first time
           if (typeof checkUserStatus === 'function') {
