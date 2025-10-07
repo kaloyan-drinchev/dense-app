@@ -228,7 +228,6 @@ export const userProgressService = {
     console.log(`🔍 Available sessions dates:`, sessions.map(s => ({ date: s.date, setsCount: s.sets?.length || 0 })));
     
     if (todaySession) {
-      console.log(`✅ Found today's session:`, { date: todaySession.date, unit: todaySession.unit, setsCount: todaySession.sets?.length || 0 });
     }
     
     return todaySession || null;
@@ -240,11 +239,9 @@ export const userProgressService = {
     payload: { unit: 'kg' | 'lb'; sets: Array<{ setNumber: number; weightKg: number; reps: number; isCompleted: boolean }> },
     dateISO?: string
   ): Promise<void> {
-    console.log(`💾 SAVE DEBUG - Starting upsert for ${exerciseId}`);
     
     let progress = await this.getByUserId(userId);
     if (!progress) {
-      console.log(`💾 SAVE DEBUG - No progress found, creating new record`);
       // Create a minimal default progress row if none exists
       const created = await this.create({
         userId,

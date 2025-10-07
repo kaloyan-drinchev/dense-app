@@ -5,6 +5,7 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -20,6 +21,8 @@ export default function CheckOurProgressScreen() {
   const router = useRouter();
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<string>('');
+  const [image1Loading, setImage1Loading] = useState(true);
+  const [image2Loading, setImage2Loading] = useState(true);
 
   return (
     <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
@@ -58,14 +61,23 @@ export default function CheckOurProgressScreen() {
               }}
               activeOpacity={1}
             >
+              {image1Loading && (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+              )}
               <Image
                 style={styles.videoThumbnail}
                 source={{ uri: "https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/progress-photos/before-dense.jpeg" }}
                 resizeMode={ResizeMode.COVER}
+                onLoad={() => setImage1Loading(false)}
+                onError={() => setImage1Loading(false)}
               />
-              <View style={styles.videoPlayOverlay}>
-                <Icon name="play-circle" size={40} color={colors.white} />
-              </View>
+              {!image1Loading && (
+                <View style={styles.videoPlayOverlay}>
+                  <Icon name="play-circle" size={40} color={colors.white} />
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -84,14 +96,24 @@ export default function CheckOurProgressScreen() {
               }}
               activeOpacity={1}
             >
+              {image2Loading && (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.loadingText}>Loading thumbnail...</Text>
+                </View>
+              )}
               <Image
                 style={styles.videoThumbnail}
                 source={{ uri: "https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/progress-photos/after-dense.jpeg" }}
                 resizeMode={ResizeMode.COVER}
+                onLoad={() => setImage2Loading(false)}
+                onError={() => setImage2Loading(false)}
               />
-              <View style={styles.videoPlayOverlay}>
-                <Icon name="play-circle" size={40} color={colors.white} />
-              </View>
+              {!image2Loading && (
+                <View style={styles.videoPlayOverlay}>
+                  <Icon name="play-circle" size={40} color={colors.white} />
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -236,5 +258,25 @@ const styles = StyleSheet.create({
   arrowContainer: {
     alignItems: 'center',
     paddingVertical: 16,
+  },
+  videoSection: {
+    marginBottom: 24,
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.darkGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  loadingText: {
+    ...typography.body,
+    color: colors.white,
+    marginTop: 12,
+    textAlign: 'center',
   },
 });

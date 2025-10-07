@@ -18,18 +18,18 @@ import { LEGAL_URLS, openLegalURL } from '@/constants/legal';
 
 // Helper function to render text with DENSE and random letters highlighted in green
 const renderTextWithHighlight = (text: string, baseStyle: any) => {
-  // First, handle DENSE highlighting
-  const parts = text.split(/(DENSE)/g);
+  // First, handle DENSE and Lazarov highlighting
+  const parts = text.split(/(DENSE|Lazarov)/g);
   
   return parts.map((part, index) => {
-    if (part === 'DENSE') {
+    if (part === 'DENSE' || part === 'Lazarov') {
       return (
         <Text key={index} style={[baseStyle, styles.highlightedText]}>
           {part}
         </Text>
       );
     } else if (part.length > 0) {
-      // For non-DENSE parts, randomly highlight 2 letters
+      // For non-highlighted parts, randomly highlight 2 letters
       return renderRandomHighlights(part, index, baseStyle);
     }
     return (
@@ -126,7 +126,10 @@ export default function AboutUsScreen() {
           </View>
           <Text style={styles.appName}>DENSE</Text>
           <Text style={styles.tagline}>
-            Revolutionary fitness training powered by AI
+            {renderTextWithHighlight(
+              "Revolutionary fitness training powered by AI, \n Driven by the Lazarov method.",
+              styles.tagline
+            )}
           </Text>
         </View>
 

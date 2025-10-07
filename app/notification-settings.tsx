@@ -23,7 +23,11 @@ export default function NotificationSettingsPage() {
   const [workoutReminders, setWorkoutReminders] = useState(true);
   const [motivationalReminders, setMotivationalReminders] = useState(false);
   const [scheduledNotifications, setScheduledNotifications] = useState<any[]>([]);
-  const [selectedTime, setSelectedTime] = useState(new Date());
+  const [selectedTime, setSelectedTime] = useState(() => {
+    const defaultTime = new Date();
+    defaultTime.setHours(10, 0, 0, 0); // Set to 10:00 AM
+    return defaultTime;
+  });
   const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
@@ -146,7 +150,7 @@ export default function NotificationSettingsPage() {
           </Text>
           
           <TouchableOpacity style={styles.testButton} onPress={testNotification}>
-            <Icon name="bell" size={20} color={colors.white} />
+            <Icon name="bell" size={20} color={colors.black} />
             <Text style={styles.testButtonText}>Send Test Notification</Text>
           </TouchableOpacity>
         </View>
@@ -214,6 +218,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.darkGray,
+    marginTop: 8,
   },
   header: {
     flexDirection: 'row',
@@ -285,7 +290,7 @@ const styles = StyleSheet.create({
   },
   testButtonText: {
     ...typography.body,
-    color: colors.white,
+    color: colors.black,
     fontWeight: '600',
     marginLeft: 8,
   },
@@ -319,7 +324,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     ...typography.body,
-    color: colors.black,
+    color: colors.white,
     fontWeight: '600',
     fontSize: 16,
   },

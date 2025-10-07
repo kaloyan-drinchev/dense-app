@@ -8,6 +8,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -80,6 +82,7 @@ export class NotificationService {
           priority: Notifications.AndroidNotificationPriority.HIGH,
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: triggerTime,
         },
       });
@@ -111,6 +114,7 @@ export class NotificationService {
           priority: Notifications.AndroidNotificationPriority.HIGH,
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
           hour: hours,
           minute: minutes,
           repeats: true,
@@ -171,8 +175,31 @@ export class NotificationService {
     }
   }
 
+  // Get daily motivational message (cycles through 10 messages)
+  private getDailyMotivationalMessage(): string {
+    const motivationalMessages = [
+      "Your future self will thank you for the work you do today. Let's get started.",
+      "The only workout you regret is the one you didn't do. Let's leave no regrets today. 💪",
+      "Don't wish for it. Work for it. Your session is ready now. 🔥",
+      "Be stronger than your excuses. It's time to prove it to yourself.",
+      "Consistency is the key that unlocks your potential. Today is another turn of that key.",
+      "Discipline is the bridge between your goals and reality. Time to cross it.",
+      "Show up for yourself, even when you don't feel like it. That's where real strength is built.",
+      "Remember that powerful feeling after a great workout? It's just one session away. Go get it!",
+      "Today's challenge is waiting. Rise up and conquer it. 🏆",
+      "There is a stronger version of you waiting to be unleashed. The time is now."
+    ];
+
+    // Get current date and calculate which message to show (cycles every 10 days)
+    const today = new Date();
+    const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+    const messageIndex = dayOfYear % 10; // Cycles through 0-9, then back to 0
+    
+    return motivationalMessages[messageIndex];
+  }
+
   // Schedule smart workout reminder that only triggers on workout days
-  async scheduleSmartWorkoutReminder(userId: string, reminderTime: string = '18:00'): Promise<string | null> {
+  async scheduleSmartWorkoutReminder(userId: string, reminderTime: string = '10:00'): Promise<string | null> {
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
@@ -190,14 +217,18 @@ export class NotificationService {
 
       const [hours, minutes] = reminderTime.split(':').map(Number);
       
+      // Get the daily motivational message (cycles through 10 messages)
+      const dailyMessage = this.getDailyMotivationalMessage();
+      
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
-          title: "💪 Don't forget to complete your workout today!",
-          body: "Your training session is waiting! Let's crush those goals!",
+          title: "💪 Time to Workout!",
+          body: dailyMessage,
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.HIGH,
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
           hour: hours,
           minute: minutes,
           repeats: true,
@@ -240,6 +271,7 @@ export class NotificationService {
               priority: Notifications.AndroidNotificationPriority.HIGH,
             },
             trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
               weekday: dayIndex,
               hour: hours,
               minute: minutes,
@@ -292,6 +324,7 @@ export class NotificationService {
             priority: Notifications.AndroidNotificationPriority.DEFAULT,
           },
           trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
             hour: randomHour,
             minute: randomMinute,
             repeats: true,

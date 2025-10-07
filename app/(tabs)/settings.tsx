@@ -30,7 +30,7 @@ import { LEGAL_URLS, openLegalURL } from '@/constants/legal.js';
 export default function SettingsScreen() {
   const router = useRouter();
   const { userProfile } = useWorkoutStore();
-  const { user, logout, createCloudAccount, backupToCloud, checkCloudStatus } = useAuthStore();
+  const { user, logout, checkCloudStatus } = useAuthStore();
   const { 
     hasActiveSubscription, 
     getDaysUntilExpiry, 
@@ -45,9 +45,6 @@ export default function SettingsScreen() {
   const [notifications, setNotifications] = useState(true);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number>(0);
   const [wizardData, setWizardData] = useState<any>(null);
-  const [cloudEmail, setCloudEmail] = useState('');
-  const [showCloudEmailInput, setShowCloudEmailInput] = useState(false);
-  const [isCloudProcessing, setIsCloudProcessing] = useState(false);
 
 
   // Load trial days remaining and wizard data when screen loads
@@ -773,56 +770,6 @@ export default function SettingsScreen() {
     );
   };
 
-  // iCloud Backup Handlers
-  const handleCreateCloudAccount = async () => {
-    if (!cloudEmail.trim()) {
-      Alert.alert('Email Required', 'Please enter your iCloud email address to setup backup.');
-      return;
-    }
-
-    setIsCloudProcessing(true);
-
-    try {
-      const result = await createCloudAccount(cloudEmail.trim());
-      
-      if (result.success) {
-        Alert.alert(
-          'Backup Setup Complete!',
-          'Your workout data has been backed up to iCloud and will sync automatically.',
-          [{ text: 'OK', onPress: () => {
-            setShowCloudEmailInput(false);
-            setCloudEmail('');
-            // Refresh cloud status
-            checkCloudStatus();
-          }}]
-        );
-      } else {
-        Alert.alert('Error', result.error || 'Failed to setup iCloud backup.');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to setup iCloud backup. Please try again.');
-    } finally {
-      setIsCloudProcessing(false);
-    }
-  };
-
-  const handleBackupToCloud = async () => {
-    setIsCloudProcessing(true);
-
-    try {
-      const result = await backupToCloud();
-      
-      if (result.success) {
-        Alert.alert('Backup Complete!', 'Your workout data has been successfully backed up to iCloud.');
-      } else {
-        Alert.alert('Backup Failed', result.error || 'Failed to backup data to iCloud.');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to backup data. Please try again.');
-    } finally {
-      setIsCloudProcessing(false);
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
@@ -1082,35 +1029,13 @@ export default function SettingsScreen() {
                 <Icon name="check-circle" size={20} color={colors.success} />
               </TouchableOpacity>
 
-              {/* Manual Backup */}
-              <TouchableOpacity 
-                style={styles.settingItem} 
-                onPress={handleBackupToCloud}
-                disabled={isCloudProcessing}
-                activeOpacity={1}
-              >
-                <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
-                  <Icon name="upload-cloud" size={20} color={colors.black} />
-                </View>
-                <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>Backup Now</Text>
-                  <Text style={styles.settingDescription}>
-                    Manually backup all your data to iCloud
-                  </Text>
-                </View>
-                {isCloudProcessing ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Icon name="chevron-right" size={20} color={colors.lightGray} />
-                )}
-              </TouchableOpacity>
             </>
           ) : (
             <>
               {/* Setup iCloud Backup */}
               <TouchableOpacity 
                 style={styles.settingItem} 
-                onPress={() => setShowCloudEmailInput(!showCloudEmailInput)}
+                onPress={() => router.push('/icloud-backup')}
                 activeOpacity={1}
               >
                 <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
@@ -1124,34 +1049,6 @@ export default function SettingsScreen() {
                 </View>
                 <Icon name="chevron-right" size={20} color={colors.lightGray} />
               </TouchableOpacity>
-
-              {/* Email Input (conditionally shown) */}
-              {showCloudEmailInput && (
-                <View style={styles.emailInputSection}>
-                  <TextInput
-                    style={styles.emailInput}
-                    placeholder="Enter your iCloud email address"
-                    placeholderTextColor={colors.lightGray}
-                    value={cloudEmail}
-                    onChangeText={setCloudEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <TouchableOpacity
-                    style={[styles.createAccountButton, isCloudProcessing && styles.createAccountButtonDisabled]}
-                    onPress={handleCreateCloudAccount}
-                    disabled={isCloudProcessing}
-                    activeOpacity={1}
-                  >
-                    {isCloudProcessing ? (
-                      <ActivityIndicator size="small" color={colors.black} />
-                    ) : (
-                      <Text style={styles.createAccountButtonText}>Setup Backup</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
             </>
           )}
         </View>

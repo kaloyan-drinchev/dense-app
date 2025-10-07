@@ -53,16 +53,9 @@ const setupNotifications = async () => {
     if (hasPermission) {
       console.log('✅ Notification permissions granted');
       
-      // Schedule daily workout reminders (Monday, Wednesday, Friday at 6 PM)
-      await notificationService.scheduleDailyWorkoutReminders(
-        ['Monday', 'Wednesday', 'Friday'],
-        '18:00'
-      );
-      
-      // Schedule motivational reminders
-      await notificationService.scheduleMotivationalReminders();
-      
-      console.log('✅ Notifications scheduled successfully');
+      // Note: Smart notifications are now handled by user settings
+      // No automatic scheduling - user must enable in notification settings
+      console.log('✅ Notification system ready - user can enable in settings');
     } else {
       console.log('❌ Notification permissions denied');
     }
@@ -467,7 +460,19 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="icloud-backup" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
         name="allowed-foods" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="notification-settings" 
         options={{ 
           headerShown: false,
         }} 

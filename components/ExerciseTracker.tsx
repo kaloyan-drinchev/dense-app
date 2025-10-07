@@ -67,8 +67,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     exercise.userSets ||
       Array.from({ length: initialCount }, () => ({
         id: generateId(),
-        reps: 0,
-        weight: 0, // weightKg internally
+        reps: 10, // Default 10 reps
+        weight: 10, // Default 10kg
         isCompleted: false,
       }))
   );
@@ -155,7 +155,6 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             weight: s.weightKg || 0, 
             isCompleted: !!s.isCompleted 
           }));
-          console.log(`✅ Loaded ${hydrated.length} sets for ${exerciseKey}:`, hydrated.map(s => `${s.weight}kg x ${s.reps} (${s.isCompleted ? '✓' : '○'})`));
           setSets(hydrated);
         } else {
           console.log(`🆕 No today's session found for ${exerciseKey}, starting fresh`);
@@ -298,7 +297,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       if (prev.length >= MAX_SETS) return prev;
       const next = [
         ...prev,
-        { id: generateId(), reps: 0, weight: 0, isCompleted: false },
+        { id: generateId(), reps: 10, weight: 10, isCompleted: false },
       ];
       hasUserEditedRef.current = true;
       scheduleAutoSave();
@@ -344,14 +343,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       })),
     };
     try {
-      console.log(`💾 Saving exercise ${exerciseKey} with ${payload.sets.length} sets:`);
-      console.log(`💾 Sets details:`, payload.sets.map(s => `Set ${s.setNumber}: ${s.weightKg}kg x ${s.reps} (${s.isCompleted ? '✓' : '○'})`));
-      
-      console.log(`💾 TRACKER DEBUG - About to call upsertTodayExerciseSession`);
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
-      console.log(`💾 TRACKER DEBUG - upsertTodayExerciseSession completed`);
-      
-      console.log(`✅ Successfully saved ${exerciseKey}`);
       setSaveStatus('saved');
     } catch (e) {
       console.error(`❌ Failed to save ${exerciseKey}:`, e);
@@ -427,7 +419,6 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         return;
       }
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
-      console.log('✅ Successfully saved completed exercise with all sets marked as completed');
       
       // Check for new PRs and show notifications
       const completedSets = updatedSets.filter(set => set.isCompleted && set.weight > 0 && set.reps > 0);
@@ -538,12 +529,14 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           <TouchableOpacity
             onPress={() => setUnit('kg')}
             style={[styles.unitButton, unit === 'kg' && styles.unitButtonActive]}
+            activeOpacity={1}
           >
             <Text style={styles.unitButtonText}>kg</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setUnit('lb')}
             style={[styles.unitButton, unit === 'lb' && styles.unitButtonActive]}
+            activeOpacity={1}
           >
             <Text style={styles.unitButtonText}>lb</Text>
           </TouchableOpacity>

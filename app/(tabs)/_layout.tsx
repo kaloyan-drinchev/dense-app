@@ -45,7 +45,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => (
-            <Icon name="home" size={24} color={color} />
+            <Icon name="home" size={28} color={color} />
           ),
         }}
       />
@@ -54,7 +54,7 @@ export default function TabLayout() {
         options={{
           title: 'Programs',
           tabBarIcon: ({ color }) => (
-            <MaterialIcon name="fitness-center" size={24} color={color} />
+            <MaterialIcon name="fitness-center" size={28} color={color} />
           ),
         }}
       />
@@ -63,7 +63,7 @@ export default function TabLayout() {
         options={{
           title: 'Nutrition',
           tabBarIcon: ({ color }) => (
-            <MaterialIcon name="restaurant" size={24} color={color} />
+            <MaterialIcon name="restaurant" size={28} color={color} />
           ),
         }}
       />
@@ -72,7 +72,7 @@ export default function TabLayout() {
         options={{
           title: 'Progress',
           tabBarIcon: ({ color }) => (
-            <Icon name="bar-chart-2" size={24} color={color} />
+            <Icon name="bar-chart-2" size={28} color={color} />
           ),
         }}
       />
@@ -81,7 +81,7 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color }) => (
-            <Icon name="user" size={24} color={color} />
+            <Icon name="user" size={28} color={color} />
           ),
         }}
       />

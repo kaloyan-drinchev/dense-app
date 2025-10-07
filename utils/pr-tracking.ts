@@ -316,8 +316,9 @@ export const getBeatLastWorkoutSuggestions = (
   const bestLastSet = getBestSet(lastSets);
   if (bestLastSet) {
     // Suggest weight increase
-    const suggestedWeight = bestLastSet.weightKg + 2.5;
-    suggestions.push(`🏋️ Try ${suggestedWeight}kg (was ${bestLastSet.weightKg}kg)`);
+    const suggestedWeight = Math.round((bestLastSet.weightKg + 2.5) * 2) / 2; // Round to nearest 0.5
+    const currentWeight = Math.round(bestLastSet.weightKg * 2) / 2; // Round to nearest 0.5
+    suggestions.push(`🏋️ Try ${suggestedWeight}kg (was ${currentWeight}kg)`);
     
     // Suggest rep increase
     if (bestLastSet.reps < 12) {
@@ -326,7 +327,7 @@ export const getBeatLastWorkoutSuggestions = (
     
     // Suggest volume increase
     const lastVolume = calculateWorkoutVolume(lastSets);
-    suggestions.push(`💪 Beat ${lastVolume.toFixed(0)}kg total volume`);
+    suggestions.push(`💪 Beat ${Math.round(lastVolume)}kg total volume`);
   }
   
   return suggestions;

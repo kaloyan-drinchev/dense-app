@@ -88,7 +88,7 @@ export default function AllowedFoodsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
