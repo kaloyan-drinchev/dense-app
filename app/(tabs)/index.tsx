@@ -608,6 +608,7 @@ export default function HomeScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
+
           </View>
         )}
 
@@ -895,6 +896,7 @@ const styles = StyleSheet.create({
     color: colors.black,
     fontWeight: 'bold',
   },
+
 
   // Video Section Styles
   videoSection: {

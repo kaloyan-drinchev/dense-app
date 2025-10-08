@@ -33,6 +33,7 @@ import { SubscriptionScreen } from "@/components/SubscriptionScreen";
 import { SubscriptionReminderModal } from "@/components/SubscriptionReminderModal";
 
 import { AppUpdateManager } from "@/utils/app-updates";
+import { AppErrorBoundary, NavigationErrorBoundary } from "@/components/ErrorBoundaries";
 
 import { ErrorBoundary } from "./error-boundary";
 import { colors } from "@/constants/colors";
@@ -161,9 +162,11 @@ export default function RootLayout() {
   }
 
   return (
-    <ErrorBoundary>
-      <AppNavigator />
-    </ErrorBoundary>
+    <AppErrorBoundary>
+      <NavigationErrorBoundary>
+        <AppNavigator />
+      </NavigationErrorBoundary>
+    </AppErrorBoundary>
   );
 }
 

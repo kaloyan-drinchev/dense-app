@@ -5,22 +5,24 @@ import { appleIAPService } from './apple-iap-service.js';
 // Subscription plans configuration
 export const SUBSCRIPTION_PLANS = [
   {
-    id: 'monthly',
-    name: 'Monthly Pro',
-    duration: 1,
-    price: 7.99,
-    monthlyPrice: 7.99,
-    originalPrice: 9.99,
-    savings: 2.00,
-    savingsPercentage: 20,
+    id: 'yearly',
+    name: 'Annual Pro',
+    duration: 12,
+    price: 47.99,
+    monthlyPrice: 4.00,
+    originalPrice: 119.88,
+    savings: 71.89,
+    savingsPercentage: 60,
     features: [
       'Unlimited AI workouts',
       'Progress tracking',
       'Nutrition guidance',
-      'Premium support'
+      'Premium support',
+      'Advanced analytics',
+      'Priority support'
     ],
-    isPopular: false,
-    bonusFeatures: []
+    isPopular: true,
+    bonusFeatures: ['Save 60%', 'Best Value']
   },
   {
     id: 'sixmonths',
@@ -38,28 +40,26 @@ export const SUBSCRIPTION_PLANS = [
       'Premium support',
       'Advanced analytics'
     ],
-    isPopular: true,
+    isPopular: false,
     bonusFeatures: ['Save 40%']
   },
   {
-    id: 'yearly',
-    name: 'Annual Pro',
-    duration: 12,
-    price: 47.99,
-    monthlyPrice: 4.00,
-    originalPrice: 119.88,
-    savings: 71.89,
-    savingsPercentage: 60,
+    id: 'monthly',
+    name: 'Monthly Pro',
+    duration: 1,
+    price: 7.99,
+    monthlyPrice: 7.99,
+    originalPrice: 9.99,
+    savings: 2.00,
+    savingsPercentage: 20,
     features: [
       'Unlimited AI workouts',
       'Progress tracking',
       'Nutrition guidance',
-      'Premium support',
-      'Advanced analytics',
-      'Priority support'
+      'Premium support'
     ],
     isPopular: false,
-    bonusFeatures: ['Save 60%', 'Best Value']
+    bonusFeatures: []
   }
 ];
 
