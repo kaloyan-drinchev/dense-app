@@ -704,32 +704,31 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                   </>
                 ) : (
                   <>
-                    <Text style={styles.modalTitle}>Complete Exercise?</Text>
+                    <Text style={styles.modalTitle}>Great Job! 🎉</Text>
                     <Text style={styles.modalDescription}>
-                      You've completed {completionData.completed} out of {completionData.total} sets ({completionData.percentage}%). 
-                      Skipping sets may reduce your training results. Are you sure you want to finish this exercise?
+                      Awesome work on that set! You're making great progress. Ready to move on to the next exercise?
                     </Text>
                     
                     <View style={styles.modalButtons}>
                       <TouchableOpacity
-                        style={[styles.modalButton, styles.cancelButton, styles.dualButton]}
+                        style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
                         onPress={() => {
-                          console.log('🔴 YES FINISH button clicked!');
+                          console.log('🔴 FINISH TRAINING button clicked!');
                           setShowConfirmModal(false);
                           completeExercise();
                         }}
                       >
-                        <Text style={styles.cancelButtonText}>Yes, Finish</Text>
+                        <Text style={styles.confirmButtonText}>Finish Exercise</Text>
                       </TouchableOpacity>
                       
                       <TouchableOpacity
-                        style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
+                        style={[styles.modalButton, styles.cancelButton, styles.dualButton]}
                         onPress={() => {
                           console.log('🟢 CONTINUE TRAINING button clicked!');
                           setShowConfirmModal(false);
                         }}
                       >
-                        <Text style={styles.confirmButtonText}>Continue Training</Text>
+                        <Text style={styles.cancelButtonText}>Continue Exercise</Text>
                       </TouchableOpacity>
                     </View>
                   </>

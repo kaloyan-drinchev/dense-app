@@ -18,6 +18,8 @@ import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutStore } from '@/store/workout-store';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { validateFile, FILE_SECURITY } from '@/utils/file-security';
+import { validateProfileData, validateData, VALIDATION_SCHEMAS } from '@/utils/data-validation';
 
 interface ProfileData {
   // Basic Personal Details
@@ -56,11 +58,23 @@ export default function ProfileEditScreen() {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.7,
+        base64: false, // Don't load into memory immediately
       });
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         
+        // Validate file security
+        const isValidFile = validateFile(asset, {
+          maxSize: FILE_SECURITY.MAX_IMAGE_SIZE,
+          allowedTypes: FILE_SECURITY.ALLOWED_IMAGE_TYPES,
+          isImage: true
+        });
+
+        if (!isValidFile) {
+          return; // Validation failed, error already shown
+        }
+
         // Convert to base64 for storage
         const base64 = await FileSystem.readAsStringAsync(asset.uri, {
           encoding: FileSystem.EncodingType.Base64,
@@ -76,12 +90,23 @@ export default function ProfileEditScreen() {
 
   const handleSave = async () => {
     setIsSaving(true);
-            try {
-          // Update auth store if name changed
-          if (profile.name !== user?.name) {
-            const { updateUser } = useAuthStore.getState();
-            updateUser({ ...user, name: profile.name });
-          }
+    try {
+      // Validate profile data
+      const validation = validateProfileData(profile);
+      
+      if (!validation.isValid) {
+        Alert.alert('Validation Error', validation.errors.join('\n'));
+        return;
+      }
+
+      // Use sanitized data if validation passed
+      const sanitizedData = validation.sanitized || profile;
+
+      // Update auth store if name changed
+      if (sanitizedData.name !== user?.name) {
+        const { updateUser } = useAuthStore.getState();
+        updateUser({ ...user, name: sanitizedData.name });
+      }
 
       // Save to database using userProfileService
       const { userProfileService } = await import('@/db/services');
@@ -97,10 +122,10 @@ export default function ProfileEditScreen() {
       }
 
       const profileData = {
-        name: profile.name,
+        name: sanitizedData.name,
         email: user?.email, // Keep existing email from auth store
-        profilePicture: profile.profilePicture,
-        bodyFat: profile.bodyFat ? parseFloat(profile.bodyFat) : undefined,
+        profilePicture: sanitizedData.profilePicture,
+        bodyFat: sanitizedData.bodyFat ? parseFloat(sanitizedData.bodyFat) : undefined,
       };
 
       if (existingProfile) {

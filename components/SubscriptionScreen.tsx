@@ -61,7 +61,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     getDaysUntilExpiry
   } = useSubscriptionStore();
   const { restoreFromCloud } = useAuthStore();
-  const [selectedPlan, setSelectedPlan] = useState<string>('yearly'); // Default to popular Annual Pro plan
+  const [selectedPlan, setSelectedPlan] = useState<string>('yearly'); // Default to Annual Pro plan (now first in list)
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isStartingTrial, setIsStartingTrial] = useState(false);

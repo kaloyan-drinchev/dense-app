@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Feather as Icon } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
+import { validateChatInput } from '@/utils/data-validation';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -78,10 +79,17 @@ export const ChatModal: React.FC<ChatModalProps> = ({ visible, onClose }) => {
   const sendMessage = () => {
     if (!inputText.trim()) return;
 
+    // Validate input
+    const validation = validateChatInput(inputText.trim());
+    if (!validation.isValid) {
+      Alert.alert('Invalid Input', validation.errors.join('\n'));
+      return;
+    }
+
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: inputText.trim(),
+      text: validation.sanitized || inputText.trim(),
       isUser: true,
       timestamp: new Date(),
     };
