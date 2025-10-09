@@ -1,11 +1,11 @@
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutStore } from '@/store/workout-store';
 import Constants from 'expo-constants';
+import { sanitizeUserInput, sanitizeAIResponse, validateAndSanitizeInput } from '@/utils/input-sanitization';
+import { AI_CHAT_RATE_LIMITER } from '@/utils/rate-limiter';
 
 // Get API key from Constants (loaded from app.config.js at build time)
-const GEMINI_API_KEY = Constants.expoConfig?.extra?.geminiApiKey || 
-                      Constants.manifest?.extra?.geminiApiKey ||
-                      'AIzaSyAw2azVyXjAD239R7X6wDyQyYDEwmTty1Q'; // Fallback for development
+const GEMINI_API_KEY = Constants.expoConfig?.extra?.geminiApiKey;
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
 // Production ready - debug logs removed
@@ -17,7 +17,7 @@ export interface AIResponse {
     payload: any;
     description: string;
     executed?: boolean;
-    result?: AIActionResult;
+    result?: any;
   }[];
 }
 
@@ -46,13 +46,13 @@ class GeminiAIService {
 
   private getUserContext() {
     const { user } = useAuthStore.getState();
-    const { generatedProgram, userProgress } = useWorkoutStore.getState();
+    const workoutState = useWorkoutStore.getState();
     
     return {
       userEmail: user?.email,
-      currentProgram: generatedProgram?.programName || 'No active program',
-      currentWeek: userProgress?.currentWeek || 1,
-      currentWorkout: userProgress?.currentWorkout || 1,
+      currentProgram: workoutState.programs?.[0]?.name || 'No active program',
+      currentWeek: workoutState.userProgress?.currentWeek || 1,
+      completedWorkouts: workoutState.userProgress?.completedWorkouts?.length || 0,
       // Add more context as needed
     };
   }
@@ -65,7 +65,7 @@ class GeminiAIService {
 CONTEXT:
 - User: ${context.userEmail}
 - Current Program: ${context.currentProgram}
-- Week: ${context.currentWeek}, Workout: ${context.currentWorkout}
+- Week: ${context.currentWeek}, Completed Workouts: ${context.completedWorkouts}
 
       I'M A FITNESS CHAT ASSISTANT - I can help answer questions about:
       - Workout techniques and form
@@ -96,7 +96,21 @@ CONTEXT:
       
       // Validate API key first
       if (!GEMINI_API_KEY) {
-        throw new Error('GEMINI_API_KEY is not configured');
+        throw new Error('AI service is not configured. Please contact support.');
+      }
+      
+      // Check rate limit
+      const userId = useAuthStore.getState().user?.id || 'anonymous';
+      if (!AI_CHAT_RATE_LIMITER.canMakeRequest(userId)) {
+        const timeUntilReset = AI_CHAT_RATE_LIMITER.getTimeUntilReset(userId);
+        const seconds = Math.ceil(timeUntilReset / 1000);
+        throw new Error(`Rate limit exceeded. Please wait ${seconds} seconds before trying again.`);
+      }
+      
+      // Sanitize user input
+      const sanitizedMessage = sanitizeUserInput(userMessage);
+      if (!sanitizedMessage.trim()) {
+        throw new Error('Invalid input. Please try again.');
       }
       
       // Simplified request - just send the current message for now
@@ -104,7 +118,7 @@ CONTEXT:
         contents: [
           {
             role: 'user',
-            parts: [{ text: `${this.buildSystemPrompt()}\n\nUser: ${userMessage}` }]
+            parts: [{ text: `${this.buildSystemPrompt()}\n\nUser: ${sanitizedMessage}` }]
           }
         ],
         generationConfig: {
@@ -148,15 +162,19 @@ CONTEXT:
 
       const data = await response.json();
       
-      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      const responseData = data as any;
+      if (!responseData.candidates || !responseData.candidates[0] || !responseData.candidates[0].content) {
         throw new Error('Invalid response format from Gemini API');
       }
 
-      const aiMessage = data.candidates[0].content.parts[0].text;
+      const aiMessage = responseData.candidates[0].content.parts[0].text;
+
+      // Sanitize AI response
+      const sanitizedResponse = sanitizeAIResponse(aiMessage);
 
       // Just return the AI message - no database actions
       return {
-        message: aiMessage,
+        message: sanitizedResponse,
         actions: []
       };
 
