@@ -481,6 +481,12 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="ltwins-points" 
+        options={{ 
+          headerShown: false,
+        }} 
+      />
+      <Stack.Screen 
         name="nutrition-history" 
         options={{ 
           headerShown: false,

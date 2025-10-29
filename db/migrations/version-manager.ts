@@ -1,7 +1,7 @@
 import { expo_sqlite } from '../client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CURRENT_DB_VERSION = 2;
+const CURRENT_DB_VERSION = 3;
 const DB_VERSION_KEY = 'database_version';
 
 export class DatabaseVersionManager {
@@ -56,6 +56,9 @@ export class DatabaseVersionManager {
         break;
       case 2:
         await this.migrationV2();
+        break;
+      case 3:
+        await this.migrationV3();
         break;
       // Add more migrations as needed
       default:
@@ -169,6 +172,39 @@ export class DatabaseVersionManager {
       console.log('✅ Migration V2 completed: DENSE V1 schema ready');
     } catch (error) {
       console.error('❌ Migration V2 failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Migration to version 3 - L Twins Guessing Game Points System
+   */
+  private static async migrationV3(): Promise<void> {
+    console.log('📝 Running migration V3: L Twins Guessing Game Points System');
+    
+    try {
+      // Add L Twins game columns to user_profiles
+      const newColumns = [
+        'ltwins_points INTEGER DEFAULT 0',
+        'ltwins_points_history TEXT',
+        'ltwins_game_enabled INTEGER DEFAULT 1'
+      ];
+
+      for (const column of newColumns) {
+        try {
+          await expo_sqlite.execAsync(`
+            ALTER TABLE user_profiles ADD COLUMN ${column};
+          `);
+          console.log(`✅ Added column: ${column.split(' ')[0]}`);
+        } catch (error) {
+          // Column might already exist, that's okay
+          console.log(`ℹ️ Column ${column.split(' ')[0]} already exists or error adding it`);
+        }
+      }
+      
+      console.log('✅ Migration V3 completed: L Twins game ready');
+    } catch (error) {
+      console.error('❌ Migration V3 failed:', error);
       throw error;
     }
   }

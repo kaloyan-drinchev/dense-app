@@ -9,8 +9,10 @@ import {
   TextInput,
   Modal,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { Exercise, ExerciseSet } from '@/types/workout';
 import { colors } from '@/constants/colors';
 import { useWorkoutStore } from '@/store/workout-store';
@@ -22,12 +24,12 @@ import { typography } from '@/constants/typography';
 import { 
   analyzeExercisePRs, 
   checkForNewPRs, 
-  showPRNotification,
   getBeatLastWorkoutSuggestions,
   type ExerciseLogs,
   type ExercisePRs,
   type PersonalRecord
 } from '@/utils/pr-tracking';
+// import { PRCelebrationModal } from '@/components/PRCelebrationModal';
 
 interface ExerciseTrackerProps {
   exercise: Exercise;
@@ -87,6 +89,11 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const [exercisePRs, setExercisePRs] = useState<ExercisePRs>({});
   const [beatLastSuggestions, setBeatLastSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  
+  // PR Celebration Modal state - DISABLED
+  // const [showPRModal, setShowPRModal] = useState(false);
+  // const [achievedPRs, setAchievedPRs] = useState<PersonalRecord[]>([]);
+
 
   // Load PR data function (moved outside useEffect for reuse)
   const loadPRData = async () => {
@@ -366,8 +373,11 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     }, 250);
   };
 
+  // Check if all sets are completed
+  const allSetsCompleted = sets.every(s => s.isCompleted && s.weight > 0 && s.reps > 0);
+
   const handleCompleteExercise = async () => {
-    if (readOnly) return;
+    if (readOnly || allSetsCompleted) return;
     
     // Calculate completion percentage
     const completedSets = sets.filter(s => s.isCompleted).length;
@@ -453,8 +463,16 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           console.log('🏆 New PRs found:', newPRs);
           
           if (newPRs.length > 0) {
-            // Show PR notification
-            showPRNotification(exercise.name, newPRs);
+            // Show PR celebration modal - DISABLED
+            // setAchievedPRs(newPRs);
+            // setShowPRModal(true);
+            
+            // Also trigger haptic feedback
+            if (Platform.OS !== 'web') {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+            
+            // return; // Don't go back yet, PR modal will handle navigation
           } else {
             console.log('💭 No new PRs detected');
           }
@@ -469,7 +487,21 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       console.error('❌ Failed to save completed exercise:', e);
     }
     
+    
     router.back();
+  };
+
+  const handleResetToPending = async () => {
+    if (readOnly) return;
+    // Mark all sets as incomplete (pending)
+    setSets((prev) => prev.map((s) => ({ ...s, isCompleted: false })));
+    hasUserEditedRef.current = true;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      handleSaveSession();
+    }, 250);
   };
 
   const handleClearAll = async () => {
@@ -561,9 +593,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             <View style={styles.weightColumn}>
               <View style={[styles.inputContainer, !editable && styles.disabledField]}>
                 <TouchableOpacity
-                  style={[styles.adjustButton, !editable && styles.disabledButton]}
+                  style={[styles.adjustButton, (!editable || allSetsCompleted) && styles.disabledButton]}
                   onPress={() => handleAdjustWeight(set.id, unit === 'kg' ? -2.5 : -5)}
-                  disabled={!editable}
+                  disabled={!editable || allSetsCompleted}
                   activeOpacity={1}
                 >
                   <Icon name="minus" size={16} color={colors.white} />
@@ -580,9 +612,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                 />
 
                 <TouchableOpacity
-                  style={[styles.adjustButton, !editable && styles.disabledButton]}
+                  style={[styles.adjustButton, (!editable || allSetsCompleted) && styles.disabledButton]}
                   onPress={() => handleAdjustWeight(set.id, unit === 'kg' ? 2.5 : 5)}
-                  disabled={!editable}
+                  disabled={!editable || allSetsCompleted}
                   activeOpacity={1}
                 >
                   <Icon name="plus" size={16} color={colors.white} />
@@ -593,9 +625,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             <View style={styles.repsColumn}>
               <View style={[styles.inputContainer, !editable && styles.disabledField]}>
                 <TouchableOpacity
-                  style={[styles.adjustButton, (!editable || set.reps <= 0) && styles.disabledButton]}
+                  style={[styles.adjustButton, (!editable || set.reps <= 0 || allSetsCompleted) && styles.disabledButton]}
                   onPress={() => handleAdjustReps(set.id, -1)}
-                  disabled={!editable || set.reps <= 0}
+                  disabled={!editable || set.reps <= 0 || allSetsCompleted}
                   activeOpacity={1}
                 >
                   <Icon name="minus" size={16} color={colors.white} />
@@ -612,9 +644,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                 />
 
                 <TouchableOpacity
-                  style={[styles.adjustButton, !editable && styles.disabledButton]}
+                  style={[styles.adjustButton, (!editable || allSetsCompleted) && styles.disabledButton]}
                   onPress={() => handleAdjustReps(set.id, 1)}
-                  disabled={!editable}
+                  disabled={!editable || allSetsCompleted}
                   activeOpacity={1}
                 >
                   <Icon name="plus" size={16} color={colors.white} />
@@ -649,18 +681,24 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       {!readOnly && (
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={styles.completeButton}
+            style={[styles.completeButton, allSetsCompleted && styles.completedButton]}
             onPress={handleCompleteExercise}
+            disabled={allSetsCompleted}
           >
-            <Text style={styles.completeButtonText}>Complete Exercise</Text>
+            <Text style={[styles.completeButtonText, allSetsCompleted && styles.completedButtonText]}>
+              {allSetsCompleted ? 'Completed ✓' : 'Complete Exercise'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {!readOnly && (
+      {!readOnly && allSetsCompleted && (
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.clearButton} onPress={handleClearAll}>
-            <Text style={styles.clearButtonText}>Clear All (Today)</Text>
+          <TouchableOpacity
+            style={styles.resetButton}
+            onPress={handleResetToPending}
+          >
+            <Text style={styles.resetButtonText}>Reset to Pending (Testing)</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -738,6 +776,22 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           </TouchableOpacity>
         </Modal>
       )}
+
+      {/* PR Celebration Modal - DISABLED */}
+      {/* <PRCelebrationModal
+        visible={showPRModal}
+        exerciseName={exercise.name}
+        prs={achievedPRs}
+        onClose={() => {
+          setShowPRModal(false);
+          router.back();
+        }}
+        onShare={() => {
+          // TODO: Implement share functionality
+          console.log('Share PR achievement');
+          // Could use expo-sharing here
+        }}
+      /> */}
 
     </View>
   );
@@ -901,6 +955,24 @@ const styles = StyleSheet.create({
   completeButtonText: {
     ...typography.button,
     color: colors.black,
+  },
+  completedButton: {
+    backgroundColor: colors.mediumGray,
+    opacity: 0.7,
+  },
+  completedButtonText: {
+    color: colors.lightGray,
+  },
+  resetButton: {
+    flex: 1,
+    backgroundColor: colors.error,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    ...typography.button,
+    color: colors.white,
   },
   clearButton: {
     flex: 1,

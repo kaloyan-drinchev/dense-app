@@ -651,6 +651,11 @@ export default function SettingsScreen() {
               await AsyncStorage.removeItem('workout-storage');
               await AsyncStorage.removeItem('nutrition-storage');
               
+              // Also reset timer store directly to ensure it's completely cleared
+              const { useTimerStore } = await import('@/store/timer-store');
+              useTimerStore.getState().resetTimer();
+              useTimerStore.getState().completeWorkout();
+              
               // Clear all subscription-related storage
               console.log('🚨 RESET APP: Clearing subscription data...');
               await AsyncStorage.removeItem('user_subscription');
@@ -829,6 +834,23 @@ export default function SettingsScreen() {
               thumbColor={colors.white}
             />
           </View>
+
+          <TouchableOpacity 
+            style={styles.settingItem} 
+            activeOpacity={0.7}
+            onPress={() => router.push('/ltwins-points')}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
+              <Text style={{ fontSize: 20 }}>👯‍♂️</Text>
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>Beat the L Twins</Text>
+              <Text style={styles.settingDescription}>
+                View your points and game settings
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
         </View>
 
         {/* About */}

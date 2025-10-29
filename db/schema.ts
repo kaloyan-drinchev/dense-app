@@ -13,6 +13,10 @@ export const userProfiles = sqliteTable('user_profiles', {
   targetWeight: real('target_weight'),
   bodyFat: real('body_fat'),
   goal: text('goal'),
+  // L Twins Game Points
+  ltwinsPoints: integer('ltwins_points').default(0), // Points from L Twins guessing game
+  ltwinsPointsHistory: text('ltwins_points_history'), // JSON array of point gains with timestamps
+  ltwinsGameEnabled: integer('ltwins_game_enabled').default(1), // 1 = enabled, 0 = disabled
   createdAt: text('created_at').default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text('updated_at').default(sql`(CURRENT_TIMESTAMP)`),
   syncedAt: text('synced_at'),
