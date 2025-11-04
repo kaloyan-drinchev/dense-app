@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { notificationService } from '@/services/notification-service';
 import { liveActivityService } from '@/services/live-activity-service';
 import { useTimerStore } from '@/store/timer-store';
@@ -13,6 +13,7 @@ import * as Notifications from 'expo-notifications';
  */
 export function useWorkoutNotification() {
   const router = useRouter();
+  const pathname = usePathname();
   const notificationSubscription = useRef<Notifications.Subscription | null>(null);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [hasStartedLiveActivity, setHasStartedLiveActivity] = useState(false);
@@ -54,7 +55,14 @@ export function useWorkoutNotification() {
   // Set up notification handlers
   useEffect(() => {
     const handleTap = () => {
-      router.push('/workout-session');
+      // Only navigate if not already on workout-session page
+      // This prevents the visual glitch of replacing the same screen
+      if (pathname !== '/workout-session') {
+        console.log('📱 Notification tapped - navigating to workout-session');
+        router.replace('/workout-session');
+      } else {
+        console.log('📱 Notification tapped - already on workout-session, no navigation needed');
+      }
     };
 
     notificationSubscription.current = notificationService.setupNotificationHandlers(
@@ -68,7 +76,7 @@ export function useWorkoutNotification() {
         notificationSubscription.current.remove();
       }
     };
-  }, [pauseTimer, resumeTimer, router]);
+  }, [pauseTimer, resumeTimer, router, pathname]);
 
   // Start/End Live Activity when workout starts/ends (iOS only)
   useEffect(() => {
@@ -91,7 +99,7 @@ export function useWorkoutNotification() {
     }
   }, [isWorkoutActive, workoutName, workoutStartTime, hasStartedLiveActivity, timeElapsed]);
 
-  // Update Live Activity every second (iOS) or show notification when backgrounded (Android)
+  // Handle showing/hiding notification based on app state (no timer dependency)
   useEffect(() => {
     const isAppInBackground = appState === 'background';
     
@@ -104,19 +112,13 @@ export function useWorkoutNotification() {
     });
     
     if (isWorkoutActive && workoutName) {
-      // iOS: Update Live Activity with current elapsed time
-      if (Platform.OS === 'ios' && liveActivityService.isSupported() && hasStartedLiveActivity) {
-        liveActivityService.updateWorkoutActivity(timeElapsed, !isRunning);
-      }
-      
-      // Show notification when app is backgrounded (both platforms)
       if (isAppInBackground) {
-        console.log('✅ SHOWING NOTIFICATION - App in background');
+        // App backgrounded - show notification with current time
+        console.log('✅ SHOWING NOTIFICATION - App went to background');
         
         const state = useTimerStore.getState();
         const formattedTime = formatTime(state.timeElapsed);
         
-        // Get workout start time for additional context
         const startTime = state.workoutStartTime ? new Date(state.workoutStartTime) : null;
         const startTimeStr = startTime ? startTime.toLocaleTimeString('en-US', { 
           hour: 'numeric', 
@@ -124,9 +126,6 @@ export function useWorkoutNotification() {
           hour12: true 
         }) : '';
         
-        console.log(`📲 Showing notification: ${formattedTime} (started at ${startTimeStr})`);
-        
-        // Android: Use chronometer, iOS: fallback notification
         notificationService.showWorkoutNotification(
           workoutName,
           formattedTime,
@@ -135,15 +134,26 @@ export function useWorkoutNotification() {
           state.workoutStartTime || undefined
         );
       } else {
-        // App is active - hide notification
-        console.log('🚫 App in foreground - hiding notification');
+        // App is in foreground - ensure notification is dismissed
         notificationService.dismissWorkoutNotification();
       }
     } else {
       // Workout not active - clean up
       notificationService.dismissWorkoutNotification();
     }
-  }, [isWorkoutActive, workoutName, appState, timeElapsed, isRunning, hasStartedLiveActivity]); // Update every second
+  }, [isWorkoutActive, workoutName, appState]); // Only react to workout/app state changes
+  
+  // Separate effect: Update Live Activity every second (iOS only, when backgrounded)
+  useEffect(() => {
+    if (Platform.OS === 'ios' && 
+        liveActivityService.isSupported() && 
+        hasStartedLiveActivity && 
+        isWorkoutActive &&
+        appState === 'background') {
+      // Update Live Activity with current elapsed time
+      liveActivityService.updateWorkoutActivity(timeElapsed, !isRunning);
+    }
+  }, [timeElapsed, isRunning, hasStartedLiveActivity, isWorkoutActive, appState]); // Update every second, but only when backgrounded
 
 }
 
