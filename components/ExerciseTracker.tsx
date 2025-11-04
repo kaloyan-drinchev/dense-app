@@ -29,7 +29,7 @@ import {
   type ExercisePRs,
   type PersonalRecord
 } from '@/utils/pr-tracking';
-// import { PRCelebrationModal } from '@/components/PRCelebrationModal';
+import { PRCelebrationModal } from '@/components/PRCelebrationModal';
 
 interface ExerciseTrackerProps {
   exercise: Exercise;
@@ -90,9 +90,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const [beatLastSuggestions, setBeatLastSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(true);
   
-  // PR Celebration Modal state - DISABLED
-  // const [showPRModal, setShowPRModal] = useState(false);
-  // const [achievedPRs, setAchievedPRs] = useState<PersonalRecord[]>([]);
+  // PR Celebration Modal state
+  const [showPRModal, setShowPRModal] = useState(false);
+  const [achievedPRs, setAchievedPRs] = useState<PersonalRecord[]>([]);
 
 
   // Load PR data function (moved outside useEffect for reuse)
@@ -463,16 +463,16 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           console.log('🏆 New PRs found:', newPRs);
           
           if (newPRs.length > 0) {
-            // Show PR celebration modal - DISABLED
-            // setAchievedPRs(newPRs);
-            // setShowPRModal(true);
+            // Show PR celebration modal
+            setAchievedPRs(newPRs);
+            setShowPRModal(true);
             
             // Also trigger haptic feedback
             if (Platform.OS !== 'web') {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
             
-            // return; // Don't go back yet, PR modal will handle navigation
+            return; // Don't go back yet, PR modal will handle navigation
           } else {
             console.log('💭 No new PRs detected');
           }
@@ -777,8 +777,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         </Modal>
       )}
 
-      {/* PR Celebration Modal - DISABLED */}
-      {/* <PRCelebrationModal
+      {/* PR Celebration Modal */}
+      <PRCelebrationModal
         visible={showPRModal}
         exerciseName={exercise.name}
         prs={achievedPRs}
@@ -791,7 +791,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           console.log('Share PR achievement');
           // Could use expo-sharing here
         }}
-      /> */}
+      />
 
     </View>
   );

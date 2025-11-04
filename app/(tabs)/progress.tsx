@@ -5,6 +5,7 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '@/store/workout-store';
@@ -123,6 +124,7 @@ export default function ProgressScreen() {
       <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
           <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} style={styles.loadingSpinner} />
             <Text style={styles.loadingText}>Loading progress data...</Text>
           </View>
         </SafeAreaView>
@@ -204,6 +206,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingSpinner: {
+    marginBottom: 16,
   },
   loadingText: {
     ...typography.body,

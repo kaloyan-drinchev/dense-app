@@ -110,15 +110,13 @@ export default function FinishedWorkoutsScreen() {
                 >
                   <View style={styles.entryLeft}>
                     <Text style={styles.entryTitle}>
-                      <Text>Day </Text>
-                      <Text>{item.workoutIndex + 1}</Text>
-                      <Text> - </Text>
-                      <Text>{workout?.name || item.workoutName || 'Workout'}</Text>
+                      {workout?.name || item.workoutName || `Day ${item.workoutIndex + 1}: Workout`}
                     </Text>
                     <View style={styles.entryMeta}>
                       <Text style={styles.entrySubtitle}>{new Date(item.date).toLocaleString()}</Text>
-                      <Text style={styles.entrySubtitle}>{item.percentageSuccess}%</Text>
-                      
+                      <View style={styles.percentageBadge}>
+                        <Text style={styles.percentageBadgeText}>{item.percentageSuccess}%</Text>
+                      </View>
                     </View>
                   </View>
                   <View style={styles.entryRight}>
@@ -170,6 +168,16 @@ const styles = StyleSheet.create({
     marginTop: 4 
   },
   entrySubtitle: { ...typography.bodySmall, color: colors.lighterGray },
+  percentageBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  percentageBadgeText: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '600',
+  },
   durationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
