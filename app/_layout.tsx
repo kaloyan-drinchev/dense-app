@@ -26,7 +26,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useSubscriptionStore } from "@/store/subscription-store.js";
 import subscriptionService from "@/services/subscription-service.js";
 import { notificationService } from "@/services/notification-service";
-
+import { useWorkoutNotification } from "@/hooks/useWorkoutNotification";
 
 import { SetupWizard } from "@/components/SetupWizard";
 import { SubscriptionScreen } from "@/components/SubscriptionScreen";
@@ -187,6 +187,9 @@ function AppNavigator() {
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderDaysLeft, setReminderDaysLeft] = useState(0);
   const [navigationRefresh, setNavigationRefresh] = useState(0);
+  
+  // Set up workout notification (shows persistent notification during workouts)
+  useWorkoutNotification();
 
 
   // Set up navigation refresh function

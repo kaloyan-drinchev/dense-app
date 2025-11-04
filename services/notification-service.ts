@@ -198,7 +198,7 @@ export class NotificationService {
     return motivationalMessages[messageIndex];
   }
 
-  // Schedule smart workout reminder that only triggers on workout days
+  // Schedule smart workout reminder (1 notification per day that cycles through 10 messages)
   async scheduleSmartWorkoutReminder(userId: string, reminderTime: string = '10:00'): Promise<string | null> {
     try {
       const hasPermission = await this.requestPermissions();
@@ -207,38 +207,74 @@ export class NotificationService {
         return null;
       }
 
-      // Check if today is a workout day
-      const isWorkoutDay = await this.isTodayWorkoutDay(userId);
-      
-      if (!isWorkoutDay) {
-        console.log('Today is a rest day - no notification scheduled');
-        return null;
-      }
+      // Cancel any existing notifications first to ensure only 1 notification per day
+      await this.cancelAllNotifications();
 
       const [hours, minutes] = reminderTime.split(':').map(Number);
       
-      // Get the daily motivational message (cycles through 10 messages)
-      const dailyMessage = this.getDailyMotivationalMessage();
-      
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "💪 Time to Workout!",
-          body: dailyMessage,
-          sound: 'default',
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-          hour: hours,
-          minute: minutes,
-          repeats: true,
-        },
-      });
+      // Get all 10 motivational messages
+      const motivationalMessages = [
+        "Your future self will thank you for the work you do today. Let's get started.",
+        "The only workout you regret is the one you didn't do. Let's leave no regrets today. 💪",
+        "Don't wish for it. Work for it. Your session is ready now. 🔥",
+        "Be stronger than your excuses. It's time to prove it to yourself.",
+        "Consistency is the key that unlocks your potential. Today is another turn of that key.",
+        "Discipline is the bridge between your goals and reality. Time to cross it.",
+        "Show up for yourself, even when you don't feel like it. That's where real strength is built.",
+        "Remember that powerful feeling after a great workout? It's just one session away. Go get it!",
+        "Today's challenge is waiting. Rise up and conquer it. 🏆",
+        "There is a stronger version of you waiting to be unleashed. The time is now."
+      ];
 
-      console.log('Smart workout reminder scheduled for workout day:', notificationId);
-      return notificationId;
+      // Calculate which message should be shown today based on day of year
+      const today = new Date();
+      const startOfYear = new Date(today.getFullYear(), 0, 0);
+      const dayOfYear = Math.floor((today.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
+      const startingMessageIndex = dayOfYear % 10; // Which message in the cycle we start with today
+
+      // Schedule notifications for the next 30 days (3 full cycles of the 10 messages)
+      // Each day gets the next message in the loop
+      // After 30 days, users can re-toggle notifications to refresh
+      const scheduledIds: string[] = [];
+      const DAYS_TO_SCHEDULE = 30;
+      
+      for (let dayOffset = 0; dayOffset < DAYS_TO_SCHEDULE; dayOffset++) {
+        // Calculate which message to show for this day
+        const messageIndex = (startingMessageIndex + dayOffset) % 10;
+        
+        // Calculate the fire date for this notification
+        const fireDate = new Date();
+        fireDate.setDate(today.getDate() + dayOffset);
+        fireDate.setHours(hours, minutes, 0, 0);
+        
+        // Skip if the time has already passed today (for day 0)
+        if (dayOffset === 0 && fireDate <= new Date()) {
+          continue; // Skip today, will start tomorrow
+        }
+        
+        const notificationId = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "💪 Time to Workout!",
+            body: motivationalMessages[messageIndex],
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.HIGH,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: fireDate,
+          },
+        });
+        
+        scheduledIds.push(notificationId);
+      }
+
+      console.log(`✅ Daily workout reminders scheduled at ${reminderTime} - 1 notification per day`);
+      console.log(`📅 Scheduled ${scheduledIds.length} notifications (next ${DAYS_TO_SCHEDULE} days)`);
+      console.log(`🔄 Messages will cycle through all 10 motivational quotes`);
+      console.log(`💡 Tip: Toggle notifications off/on after 30 days to refresh`);
+      return scheduledIds.length > 0 ? scheduledIds[0] : null;
     } catch (error) {
-      console.error('Error scheduling smart workout reminder:', error);
+      console.error('❌ Error scheduling smart workout reminder:', error);
       return null;
     }
   }
@@ -370,6 +406,129 @@ export class NotificationService {
       console.error('Error getting scheduled notifications:', error);
       return [];
     }
+  }
+
+  private lastNotificationTime: string = '';
+  private notificationCategorySet: boolean = false;
+
+  // Create/Update ongoing workout notification with LIVE timer (Android Chronometer)
+  async showWorkoutNotification(
+    workoutName: string,
+    elapsedTime: string,
+    isPaused: boolean,
+    startTime?: string,
+    workoutStartTimestamp?: string
+  ): Promise<void> {
+    try {
+      console.log(`⏱️ Updating notification with live timer`);
+
+      // Only set up notification category once
+      if (!this.notificationCategorySet) {
+        await Notifications.setNotificationCategoryAsync('workout-active', [
+          {
+            identifier: 'pause',
+            buttonTitle: '⏸ Pause',
+            options: {
+              opensAppToForeground: false,
+            },
+          },
+          {
+            identifier: 'resume',
+            buttonTitle: '▶️ Resume',
+            options: {
+              opensAppToForeground: false,
+            },
+          },
+        ]);
+        this.notificationCategorySet = true;
+      }
+
+      // Calculate the base time for chronometer (when timer started)
+      // Android chronometer needs the timestamp when counting started
+      const baseTimestamp = workoutStartTimestamp 
+        ? new Date(workoutStartTimestamp).getTime()
+        : Date.now();
+
+      const statusEmoji = isPaused ? '⏸️' : '▶️';
+      const bodyText = `${statusEmoji} ${workoutName}`;
+
+      // IMPORTANT: Schedule with same identifier to update in-place
+      // Don't dismiss first - just update the existing notification
+      const notificationContent: any = {
+        identifier: 'workout-notification', // Same ID = updates existing notification
+        content: {
+          title: '💪 Workout in Progress',
+          body: bodyText,
+          sound: false,
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          sticky: true,
+          autoDismiss: false,
+          categoryIdentifier: 'workout-active',
+          data: {
+            screen: 'workout-session',
+            type: 'workout-active',
+            time: elapsedTime,
+          },
+          // Android-specific: Enable LIVE chronometer timer
+          ...(Platform.OS === 'android' && {
+            color: '#00FF87',
+            badge: 1,
+            // This makes Android show a LIVE counting timer!
+            showChronometer: true,
+            chronometerCountDown: false,
+            // Base time is when the workout started
+            chronometerTime: baseTimestamp,
+          }),
+        },
+        trigger: null,
+      };
+
+      await Notifications.scheduleNotificationAsync(notificationContent);
+      
+      this.lastNotificationTime = elapsedTime;
+      console.log(`✅ Notification with LIVE chronometer updated (base: ${new Date(baseTimestamp).toLocaleTimeString()})`);
+    } catch (error) {
+      console.error('Error showing workout notification:', error);
+    }
+  }
+
+  // Dismiss workout notification
+  async dismissWorkoutNotification(): Promise<void> {
+    try {
+      await Notifications.cancelScheduledNotificationAsync('workout-notification').catch(() => {});
+      await Notifications.dismissNotificationAsync('workout-notification');
+      this.lastNotificationTime = ''; // Reset for next workout
+      console.log('✅ Workout notification dismissed');
+    } catch (error) {
+      console.error('Error dismissing workout notification:', error);
+    }
+  }
+
+  // Set up notification response handler
+  setupNotificationHandlers(
+    onPause: () => void,
+    onResume: () => void,
+    onTap: () => void
+  ): Notifications.Subscription {
+    return Notifications.addNotificationResponseReceivedListener((response) => {
+      const { actionIdentifier, notification } = response;
+      const notificationData = notification.request.content.data;
+
+      // Handle action buttons
+      if (actionIdentifier === 'pause') {
+        console.log('⏸ Pause action tapped');
+        onPause();
+      } else if (actionIdentifier === 'resume') {
+        console.log('▶️ Resume action tapped');
+        onResume();
+      } else if (actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+        // User tapped the notification itself
+        if (notificationData?.screen === 'workout-session') {
+          console.log('📱 Notification tapped - navigating to workout');
+          onTap();
+        }
+      }
+    });
   }
 
   // Helper methods
