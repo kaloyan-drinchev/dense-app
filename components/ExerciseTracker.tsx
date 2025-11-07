@@ -232,21 +232,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     if (!isEditable) return;
     const rawWeight = fromDisplayWeightToKg(weight);
     const numWeight = Math.max(0, Math.min(MAX_WEIGHT_KG, rawWeight));
-    let updatedSets = sets.map((set) =>
+    const updatedSets = sets.map((set) =>
       set.id === setId ? { ...set, weight: numWeight } : set
     );
-    
-    // Auto-complete/uncomplete set based on values
-    const target = updatedSets.find((s) => s.id === setId);
-    if (target) {
-      const shouldBeCompleted = (target.weight > 0 && target.reps > 0);
-      if (target.isCompleted !== shouldBeCompleted) {
-        updatedSets = updatedSets.map((s) =>
-          s.id === setId ? { ...s, isCompleted: shouldBeCompleted } : s
-        );
-        updateExerciseSet(exerciseKey, setId, { isCompleted: shouldBeCompleted });
-      }
-    }
     
     setSets(updatedSets);
     updateExerciseSet(exerciseKey, setId, { weight: numWeight });
@@ -261,21 +249,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     if (!isEditable) return;
     const rawReps = parseInt(reps) || 0;
     const numReps = Math.max(0, Math.min(MAX_REPS, rawReps));
-    let updatedSets = sets.map((set) =>
+    const updatedSets = sets.map((set) =>
       set.id === setId ? { ...set, reps: numReps } : set
     );
-    
-    // Auto-complete/uncomplete set based on values
-    const target = updatedSets.find((s) => s.id === setId);
-    if (target) {
-      const shouldBeCompleted = (target.weight > 0 && target.reps > 0);
-      if (target.isCompleted !== shouldBeCompleted) {
-        updatedSets = updatedSets.map((s) =>
-          s.id === setId ? { ...s, isCompleted: shouldBeCompleted } : s
-        );
-        updateExerciseSet(exerciseKey, setId, { isCompleted: shouldBeCompleted });
-      }
-    }
     
     setSets(updatedSets);
     updateExerciseSet(exerciseKey, setId, { reps: numReps });
@@ -455,27 +431,28 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             isCompleted: set.isCompleted
           }));
           
-          console.log('🎯 Checking for PRs with sets:', prSets);
-          console.log('🎯 Previous exercise PRs:', exercisePRs[exerciseKey]);
-          console.log('🎯 Fresh exercise PRs:', freshPRs[exerciseKey]);
+          // COMMENTED OUT - PR CELEBRATION FEATURE (TO BE ENABLED LATER)
+          // console.log('🎯 Checking for PRs with sets:', prSets);
+          // console.log('🎯 Previous exercise PRs:', exercisePRs[exerciseKey]);
+          // console.log('🎯 Fresh exercise PRs:', freshPRs[exerciseKey]);
           
-          const newPRs = checkForNewPRs(exerciseKey, prSets, exercisePRs);
-          console.log('🏆 New PRs found:', newPRs);
+          // const newPRs = checkForNewPRs(exerciseKey, prSets, exercisePRs);
+          // console.log('🏆 New PRs found:', newPRs);
           
-          if (newPRs.length > 0) {
-            // Show PR celebration modal
-            setAchievedPRs(newPRs);
-            setShowPRModal(true);
-            
-            // Also trigger haptic feedback
-            if (Platform.OS !== 'web') {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            }
-            
-            return; // Don't go back yet, PR modal will handle navigation
-          } else {
-            console.log('💭 No new PRs detected');
-          }
+          // if (newPRs.length > 0) {
+          //   // Show PR celebration modal
+          //   setAchievedPRs(newPRs);
+          //   setShowPRModal(true);
+          //   
+          //   // Also trigger haptic feedback
+          //   if (Platform.OS !== 'web') {
+          //     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          //   }
+          //   
+          //   return; // Don't go back yet, PR modal will handle navigation
+          // } else {
+          //   console.log('💭 No new PRs detected');
+          // }
           
           // Update state with fresh data
           await loadPRData();
@@ -777,8 +754,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         </Modal>
       )}
 
-      {/* PR Celebration Modal */}
-      <PRCelebrationModal
+      {/* PR Celebration Modal - COMMENTED OUT FOR NOW */}
+      {/* <PRCelebrationModal
         visible={showPRModal}
         exerciseName={exercise.name}
         prs={achievedPRs}
@@ -791,7 +768,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           console.log('Share PR achievement');
           // Could use expo-sharing here
         }}
-      />
+      /> */}
 
     </View>
   );
