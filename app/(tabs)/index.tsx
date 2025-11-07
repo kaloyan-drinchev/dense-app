@@ -670,12 +670,14 @@ const styles = StyleSheet.create({
     paddingBottom: 16, // Bottom padding
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 24,
   },
   greeting: {
     ...typography.h1,
     color: colors.white,
-    marginBottom: 4,
   },
   date: {
     ...typography.body,

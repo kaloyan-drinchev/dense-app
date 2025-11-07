@@ -124,6 +124,27 @@ export default function AllowedFoodsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Info Banner */}
+      <View style={styles.infoBanner}>
+        <View style={styles.infoBannerContent}>
+          <Icon name="info" size={20} color={colors.primary} style={styles.infoIcon} />
+          <View style={styles.infoBannerTextContainer}>
+            <Text style={styles.infoBannerTitle}>Read-Only Reference</Text>
+            <Text style={styles.infoBannerText}>
+              This is a reference list of approved foods and recipes.
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.addFoodButton}
+          onPress={() => router.push('/add-food-page')}
+          activeOpacity={1}
+        >
+          <Icon name="plus" size={16} color={colors.black} />
+          <Text style={styles.addFoodButtonText}>Add Food to Diary</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Content */}
       <ScrollView
         style={styles.scrollView}
@@ -162,8 +183,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.mediumGray,
   },
   backButton: {
     padding: 8,
@@ -264,5 +286,52 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     color: colors.lightGray,
     lineHeight: 18,
+  },
+  infoBanner: {
+    backgroundColor: colors.darkGray,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  infoBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  infoIcon: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  infoBannerTextContainer: {
+    flex: 1,
+  },
+  infoBannerTitle: {
+    ...typography.body,
+    color: colors.white,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  infoBannerText: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    lineHeight: 20,
+  },
+  addFoodButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  addFoodButtonText: {
+    ...typography.body,
+    color: colors.black,
+    fontWeight: 'bold',
   },
 });

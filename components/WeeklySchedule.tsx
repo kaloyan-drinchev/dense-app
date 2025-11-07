@@ -43,19 +43,28 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
     return date.toDateString() === today.toDateString();
   };
 
+  const isPastDay = (date: Date) => {
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+    return checkDate < todayStart;
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.weekRow}>
         {weekDates.map((date, index) => {
           const isTraining = isTrainingDay(index);
           const todayFlag = isToday(date);
+          const pastDay = isPastDay(date);
           
           return (
             <View 
               key={index} 
               style={[
                 styles.dayContainer,
-                isTraining ? styles.trainingDay : styles.restDay,
+                isTraining ? (pastDay ? styles.pastTrainingDay : styles.trainingDay) : styles.restDay,
                 todayFlag && styles.todayBorder
               ]}
             >
@@ -74,6 +83,18 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
             </View>
           );
         })}
+      </View>
+      
+      {/* Legend */}
+      <View style={styles.legend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendSquare, styles.trainingDay]} />
+          <Text style={styles.legendText}>Workout Day</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendSquare, styles.restDay]} />
+          <Text style={styles.legendText}>Rest Day</Text>
+        </View>
       </View>
     </View>
   );
@@ -103,6 +124,9 @@ const styles = StyleSheet.create({
   trainingDay: {
     backgroundColor: colors.primary,
   },
+  pastTrainingDay: {
+    backgroundColor: '#00AA55', // Darker, muted green for past training days
+  },
   restDay: {
     backgroundColor: colors.mediumGray,
   },
@@ -123,6 +147,26 @@ const styles = StyleSheet.create({
     color: colors.black,
   },
   restText: {
+    color: colors.lightGray,
+  },
+  legend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 12,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendSquare: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+  },
+  legendText: {
+    fontSize: 11,
     color: colors.lightGray,
   },
 });
