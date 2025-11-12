@@ -16,6 +16,7 @@ export default function FinishedWorkoutsDetailScreen() {
   const { date, workoutIndex } = useLocalSearchParams<{ date: string; workoutIndex: string }>();
   const [program, setProgram] = useState<any>(null);
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, any[]>>({});
+  const [customExercises, setCustomExercises] = useState<any[]>([]);
   const [workoutDuration, setWorkoutDuration] = useState<number | null>(null);
   const [workoutPercentage, setWorkoutPercentage] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,6 +34,12 @@ export default function FinishedWorkoutsDetailScreen() {
           try {
             const ww = JSON.parse(progress.weeklyWeights as unknown as string);
             setExerciseLogs(ww.exerciseLogs || {});
+            
+            // Load custom exercises for this date
+            if (date && ww.customExercises) {
+              const dateKey = String(date).slice(0, 10);
+              setCustomExercises(ww.customExercises[dateKey] || []);
+            }
           } catch {}
         }
         
@@ -62,7 +69,7 @@ export default function FinishedWorkoutsDetailScreen() {
       }
     };
     load();
-  }, [user?.email]);
+  }, [user?.id, date, workoutIndex]);
 
   const workout = program?.weeklyStructure?.[parseInt(workoutIndex || '0', 10)];
   const dateKey = String(date || '').slice(0, 10);
@@ -108,6 +115,30 @@ export default function FinishedWorkoutsDetailScreen() {
                     reps: ex.reps,
                     restTime: ex.restSeconds || 60,
                     targetMuscle: ex.targetMuscle || 'General',
+                  }}
+                  exerciseKey={exId}
+                  readOnly
+                  presetSession={sessionForDay ? { unit: sessionForDay.unit || 'kg', sets: sessionForDay.sets || [] } : undefined}
+                />
+              </View>
+            );
+          })}
+          
+          {/* Custom Exercises */}
+          {customExercises.map((ex: any, i: number) => {
+            const exId = ex.id;
+            const sessions = exerciseLogs[exId] || [];
+            const sessionForDay = sessions.find((s: any) => s.date === dateKey);
+            return (
+              <View key={exId} style={{ marginTop: 8 }}>
+                <ExerciseTracker
+                  exercise={{
+                    id: exId,
+                    name: ex.name,
+                    sets: ex.sets,
+                    reps: ex.reps,
+                    restTime: ex.restSeconds || 60,
+                    targetMuscle: ex.targetMuscle || 'Custom',
                   }}
                   exerciseKey={exId}
                   readOnly

@@ -7,13 +7,14 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
-import { wizardResultsService } from '@/db/services';
+import { wizardResultsService, userProgressService } from '@/db/services';
 import { ExerciseTracker } from '@/components/ExerciseTracker';
 import {
   Feather as Icon,
@@ -25,6 +26,7 @@ export default function WorkoutExerciseTrackerScreen() {
   const { user } = useAuthStore();
   const [exercise, setExercise] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const isCustomExercise = exerciseId?.startsWith('custom-');
 
   useEffect(() => {
     loadExerciseData();
@@ -37,39 +39,100 @@ export default function WorkoutExerciseTrackerScreen() {
     }
 
     try {
-      // Load the generated program data
-      const wizardResults = await wizardResultsService.getByUserId(user.id);
-      if (wizardResults?.generatedSplit) {
-        const program = JSON.parse(wizardResults.generatedSplit);
-        
-        // Find the exercise in the program structure
-        let foundExercise = null;
-        
-        for (const workout of program.weeklyStructure || []) {
-          const found = workout.exercises?.find((ex: any) => {
-            const exerciseIdMatch = ex.id === exerciseId || 
-                                  ex.name.replace(/\s+/g, '-').toLowerCase() === exerciseId;
-            return exerciseIdMatch;
-          });
+      let foundExercise = null;
+      
+      // Check if it's a custom exercise (starts with 'custom-')
+      if (exerciseId.startsWith('custom-')) {
+        const progress = await userProgressService.getByUserId(user.id);
+        if (progress?.weeklyWeights) {
+          const weeklyWeights = JSON.parse(progress.weeklyWeights);
+          const today = new Date().toISOString().split('T')[0];
+          const customExercises = weeklyWeights?.customExercises?.[today] || [];
           
-          if (found) {
+          foundExercise = customExercises.find((ex: any) => ex.id === exerciseId);
+          
+          if (foundExercise) {
             foundExercise = {
-              ...found,
-              id: found.id || found.name.replace(/\s+/g, '-').toLowerCase(),
-              targetMuscle: found.targetMuscle || 'General',
-              restTime: found.restSeconds || 60,
+              ...foundExercise,
+              targetMuscle: foundExercise.targetMuscle || 'Custom',
+              restTime: foundExercise.restSeconds || 60,
             };
-            break;
           }
         }
-        
-        setExercise(foundExercise);
+      } else {
+        // Load from generated program data
+        const wizardResults = await wizardResultsService.getByUserId(user.id);
+        if (wizardResults?.generatedSplit) {
+          const program = JSON.parse(wizardResults.generatedSplit);
+          
+          // Find the exercise in the program structure
+          for (const workout of program.weeklyStructure || []) {
+            const found = workout.exercises?.find((ex: any) => {
+              const exerciseIdMatch = ex.id === exerciseId || 
+                                    ex.name.replace(/\s+/g, '-').toLowerCase() === exerciseId;
+              return exerciseIdMatch;
+            });
+            
+            if (found) {
+              foundExercise = {
+                ...found,
+                id: found.id || found.name.replace(/\s+/g, '-').toLowerCase(),
+                targetMuscle: found.targetMuscle || 'General',
+                restTime: found.restSeconds || 60,
+              };
+              break;
+            }
+          }
+        }
       }
+      
+      setExercise(foundExercise);
     } catch (error) {
       console.error('❌ Failed to load exercise data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteCustomExercise = async () => {
+    Alert.alert(
+      'Delete Exercise',
+      `Remove "${exercise?.name}" from today's workout?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (!user?.id || !exerciseId) return;
+              
+              const progress = await userProgressService.getByUserId(user.id);
+              if (progress?.weeklyWeights) {
+                const weeklyWeights = JSON.parse(progress.weeklyWeights);
+                const today = new Date().toISOString().split('T')[0];
+                
+                if (weeklyWeights.customExercises && weeklyWeights.customExercises[today]) {
+                  weeklyWeights.customExercises[today] = weeklyWeights.customExercises[today].filter(
+                    (ex: any) => ex.id !== exerciseId
+                  );
+                }
+                
+                await userProgressService.update(progress.id, {
+                  weeklyWeights: JSON.stringify(weeklyWeights),
+                });
+                
+                console.log('✅ Custom exercise deleted');
+                router.back();
+              }
+            } catch (error) {
+              console.error('❌ Failed to delete custom exercise:', error);
+              Alert.alert('Error', 'Failed to delete exercise. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -119,6 +182,11 @@ export default function WorkoutExerciseTrackerScreen() {
             <Icon name="arrow-left" size={24} color={colors.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{exercise.name}</Text>
+          {isCustomExercise && (
+            <TouchableOpacity onPress={handleDeleteCustomExercise} style={styles.deleteButton}>
+              <Icon name="trash-2" size={20} color={colors.error} />
+            </TouchableOpacity>
+          )}
         </View>
 
         <ScrollView
@@ -204,6 +272,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.white,
     flex: 1,
+  },
+  deleteButton: {
+    marginLeft: 16,
+    padding: 8,
   },
   scrollView: {
     flex: 1,

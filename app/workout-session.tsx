@@ -24,6 +24,7 @@ import { ExerciseCard } from '@/components/ExerciseCard';
 import { WorkoutOptionsModal } from '@/components/WorkoutOptionsModal';
 import { WorkoutPreviewModal } from '@/components/WorkoutPreviewModal';
 import { WorkoutNotStartedModal } from '@/components/WorkoutNotStartedModal';
+import { AddCustomExerciseModal } from '@/components/AddCustomExerciseModal';
 import { markTodayWorkoutCompleted } from '@/utils/workout-completion-tracker';
 import { ensureMinimumDuration } from '@/utils/workout-duration';
 import { 
@@ -45,6 +46,10 @@ export default function WorkoutSessionScreen() {
   const [showWorkoutConfirmModal, setShowWorkoutConfirmModal] = useState(false);
   const [workoutCompletionData, setWorkoutCompletionData] = useState<{percentage: number, completed: number, total: number} | null>(null);
   const [workoutStarted, setWorkoutStarted] = useState(false);
+  
+  // Custom exercises state
+  const [customExercises, setCustomExercises] = useState<any[]>([]);
+  const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   
   // PR tracking state
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLogs>({});
@@ -118,11 +123,76 @@ export default function WorkoutSessionScreen() {
         // Analyze PRs for all exercises
         const allPRs = analyzeExercisePRs(logs);
         setExercisePRs(allPRs);
+        
+        // Load custom exercises for today
+        const today = new Date().toISOString().split('T')[0];
+        const customExs = weeklyWeights?.customExercises?.[today] || [];
+        setCustomExercises(customExs);
       }
     } catch (error) {
       console.error('❌ Failed to load workout data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddCustomExercise = async (exerciseName: string) => {
+    // Limit to 3 custom exercises per workout
+    if (customExercises.length >= 3) {
+      Alert.alert(
+        'Limit Reached',
+        'You can only add up to 3 custom exercises per workout.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    // Create custom exercise with default values (outside try for error handler access)
+    const customExercise = {
+      id: `custom-${Date.now()}`,
+      name: exerciseName,
+      sets: 2,
+      reps: '10',
+      restSeconds: 60,
+      targetMuscle: 'Custom',
+      isCustom: true,
+    };
+    
+    try {
+      if (!user?.id || !userProgressData) return;
+      
+      // Add to local state immediately for optimistic UI update
+      setCustomExercises(prev => [...prev, customExercise]);
+      
+      // Fetch fresh data from database to avoid race conditions
+      const freshProgress = await userProgressService.getByUserId(user.id);
+      if (!freshProgress) {
+        throw new Error('Failed to fetch user progress');
+      }
+      
+      const weeklyWeights = freshProgress.weeklyWeights ? JSON.parse(freshProgress.weeklyWeights) : {};
+      const today = new Date().toISOString().split('T')[0];
+      
+      if (!weeklyWeights.customExercises) {
+        weeklyWeights.customExercises = {};
+      }
+      
+      if (!weeklyWeights.customExercises[today]) {
+        weeklyWeights.customExercises[today] = [];
+      }
+      
+      weeklyWeights.customExercises[today].push(customExercise);
+      
+      await userProgressService.update(freshProgress.id, {
+        weeklyWeights: JSON.stringify(weeklyWeights),
+      });
+      
+      console.log('✅ Custom exercise added:', exerciseName);
+    } catch (error) {
+      console.error('❌ Failed to add custom exercise:', error);
+      // Rollback the optimistic update
+      setCustomExercises(prev => prev.filter(ex => ex.id !== customExercise.id));
+      Alert.alert('Error', 'Failed to add custom exercise. Please try again.');
     }
   };
 
@@ -198,12 +268,18 @@ export default function WorkoutSessionScreen() {
     if (!todaysWorkout?.exercises) return { percentage: 0, completed: 0, total: 0 };
     
     const exercises = todaysWorkout.exercises;
-    const completedCount = exercises.filter((ex: any) => {
+    const regularCompletedCount = exercises.filter((ex: any) => {
       const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
       return getExerciseStatus(exId, ex.sets) === 'completed';
     }).length;
     
-    const total = exercises.length;
+    // Include custom exercises in completion calculation
+    const customCompletedCount = customExercises.filter((ex: any) => {
+      return getExerciseStatus(ex.id, ex.sets) === 'completed';
+    }).length;
+    
+    const completedCount = regularCompletedCount + customCompletedCount;
+    const total = exercises.length + customExercises.length;
     const percentage = total > 0 ? Math.round((completedCount / total) * 100) : 0;
     
     return { percentage, completed: completedCount, total };
@@ -500,7 +576,21 @@ export default function WorkoutSessionScreen() {
           </View>
 
           <View style={styles.exercisesSection}>
-            <Text style={styles.sectionTitle}>Exercises ({todaysWorkout.exercises?.length || 0})</Text>
+            <View style={styles.exercisesSectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Exercises ({(todaysWorkout.exercises?.length || 0) + customExercises.length})
+              </Text>
+              {workoutStarted && customExercises.length < 3 && (
+                <TouchableOpacity
+                  style={styles.addExerciseButton}
+                  onPress={() => setShowAddExerciseModal(true)}
+                  activeOpacity={1}
+                >
+                  <Icon name="plus" size={20} color={colors.black} />
+                  <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             
             {todaysWorkout.exercises?.map((exercise: any, index: number) => {
               // Convert the exercise format to match ExerciseCard expectations
@@ -529,6 +619,41 @@ export default function WorkoutSessionScreen() {
             }) || (
               <Text style={styles.noExercisesText}>No exercises found for today</Text>
             )}
+            
+            {/* Custom Exercises */}
+            {customExercises.map((exercise: any, index: number) => {
+              const exerciseWithId = {
+                ...exercise,
+                id: exercise.id,
+                targetMuscle: exercise.targetMuscle || 'Custom',
+                restTime: exercise.restSeconds || 60,
+                isCompleted:
+                  getExerciseStatus(exercise.id, exercise.sets) === 'completed',
+                isCustom: true,
+              };
+              
+              return (
+                <ExerciseCard
+                  key={exercise.id}
+                  exercise={exerciseWithId}
+                  index={todaysWorkout.exercises?.length + index}
+                  onPress={() => handleExercisePress(exerciseWithId.id)}
+                  status={getExerciseStatus(exerciseWithId.id, exerciseWithId.sets)}
+                  prPotential={false}
+                />
+              );
+            })}
+            
+            {/* Max Custom Exercises Message */}
+            {customExercises.length === 3 && (
+              <View style={styles.maxCustomExercisesInfo}>
+                <Icon name="info" size={16} color={colors.lightGray} />
+                <Text style={styles.maxCustomExercisesText}>
+                  Maximum of 3 custom exercises reached
+                </Text>
+              </View>
+            )}
+            
             {workoutStarted && (
               <TouchableOpacity style={styles.finishButton} onPress={handleFinishWorkout} activeOpacity={1}>
                 <Text style={styles.finishButtonText}>
@@ -571,6 +696,13 @@ export default function WorkoutSessionScreen() {
           setShowNotStartedModal(false);
           handleStartWorkout();
         }}
+      />
+
+      {/* Add Custom Exercise Modal */}
+      <AddCustomExerciseModal
+        visible={showAddExerciseModal}
+        onClose={() => setShowAddExerciseModal(false)}
+        onAdd={handleAddCustomExercise}
       />
 
       {/* Workout Completion Modal */}
@@ -798,6 +930,45 @@ const styles = StyleSheet.create({
     color: colors.lightGray,
     textAlign: 'center',
     marginTop: 32,
+  },
+  exercisesSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addExerciseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 4,
+  },
+  addExerciseButtonText: {
+    ...typography.bodySmall,
+    color: colors.black,
+    fontWeight: 'bold',
+  },
+  maxCustomExercisesInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.mediumGray,
+    gap: 8,
+  },
+  maxCustomExercisesText: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    fontStyle: 'italic',
   },
   finishButton: {
     marginTop: 16,
