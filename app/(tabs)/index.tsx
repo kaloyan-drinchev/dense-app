@@ -435,7 +435,7 @@ export default function HomeScreen() {
           >
             <Video
               style={styles.videoThumbnail}
-              source={{ uri: "https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/progress-videos/3-17.mp4" }}
+              source={require('@/assets/videos/3-17.mp4')}
               resizeMode={ResizeMode.COVER}
               shouldPlay={true}
               isMuted={true}

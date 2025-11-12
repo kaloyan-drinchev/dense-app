@@ -17,7 +17,8 @@ import { Feather as Icon } from '@expo/vector-icons';
 interface HomepageVideoModalProps {
   visible: boolean;
   onClose: () => void;
-  videoUrl?: string;
+  videoSource?: any; // Local video source
+  videoUrl?: string; // Deprecated: for backward compatibility
 }
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -25,6 +26,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 export const HomepageVideoModal: React.FC<HomepageVideoModalProps> = ({
   visible,
   onClose,
+  videoSource: propVideoSource,
   videoUrl: propVideoUrl,
 }) => {
   const [status, setStatus] = useState({});
@@ -81,8 +83,8 @@ export const HomepageVideoModal: React.FC<HomepageVideoModalProps> = ({
     }
   };
 
-  // Video URL - use prop or default to 3-17
-  const videoUrl = propVideoUrl || "https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/progress-videos/3-17.mp4";
+  // Video source - prioritize local source, fallback to URL (for backward compatibility)
+  const videoSource = propVideoSource || (propVideoUrl ? { uri: propVideoUrl } : require('@/assets/videos/3-17.mp4'));
 
   return (
     <Modal
@@ -108,7 +110,7 @@ export const HomepageVideoModal: React.FC<HomepageVideoModalProps> = ({
           <Video
             ref={video}
             style={styles.homepageVideo}
-            source={{ uri: videoUrl }}
+            source={videoSource}
             useNativeControls
             resizeMode={ResizeMode.CONTAIN}
             isLooping

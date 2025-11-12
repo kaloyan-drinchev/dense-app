@@ -68,7 +68,7 @@ export default function CheckOurProgressScreen() {
               )}
               <Image
                 style={styles.videoThumbnail}
-                source={{ uri: "https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/progress-photos/before-dense.jpeg" }}
+                source={require('@/assets/images/before-dense.jpeg')}
                 resizeMode={ResizeMode.COVER}
                 onLoad={() => setImage1Loading(false)}
                 onError={() => setImage1Loading(false)}
@@ -104,7 +104,7 @@ export default function CheckOurProgressScreen() {
               )}
               <Image
                 style={styles.videoThumbnail}
-                source={{ uri: "https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/progress-photos/after-dense.jpeg" }}
+                source={require('@/assets/images/after-dense.jpeg')}
                 resizeMode={ResizeMode.COVER}
                 onLoad={() => setImage2Loading(false)}
                 onError={() => setImage2Loading(false)}
@@ -123,9 +123,9 @@ export default function CheckOurProgressScreen() {
       <HomepageVideoModal
         visible={showVideoModal}
         onClose={() => setShowVideoModal(false)}
-        videoUrl={selectedVideo === '3-16' 
-          ? "https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/progress-videos/3-16.MOV"
-          : "https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/progress-videos/3-17.mp4"
+        videoSource={selectedVideo === '3-16' 
+          ? require('@/assets/videos/3-16.mp4')
+          : require('@/assets/videos/3-17.mp4')
         }
       />
     </LinearGradient>
