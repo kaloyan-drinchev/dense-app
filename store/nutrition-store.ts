@@ -12,6 +12,8 @@ import {
 import { COMMON_FOODS, calculateNutrition } from '@/mocks/foods';
 import { generateId } from '@/utils/helpers';
 import { ApiService } from '@/utils/api';
+import { wizardResultsService } from '@/db/services';
+import { useAuthStore } from '@/store/auth-store';
 
 interface NutritionState {
   dailyLogs: { [date: string]: DailyLog };
@@ -473,10 +475,6 @@ export const initializeNutritionGoals = async () => {
   const { updateNutritionGoals } = useNutritionStore.getState();
   
   try {
-    // Import services here to avoid circular dependency
-    const { wizardResultsService } = await import('@/db/services');
-    const { useAuthStore } = await import('@/store/auth-store');
-    
     const user = useAuthStore.getState().user;
     if (!user?.id) {
       console.log('No user found, using default nutrition goals');
@@ -534,6 +532,16 @@ export const initializeNutritionGoals = async () => {
       }
     }
   } catch (error) {
-    console.error('Failed to initialize nutrition goals:', error);
+    console.error('❌ Failed to initialize nutrition goals:', error);
+    
+    // Fallback to absolute minimum defaults if everything fails
+    updateNutritionGoals({
+      calories: 2500,
+      protein: 150,
+      carbs: 250,
+      fat: 80,
+    });
+    
+    console.log('⚠️ Using emergency default nutrition goals');
   }
 };
