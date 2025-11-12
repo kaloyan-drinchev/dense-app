@@ -102,6 +102,15 @@ export const AddCustomExerciseModal: React.FC<AddCustomExerciseModalProps> = ({
               )}
             </View>
 
+            {/* Progressive Overload Info */}
+            <View style={styles.infoBox}>
+              <Icon name="trending-up" size={16} color={colors.primary} />
+              <Text style={styles.infoText}>
+                <Text style={styles.infoTextBold}>Progressive Overload Tip: </Text>
+                Maintain the same exercise order and intensity. If replacing an exercise, choose the most similar alternative to track progress effectively.
+              </Text>
+            </View>
+
             {/* Results */}
             {showResults ? (
               <View style={styles.resultsContainer}>
@@ -210,6 +219,27 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: 4,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.primary + '15',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  infoText: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    flex: 1,
+    lineHeight: 18,
+  },
+  infoTextBold: {
+    color: colors.primary,
+    fontWeight: 'bold',
   },
   resultsContainer: {
     flex: 1,
