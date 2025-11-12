@@ -114,6 +114,9 @@ const generateDefaultSchedule = (trainingDays: number) => {
     case 6:
       trainDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
       break;
+    case 7:
+      trainDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      break;
     default:
       trainDays = ['monday', 'tuesday', 'thursday', 'friday'];
   }

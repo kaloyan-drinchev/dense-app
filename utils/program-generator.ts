@@ -15,7 +15,7 @@ export interface WizardResponses {
   bodyFatLevel: 'lean_10_14' | 'athletic_15_18' | 'average_18_22' | 'high_22_plus';
   
   // Step 5: Weekly Schedule
-  trainingDaysPerWeek: number; // 3, 4, 5, or 6
+  trainingDaysPerWeek: number; // 3, 4, 5, 6, or 7
   preferredTrainingDays: string[];
   
   // Step 6: Muscle Priorities (max 3)
@@ -45,7 +45,7 @@ export interface Exercise {
 
 export interface WorkoutDay {
   name: string;
-  type: 'push' | 'pull' | 'legs' | 'rest';
+  type: 'push' | 'pull' | 'legs' | 'upper' | 'rest';
   exercises: Exercise[];
   estimatedDuration: number; // minutes
 }
@@ -272,6 +272,8 @@ export class ProgramGenerator {
         return { type: 'ppl_plus_weak', days: ['push', 'pull', 'legs', 'push', 'pull'] };
       case 6:
         return { type: 'ppl_twice', days: ['push', 'pull', 'legs', 'push', 'pull', 'legs'] };
+      case 7:
+        return { type: 'ppl_twice_plus_upper', days: ['push', 'pull', 'legs', 'push', 'pull', 'legs', 'upper'] };
       default:
         return { type: 'ppl_once', days: ['push', 'pull', 'legs'] };
     }
@@ -436,6 +438,20 @@ export class ProgramGenerator {
             ))
           ];
           break;
+          
+        case 'upper':
+          dayName = `Day ${workoutDayNumber}: Upper Body (Full Upper)`;
+          dayExercises = [
+            ...this.convertToExercises(exercises.chest, Math.ceil(volume.chest / 2), 'compound', weekNumber, totalWeeks),
+            ...this.convertToExercises(exercises.back, Math.ceil(volume.back / 2), 'compound', weekNumber, totalWeeks),
+            ...this.convertToExercises(exercises.shoulders, Math.ceil(volume.shoulders / 2), 'compound', weekNumber, totalWeeks),
+            ...this.convertToExercises(exercises.biceps, Math.ceil(volume.biceps / 2), 'isolation', weekNumber, totalWeeks),
+            ...this.convertToExercises(exercises.triceps, Math.ceil(volume.triceps / 2), 'isolation', weekNumber, totalWeeks),
+            ...pumpWork.filter(ex => ['chest', 'back', 'shoulder', 'bicep', 'tricep'].some(muscle => 
+              ex.name.toLowerCase().includes(muscle)
+            ))
+          ];
+          break;
       }
       
       // Calculate estimated duration (DENSE style)
@@ -443,7 +459,7 @@ export class ProgramGenerator {
       
       structure.push({
         name: dayName,
-        type: dayType as 'push' | 'pull' | 'legs',
+        type: dayType as 'push' | 'pull' | 'legs' | 'upper',
         exercises: dayExercises,
         estimatedDuration: duration
       });
@@ -614,6 +630,9 @@ export class ProgramGenerator {
         break;
       case 6:
         workoutDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        break;
+      case 7:
+        workoutDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
         break;
       default:
         workoutDays = ['monday', 'wednesday', 'friday'];
