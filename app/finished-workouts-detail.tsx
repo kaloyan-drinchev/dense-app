@@ -9,6 +9,8 @@ import { wizardResultsService, userProgressService } from '@/db/services';
 import { ExerciseTracker } from '@/components/ExerciseTracker';
 import { Feather as Icon } from '@expo/vector-icons';
 import { formatDuration } from '@/utils/format-duration';
+import { calculateWorkoutCalories } from '@/utils/exercise-calories';
+import { typography } from '@/constants/typography';
 
 export default function FinishedWorkoutsDetailScreen() {
   const router = useRouter();
@@ -17,8 +19,13 @@ export default function FinishedWorkoutsDetailScreen() {
   const [program, setProgram] = useState<any>(null);
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, any[]>>({});
   const [customExercises, setCustomExercises] = useState<any[]>([]);
+  const [cardioEntries, setCardioEntries] = useState<any[]>([]);
   const [workoutDuration, setWorkoutDuration] = useState<number | null>(null);
   const [workoutPercentage, setWorkoutPercentage] = useState<number | null>(null);
+  const [workoutStartTime, setWorkoutStartTime] = useState<string | null>(null);
+  const [workoutFinishTime, setWorkoutFinishTime] = useState<string | null>(null);
+  const [userWeight, setUserWeight] = useState<number>(70);
+  const [totalCalories, setTotalCalories] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,21 +36,29 @@ export default function FinishedWorkoutsDetailScreen() {
         if (wiz?.generatedSplit) {
           try { setProgram(JSON.parse(wiz.generatedSplit)); } catch {}
         }
+        
+        if (wiz?.weight) {
+          setUserWeight(wiz.weight);
+        }
+        
         const progress = await userProgressService.getByUserId(user.id);
         if (progress?.weeklyWeights) {
           try {
             const ww = JSON.parse(progress.weeklyWeights as unknown as string);
             setExerciseLogs(ww.exerciseLogs || {});
             
-            // Load custom exercises for this date
             if (date && ww.customExercises) {
               const dateKey = String(date).slice(0, 10);
               setCustomExercises(ww.customExercises[dateKey] || []);
             }
+            
+            if (date && ww.cardioEntries) {
+              const dateKey = String(date).slice(0, 10);
+              setCardioEntries(ww.cardioEntries[dateKey] || []);
+            }
           } catch {}
         }
         
-        // Get workout duration from completed workouts
         if (progress?.completedWorkouts && date) {
           try {
             const completedData = JSON.parse(progress.completedWorkouts as unknown as string) || [];
@@ -54,11 +69,26 @@ export default function FinishedWorkoutsDetailScreen() {
               item.workoutIndex === parseInt(workoutIndex || '0', 10)
             );
             
-            if (workoutEntry?.duration) {
-              setWorkoutDuration(workoutEntry.duration);
-            }
-            if (workoutEntry?.percentageSuccess !== undefined) {
-              setWorkoutPercentage(workoutEntry.percentageSuccess);
+            if (workoutEntry) {
+              if (workoutEntry.duration) {
+                setWorkoutDuration(workoutEntry.duration);
+              }
+              if (workoutEntry.percentageSuccess !== undefined) {
+                setWorkoutPercentage(workoutEntry.percentageSuccess);
+              }
+              
+              const finishTime = workoutEntry.finishTime || workoutEntry.date;
+              if (finishTime) {
+                setWorkoutFinishTime(finishTime);
+              }
+              
+              if (workoutEntry.startTime) {
+                setWorkoutStartTime(workoutEntry.startTime);
+              } else if (finishTime && workoutEntry.duration) {
+                const finishDate = new Date(finishTime);
+                const startDate = new Date(finishDate.getTime() - (workoutEntry.duration * 1000));
+                setWorkoutStartTime(startDate.toISOString());
+              }
             }
           } catch (error) {
             console.error('Error parsing completed workouts:', error);
@@ -74,6 +104,68 @@ export default function FinishedWorkoutsDetailScreen() {
   const workout = program?.weeklyStructure?.[parseInt(workoutIndex || '0', 10)];
   const dateKey = String(date || '').slice(0, 10);
 
+  useEffect(() => {
+    if (!workout || !date) return;
+    
+    const dateKey = String(date).slice(0, 10);
+    const completedExercises: Array<{ 
+      name: string; 
+      sets: number;
+      setsData?: Array<{ weightKg: number; reps: number; isCompleted: boolean }>;
+    }> = [];
+    
+    workout.exercises?.forEach((ex: any) => {
+      const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
+      const sessions = exerciseLogs[exId] || [];
+      const sessionForDay = sessions.find((s: any) => s.date === dateKey);
+      const sets = typeof ex.sets === 'number' ? ex.sets : 3;
+      
+      if (sessionForDay?.sets && sessionForDay.sets.length > 0) {
+        completedExercises.push({
+          name: ex.name,
+          sets: sets,
+          setsData: sessionForDay.sets
+        });
+      } else {
+        completedExercises.push({
+          name: ex.name,
+          sets: sets
+        });
+      }
+    });
+    
+    customExercises.forEach((ex: any) => {
+      const exId = ex.id;
+      const sessions = exerciseLogs[exId] || [];
+      const sessionForDay = sessions.find((s: any) => s.date === dateKey);
+      const sets = typeof ex.sets === 'number' ? ex.sets : 3;
+      
+      if (sessionForDay?.sets && sessionForDay.sets.length > 0) {
+        completedExercises.push({
+          name: ex.name,
+          sets: sets,
+          setsData: sessionForDay.sets
+        });
+      } else {
+        completedExercises.push({
+          name: ex.name,
+          sets: sets
+        });
+      }
+    });
+    
+    const exerciseCalories = completedExercises.length > 0 
+      ? calculateWorkoutCalories(completedExercises, userWeight)
+      : 0;
+    
+    const cardioCalories = cardioEntries.reduce((sum: number, entry: any) => {
+      return sum + (entry.calories || 0);
+    }, 0);
+    
+    const total = exerciseCalories + cardioCalories;
+    setTotalCalories(total);
+  }, [workout, exerciseLogs, customExercises, cardioEntries, date, userWeight, workoutIndex, program]);
+
   return (
     <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -86,21 +178,64 @@ export default function FinishedWorkoutsDetailScreen() {
 
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
           <View style={styles.workoutHeader}>
-            <Text style={styles.dateText}>{new Date(String(date)).toLocaleString()}</Text>
-            <View style={styles.metaRow}>
-              {workoutDuration && (
-                <View style={styles.durationContainer}>
-                  <Icon name="clock" size={16} color={colors.primary} />
-                  <Text style={styles.durationText}>{formatDuration(workoutDuration)}</Text>
-                </View>
-              )}
+            <View style={styles.headerLeft}>
+              <Text style={styles.dateText}>{new Date(String(date)).toLocaleDateString()}</Text>
+            </View>
+            <View style={styles.headerRight}>
               {workoutPercentage !== null && (
                 <View style={styles.percentageContainer}>
-                  <Text style={styles.percentageText}>{workoutPercentage}% Complete</Text>
+                  <Text style={styles.percentageText}>
+                    {workoutPercentage === 100 ? '100% Completed' : `${workoutPercentage}%`}
+                  </Text>
+                </View>
+              )}
+              {totalCalories > 0 && (
+                <View style={styles.caloriesContainer}>
+                  <Icon name="zap" size={14} color={colors.primary} />
+                  <Text style={styles.caloriesText}>~{totalCalories} cal</Text>
                 </View>
               )}
             </View>
           </View>
+          
+          {totalCalories >= 200 && (
+            <View style={styles.motivationalMessage}>
+              <Text style={styles.motivationalText}>
+                {totalCalories >= 500 
+                  ? "🔥 This calorie burn is for LEGENDS! " 
+                  : totalCalories >= 300
+                  ? "💪 Incredible effort! You're absolutely CRUSHING it!"
+                  : "⭐ Nice work! Keep PUSHING forward!"}
+              </Text>
+            </View>
+          )}
+          
+          {(workoutStartTime || workoutFinishTime || workoutDuration) && (
+            <View style={styles.workoutTimesRow}>
+              {workoutStartTime && (
+                <View style={styles.timeItem}>
+                  <Text style={styles.timeLabel}>Started:</Text>
+                  <Text style={styles.timeValue}>
+                    {new Date(workoutStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+              )}
+              {workoutFinishTime && (
+                <View style={styles.timeItem}>
+                  <Text style={styles.timeLabel}>Finished:</Text>
+                  <Text style={styles.timeValue}>
+                    {new Date(workoutFinishTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+              )}
+              {workoutDuration && (
+                <View style={styles.timeItem}>
+                  <Text style={styles.timeLabel}>Duration:</Text>
+                  <Text style={styles.timeValue}>{formatDuration(workoutDuration)}</Text>
+                </View>
+              )}
+            </View>
+          )}
           {workout?.exercises?.map((ex: any, i: number) => {
             const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
             const sessions = exerciseLogs[exId] || [];
@@ -177,6 +312,38 @@ export default function FinishedWorkoutsDetailScreen() {
               </View>
             );
           })}
+          
+          {/* Cardio Section */}
+          {cardioEntries.length > 0 && (
+            <View style={styles.cardioSection}>
+              <Text style={styles.cardioSectionTitle}>Cardio</Text>
+              {cardioEntries.map((cardio: any) => {
+                const durationText = cardio.hours > 0 
+                  ? `${cardio.hours}h ${cardio.minutes || 0}m`
+                  : `${cardio.durationMinutes || cardio.minutes || 0}m`;
+                
+                return (
+                  <View key={cardio.id} style={styles.cardioCard}>
+                    <View style={styles.cardioCardContent}>
+                      <Icon name="activity" size={20} color={colors.primary} />
+                      <View style={styles.cardioCardInfo}>
+                        <View style={styles.cardioCardHeader}>
+                          <Text style={styles.cardioCardName}>{cardio.typeName}</Text>
+                          <View style={styles.cardioCompletedBadge}>
+                            <Icon name="check-circle" size={14} color={colors.success} />
+                            <Text style={styles.cardioCompletedBadgeText}>Completed</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.cardioCardDetails}>
+                          {durationText} • {cardio.calories} cal
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>
@@ -201,45 +368,96 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
+    width: '100%',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flexWrap: 'wrap',
+    flexShrink: 0,
   },
   dateText: { 
     color: colors.lighterGray, 
-    fontSize: 16,
-    flex: 1,
+    fontSize: 14,
   },
-  metaRow: {
+  workoutTimesRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 16,
+    marginBottom: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.darkGray,
   },
-  durationContainer: {
+  timeItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.darkGray,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
   },
-  durationText: {
-    fontSize: 14,
-    color: colors.primary,
+  timeLabel: {
+    fontSize: 12,
+    color: colors.lightGray,
+  },
+  timeValue: {
+    fontFamily: typography.workoutTimer.fontFamily,
+    fontSize: 20,
+    color: colors.white,
     fontWeight: '600',
+    letterSpacing: -0.5,
   },
   percentageContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   percentageText: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.black,
     fontWeight: '600',
+  },
+  caloriesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.darkGray,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  caloriesText: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  motivationalMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(0, 255, 136, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 255, 136, 0.2)',
+  },
+  motivationalText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+    lineHeight: 20,
+    textAlign: 'center',
   },
   exerciseHeader: {
     marginBottom: 8,
@@ -277,6 +495,61 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.lightGray,
     fontWeight: '500',
+  },
+  cardioSection: {
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  cardioSectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: 12,
+  },
+  cardioCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.mediumGray,
+  },
+  cardioCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cardioCardInfo: {
+    flex: 1,
+  },
+  cardioCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  cardioCardName: {
+    fontSize: 16,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  cardioCardDetails: {
+    fontSize: 14,
+    color: colors.lightGray,
+  },
+  cardioCompletedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 255, 136, 0.15)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    gap: 4,
+  },
+  cardioCompletedBadgeText: {
+    fontSize: 11,
+    color: colors.success,
+    fontWeight: '600',
   },
 });
 

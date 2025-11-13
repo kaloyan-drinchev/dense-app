@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   StyleSheet,
   Text,
@@ -34,9 +35,13 @@ import { FoodItem, MealType } from '@/types/nutrition';
 import { FoodItem as AllowedFoodItem } from '@/constants/allowed-foods';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { wizardResultsService, userProgressService } from '@/db/services';
+import { calculateWorkoutCalories } from '@/utils/exercise-calories';
+import { useAuthStore } from '@/store/auth-store';
 
 export default function NutritionScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const {
     dailyLogs,
     nutritionGoals,
@@ -60,6 +65,7 @@ export default function NutritionScreen() {
   const [barcodeData, setBarcodeData] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<{ entryId: string; entryName: string } | null>(null);
+  const [workoutCalories, setWorkoutCalories] = useState<number | null>(null);
 
   // Initialize nutrition goals based on user profile
   useEffect(() => {
@@ -72,7 +78,159 @@ export default function NutritionScreen() {
     checkForUnloggedMeals();
   }, []);
 
-  // Get or create daily log for selected date
+  const loadWorkoutCalories = useCallback(async () => {
+    if (!user?.id) {
+      return;
+    }
+    
+    try {
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
+      const progress = await userProgressService.getByUserId(user.id);
+      
+      if (!wizardResults?.generatedSplit) {
+        setWorkoutCalories(0);
+        return;
+      }
+      
+      if (!progress) {
+        setWorkoutCalories(0);
+        return;
+      }
+      
+      const program = JSON.parse(wizardResults.generatedSplit);
+      const currentWorkoutIndex = progress.currentWorkout - 1;
+      const todaysWorkout = program.weeklyStructure?.[currentWorkoutIndex];
+      
+      if (!todaysWorkout?.exercises) {
+        setWorkoutCalories(0);
+        return;
+      }
+      
+      const today = new Date().toISOString().split('T')[0];
+      const completedRaw = progress.completedWorkouts || '[]';
+      let completedWorkouts: any[] = [];
+      try { 
+        completedWorkouts = JSON.parse(completedRaw); 
+      } catch { 
+        completedWorkouts = []; 
+      }
+      
+      const todayWorkoutCompleted = completedWorkouts.some((w: any) => {
+        if (typeof w === 'object' && w.date) {
+          const workoutDate = new Date(w.date).toISOString().split('T')[0];
+          return workoutDate === today;
+        }
+        return false;
+      });
+      
+      const weeklyWeights = progress.weeklyWeights ? JSON.parse(progress.weeklyWeights) : {};
+      const exerciseLogs = weeklyWeights?.exerciseLogs || {};
+      const customExercises = weeklyWeights?.customExercises?.[today] || [];
+      
+      const completedExercises: Array<{ 
+        name: string; 
+        sets: number;
+        setsData?: Array<{ weightKg: number; reps: number; isCompleted: boolean }>;
+      }> = [];
+      
+      if (todayWorkoutCompleted) {
+        (todaysWorkout.exercises || []).forEach((ex: any) => {
+          const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
+          const sessions = exerciseLogs[exId] || [];
+          const todaySession = sessions.find((s: any) => s.date === today);
+          const sets = typeof ex.sets === 'number' ? ex.sets : 3;
+          
+          if (todaySession?.sets && todaySession.sets.length > 0) {
+            completedExercises.push({
+              name: ex.name,
+              sets: sets,
+              setsData: todaySession.sets
+            });
+          } else {
+            completedExercises.push({
+              name: ex.name,
+              sets: sets
+            });
+          }
+        });
+        
+        customExercises.forEach((ex: any) => {
+          const sessions = exerciseLogs[ex.id] || [];
+          const todaySession = sessions.find((s: any) => s.date === today);
+          const sets = typeof ex.sets === 'number' ? ex.sets : 3;
+          
+          if (todaySession?.sets && todaySession.sets.length > 0) {
+            completedExercises.push({
+              name: ex.name,
+              sets: sets,
+              setsData: todaySession.sets
+            });
+          } else {
+            completedExercises.push({
+              name: ex.name,
+              sets: sets
+            });
+          }
+        });
+      } else {
+        (todaysWorkout.exercises || []).forEach((ex: any) => {
+          const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
+          const sessions = exerciseLogs[exId] || [];
+          const todaySession = sessions.find((s: any) => s.date === today);
+          
+          if (todaySession?.sets) {
+            const completedSets = todaySession.sets.filter((s: any) => !!s.isCompleted).length;
+            if (completedSets > 0) {
+              completedExercises.push({
+                name: ex.name,
+                sets: completedSets,
+                setsData: todaySession.sets
+              });
+            }
+          }
+        });
+        
+        customExercises.forEach((ex: any) => {
+          const sessions = exerciseLogs[ex.id] || [];
+          const todaySession = sessions.find((s: any) => s.date === today);
+          
+          if (todaySession?.sets) {
+            const completedSets = todaySession.sets.filter((s: any) => !!s.isCompleted).length;
+            if (completedSets > 0) {
+              completedExercises.push({
+                name: ex.name,
+                sets: completedSets,
+                setsData: todaySession.sets
+              });
+            }
+          }
+        });
+      }
+      
+      const userWeight = wizardResults.weight || 70;
+      const exerciseCalories = completedExercises.length > 0 
+        ? calculateWorkoutCalories(completedExercises, userWeight)
+        : 0;
+      
+      const cardioEntries = weeklyWeights?.cardioEntries?.[today] || [];
+      const cardioCalories = cardioEntries.reduce((sum: number, entry: any) => {
+        return sum + (entry.calories || 0);
+      }, 0);
+      
+      const totalCalories = exerciseCalories + cardioCalories;
+      setWorkoutCalories(totalCalories);
+    } catch (error) {
+      console.error('Failed to load workout calories:', error);
+      setWorkoutCalories(0);
+    }
+  }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadWorkoutCalories();
+    }, [loadWorkoutCalories])
+  );
+
   const dailyLog = dailyLogs[selectedDate] || {
     date: selectedDate,
     entries: [],
@@ -85,13 +243,8 @@ export default function NutritionScreen() {
     calorieGoal: nutritionGoals.calories,
   };
 
-  // Always use current nutrition goals for calorie goal (in case they were updated)
   dailyLog.calorieGoal = nutritionGoals.calories;
 
-  console.log('📊 Nutrition Tab - nutritionGoals:', nutritionGoals);
-  console.log('📊 Nutrition Tab - dailyLog calorieGoal:', dailyLog.calorieGoal);
-
-  // Group entries by meal type
   const entriesByMeal = dailyLog.entries.reduce((acc, entry) => {
     if (!acc[entry.mealType]) {
       acc[entry.mealType] = [];
@@ -213,6 +366,28 @@ export default function NutritionScreen() {
 
         {/* Daily Macro Targets */}
         <DailyMacroTargets nutritionGoals={nutritionGoals} />
+
+        {/* Today's Workout Calories */}
+        {workoutCalories !== null && (
+          <View style={styles.workoutCaloriesCard}>
+            <View style={styles.workoutCaloriesHeader}>
+              <Icon name="zap" size={20} color={colors.primary} />
+              <Text style={styles.workoutCaloriesTitle}>Today's Workout</Text>
+            </View>
+            {workoutCalories > 0 ? (
+              <>
+                <Text style={styles.workoutCaloriesValue}>~{workoutCalories} calories burned</Text>
+                <Text style={styles.workoutCaloriesNote}>
+                  Estimated calories from completed exercises and cardio
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.workoutCaloriesNote}>
+                Complete exercises to see calories burned
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* FoodSearchBar - Temporarily commented out */}
         {/* <FoodSearchBar
@@ -652,5 +827,35 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  workoutCaloriesCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  workoutCaloriesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  workoutCaloriesTitle: {
+    ...typography.h5,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  workoutCaloriesValue: {
+    ...typography.h3,
+    color: colors.primary,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  workoutCaloriesNote: {
+    ...typography.caption,
+    color: colors.lightGray,
+    fontSize: 12,
   },
 });

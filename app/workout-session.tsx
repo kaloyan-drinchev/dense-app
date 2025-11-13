@@ -17,6 +17,7 @@ import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
 import { useWorkoutTimer } from '@/hooks/useWorkoutTimer';
+import { useTimerStore } from '@/store/timer-store';
 import {
   Feather as Icon,
 } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ import { WorkoutOptionsModal } from '@/components/WorkoutOptionsModal';
 import { WorkoutPreviewModal } from '@/components/WorkoutPreviewModal';
 import { WorkoutNotStartedModal } from '@/components/WorkoutNotStartedModal';
 import { AddCustomExerciseModal } from '@/components/AddCustomExerciseModal';
+import { CardioEntryModal } from '@/components/CardioEntryModal';
 import { markTodayWorkoutCompleted } from '@/utils/workout-completion-tracker';
 import { ensureMinimumDuration } from '@/utils/workout-duration';
 import { 
@@ -33,6 +35,7 @@ import {
   type ExerciseLogs,
   type ExercisePRs
 } from '@/utils/pr-tracking';
+import { calculateWorkoutCalories } from '@/utils/exercise-calories';
 
 export default function WorkoutSessionScreen() {
   const router = useRouter();
@@ -47,13 +50,13 @@ export default function WorkoutSessionScreen() {
   const [workoutCompletionData, setWorkoutCompletionData] = useState<{percentage: number, completed: number, total: number} | null>(null);
   const [workoutStarted, setWorkoutStarted] = useState(false);
   
-  // Custom exercises state
   const [customExercises, setCustomExercises] = useState<any[]>([]);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
-  
-  // PR tracking state
+  const [cardioEntries, setCardioEntries] = useState<any[]>([]);
+  const [showCardioModal, setShowCardioModal] = useState(false);
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLogs>({});
   const [exercisePRs, setExercisePRs] = useState<ExercisePRs>({});
+  const [userWeight, setUserWeight] = useState<number>(70);
   const { 
     formattedTime, 
     isRunning, 
@@ -64,6 +67,7 @@ export default function WorkoutSessionScreen() {
     resetTimer, 
     completeWorkout 
   } = useWorkoutTimer();
+  const workoutStartTime = useTimerStore((state) => state.workoutStartTime);
 
   const getTodaysWorkout = () => {
     if (!generatedProgram || !userProgressData) return null;
@@ -80,16 +84,10 @@ export default function WorkoutSessionScreen() {
     loadWorkoutData();
   }, [user]);
 
-  // Start workout timer when workout data is loaded
-  // Sync workoutStarted state with global timer state
   useEffect(() => {
     setWorkoutStarted(isWorkoutActive);
   }, [isWorkoutActive]);
 
-  // Don't automatically show options modal when entering the screen
-  // Modal will only show when user clicks "Start Workout" button in the workout session
-
-  // Reload when screen gains focus (coming back from tracker)
   useFocusEffect(
     useCallback(() => {
       loadWorkoutData();
@@ -103,31 +101,33 @@ export default function WorkoutSessionScreen() {
     }
 
     try {
-      // Load program data
       const wizardResults = await wizardResultsService.getByUserId(user.id);
       if (wizardResults?.generatedSplit) {
         const program = JSON.parse(wizardResults.generatedSplit);
         setGeneratedProgram(program);
       }
+      
+      if (wizardResults?.weight) {
+        setUserWeight(wizardResults.weight);
+      }
 
-      // Load progress data
       const progress = await userProgressService.getByUserId(user.id);
       setUserProgressData(progress);
       
-      // Load PR data
       if (progress?.weeklyWeights) {
         const weeklyWeights = JSON.parse(progress.weeklyWeights);
         const logs = weeklyWeights?.exerciseLogs || {};
         setExerciseLogs(logs);
         
-        // Analyze PRs for all exercises
         const allPRs = analyzeExercisePRs(logs);
         setExercisePRs(allPRs);
         
-        // Load custom exercises for today
         const today = new Date().toISOString().split('T')[0];
         const customExs = weeklyWeights?.customExercises?.[today] || [];
         setCustomExercises(customExs);
+        
+        const cardioEntries = weeklyWeights?.cardioEntries?.[today] || [];
+        setCardioEntries(cardioEntries);
       }
     } catch (error) {
       console.error('❌ Failed to load workout data:', error);
@@ -137,7 +137,6 @@ export default function WorkoutSessionScreen() {
   };
 
   const handleAddCustomExercise = async (exerciseName: string) => {
-    // Limit to 3 custom exercises per workout
     if (customExercises.length >= 3) {
       Alert.alert(
         'Limit Reached',
@@ -147,7 +146,6 @@ export default function WorkoutSessionScreen() {
       return;
     }
     
-    // Create custom exercise with default values (outside try for error handler access)
     const customExercise = {
       id: `custom-${Date.now()}`,
       name: exerciseName,
@@ -161,10 +159,8 @@ export default function WorkoutSessionScreen() {
     try {
       if (!user?.id || !userProgressData) return;
       
-      // Add to local state immediately for optimistic UI update
       setCustomExercises(prev => [...prev, customExercise]);
       
-      // Fetch fresh data from database to avoid race conditions
       const freshProgress = await userProgressService.getByUserId(user.id);
       if (!freshProgress) {
         throw new Error('Failed to fetch user progress');
@@ -187,12 +183,65 @@ export default function WorkoutSessionScreen() {
         weeklyWeights: JSON.stringify(weeklyWeights),
       });
       
-      console.log('✅ Custom exercise added:', exerciseName);
+      await loadWorkoutData();
+      
     } catch (error) {
       console.error('❌ Failed to add custom exercise:', error);
-      // Rollback the optimistic update
       setCustomExercises(prev => prev.filter(ex => ex.id !== customExercise.id));
       Alert.alert('Error', 'Failed to add custom exercise. Please try again.');
+    }
+  };
+
+  const handleAddCardio = async (cardio: {
+    id: string;
+    type: string;
+    typeName: string;
+    durationMinutes: number;
+    hours: number;
+    minutes: number;
+    calories: number;
+  }) => {
+    if (cardioEntries.length >= 3) {
+      Alert.alert(
+        'Limit Reached',
+        'You can only add up to 3 cardio sessions per workout.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    try {
+      if (!user?.id || !userProgressData) return;
+      
+      setCardioEntries(prev => [...prev, cardio]);
+      
+      const freshProgress = await userProgressService.getByUserId(user.id);
+      if (!freshProgress) {
+        throw new Error('Failed to fetch user progress');
+      }
+      
+      const weeklyWeights = freshProgress.weeklyWeights ? JSON.parse(freshProgress.weeklyWeights) : {};
+      const today = new Date().toISOString().split('T')[0];
+      
+      if (!weeklyWeights.cardioEntries) {
+        weeklyWeights.cardioEntries = {};
+      }
+      
+      if (!weeklyWeights.cardioEntries[today]) {
+        weeklyWeights.cardioEntries[today] = [];
+      }
+      
+      weeklyWeights.cardioEntries[today].push(cardio);
+      
+      await userProgressService.update(freshProgress.id, {
+        weeklyWeights: JSON.stringify(weeklyWeights),
+      });
+      
+      await loadWorkoutData();
+    } catch (error) {
+      console.error('❌ Failed to add cardio:', error);
+      setCardioEntries(prev => prev.filter(c => c.id !== cardio.id));
+      Alert.alert('Error', 'Failed to add cardio. Please try again.');
     }
   };
 
@@ -220,7 +269,6 @@ export default function WorkoutSessionScreen() {
 
 
 
-  // Parse exercise logs for status computation
   const getWeeklyWeightsData = () => {
     try {
       return userProgressData?.weeklyWeights ? JSON.parse(userProgressData.weeklyWeights) : {};
@@ -244,26 +292,19 @@ export default function WorkoutSessionScreen() {
     const todaySession = sessions.find((s) => s.date === today);
     if (!todaySession || !todaySession.sets || todaySession.sets.length === 0) return 'pending';
     
-    // Count completed sets based on isCompleted flag (regardless of values)
     const completedCount = todaySession.sets.filter((s) => !!s.isCompleted).length;
-    
-    // Treat a set as "touched" if it has values OR is marked as completed
     const touchedSets = todaySession.sets.filter((s) => 
       (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0 || s.isCompleted
     );
     
     const required = Math.max(0, plannedSets || 0);
     
-    // If we have enough completed sets, mark as completed
     if (required > 0 && completedCount >= required) return 'completed';
-    
-    // If any sets are touched but not all are completed, mark as in-progress
     if (touchedSets.length > 0) return 'in-progress';
     
     return 'pending';
   };
 
-  // Calculate workout completion percentage
   const calculateWorkoutProgress = () => {
     if (!todaysWorkout?.exercises) return { percentage: 0, completed: 0, total: 0 };
     
@@ -273,7 +314,6 @@ export default function WorkoutSessionScreen() {
       return getExerciseStatus(exId, ex.sets) === 'completed';
     }).length;
     
-    // Include custom exercises in completion calculation
     const customCompletedCount = customExercises.filter((ex: any) => {
       return getExerciseStatus(ex.id, ex.sets) === 'completed';
     }).length;
@@ -288,14 +328,11 @@ export default function WorkoutSessionScreen() {
   const workoutProgress = calculateWorkoutProgress();
   const allExercisesCompleted = workoutProgress.percentage === 100;
 
-  // Check if an exercise has PR potential
   const hasPRPotential = (exerciseId: string): boolean => {
     const suggestions = getBeatLastWorkoutSuggestions(exerciseId, exercisePRs);
-    // If there are suggestions, it means there's data to beat
     return suggestions.length > 0 && !suggestions[0].includes('First time');
   };
 
-  // New modal handlers
   const handleStartWorkoutPress = () => {
     setShowOptionsModal(true);
   };
@@ -341,10 +378,8 @@ export default function WorkoutSessionScreen() {
     try {
       if (!user?.id || !userProgressData) return;
 
-      // Complete the workout timer to fully reset the timer state
       completeWorkout();
       
-      // Get current weekly weights (exercise data)
       let weeklyWeights: any = {};
       if (userProgressData.weeklyWeights) {
         try {
@@ -354,33 +389,27 @@ export default function WorkoutSessionScreen() {
         }
       }
 
-      // Reset today's workout exercises in weeklyWeights
       if (todaysWorkout?.exercises) {
         todaysWorkout.exercises.forEach((exercise: any) => {
           const exerciseId = exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase();
           
-          // Reset exercise logs for today's workout
           if (weeklyWeights.exerciseLogs && weeklyWeights.exerciseLogs[exerciseId]) {
             weeklyWeights.exerciseLogs[exerciseId] = [];
           }
         });
       }
 
-      // Update user progress with reset exercise data (keep week/workout position)
       const resetProgress = await userProgressService.update(userProgressData.id, {
-        weeklyWeights: JSON.stringify(weeklyWeights), // Reset only today's exercise data
+        weeklyWeights: JSON.stringify(weeklyWeights),
       });
 
       if (resetProgress) {
         setUserProgressData(resetProgress);
         
-        // Reset local component state
         setWorkoutStarted(false);
         setShowOptionsModal(false);
         setShowPreviewModal(false);
         setShowNotStartedModal(false);
-        
-        // Stay on the same page, don't open any modal
       }
     } catch (error) {
       console.error('❌ Failed to reset workout:', error);
@@ -397,14 +426,12 @@ export default function WorkoutSessionScreen() {
       setShowNotStartedModal(true);
       return;
     }
-    // Navigate to exercise tracker - no restrictions on order
     router.push(`/workout-exercise-tracker?exerciseId=${exerciseId}`);
   };
 
   const handleFinishWorkout = async () => {
     if (!user?.id || !userProgressData) return;
     
-    // Always show modal for confirmation or congratulations
     setWorkoutCompletionData({ 
       percentage: workoutProgress.percentage, 
       completed: workoutProgress.completed, 
@@ -416,20 +443,24 @@ export default function WorkoutSessionScreen() {
   const completeWorkoutWithPercentage = async () => {
     if (!user?.id || !userProgressData) return;
     try {
-      // Complete the workout timer and get duration
+      const startTimeToSave = workoutStartTime || new Date().toISOString();
       const { duration } = completeWorkout();
       
       const currentWorkoutIndex = userProgressData.currentWorkout - 1;
       const completedRaw = userProgressData.completedWorkouts || '[]';
       let completedArr: any[] = [];
       try { completedArr = JSON.parse(completedRaw); } catch { completedArr = []; }
+      const finishTime = new Date().toISOString();
       completedArr.push({
-        date: new Date().toISOString(),
+        date: finishTime,
         workoutIndex: currentWorkoutIndex,
         workoutName: todaysWorkout?.name,
-        duration: duration, // Store workout duration
-        percentageSuccess: workoutProgress.percentage, // Store completion percentage
+        duration: duration,
+        percentageSuccess: workoutProgress.percentage,
+        startTime: startTimeToSave,
+        finishTime: finishTime,
       });
+      
       const nextWorkout = Math.min(
         (userProgressData.currentWorkout || 1) + 1,
         (generatedProgram?.weeklyStructure?.length || 1)
@@ -439,12 +470,10 @@ export default function WorkoutSessionScreen() {
         completedWorkouts: JSON.stringify(completedArr),
       });
       
-      // Mark today's workout as completed in calendar
       await markTodayWorkoutCompleted(user.id);
       
       if (updated) {
         setUserProgressData(updated);
-        // Go back to Home after finishing workout
         router.back();
       }
     } catch (e) {
@@ -566,6 +595,182 @@ export default function WorkoutSessionScreen() {
                 <Icon name="target" size={16} color={colors.primary} />
                 <Text style={styles.metaText}>{todaysWorkout.type}</Text>
               </View>
+              {(() => {
+                const today = new Date().toISOString().slice(0, 10);
+                const weeklyWeightsData = getWeeklyWeightsData();
+                
+                const completedRaw = userProgressData?.completedWorkouts || '[]';
+                let completedWorkouts: any[] = [];
+                try { 
+                  completedWorkouts = JSON.parse(completedRaw); 
+                } catch { 
+                  completedWorkouts = []; 
+                }
+                
+                const todayWorkoutCompleted = completedWorkouts.some((w: any) => {
+                  if (typeof w === 'object' && w.date) {
+                    const workoutDate = new Date(w.date).toISOString().split('T')[0];
+                    return workoutDate === today;
+                  }
+                  return false;
+                });
+                
+                const completedExercises: Array<{ 
+                  name: string; 
+                  sets: number;
+                  setsData?: Array<{ weightKg: number; reps: number; isCompleted: boolean }>;
+                }> = [];
+                
+                if (!workoutStarted && !todayWorkoutCompleted) {
+                  (todaysWorkout.exercises || []).forEach((ex: any) => {
+                    const sets = typeof ex.sets === 'number' ? ex.sets : 3;
+                    completedExercises.push({
+                      name: ex.name,
+                      sets: sets
+                    });
+                  });
+                  
+                  const todayCustomExercises = weeklyWeightsData?.customExercises?.[today] || [];
+                  todayCustomExercises.forEach((ex: any) => {
+                    const sets = typeof ex.sets === 'number' ? ex.sets : 3;
+                    completedExercises.push({
+                      name: ex.name,
+                      sets: sets
+                    });
+                  });
+                  
+                  const estimatedCalories = completedExercises.length > 0 
+                    ? calculateWorkoutCalories(completedExercises, userWeight)
+                    : 0;
+                  
+                  const todayCardioEntries = weeklyWeightsData?.cardioEntries?.[today] || [];
+                  const cardioCalories = todayCardioEntries.reduce((sum: number, entry: any) => {
+                    return sum + (entry.calories || 0);
+                  }, 0);
+                  
+                  const totalCalories = estimatedCalories + cardioCalories;
+                  
+                  return (
+                    <View style={styles.metaItem}>
+                      <Icon name="zap" size={16} color={colors.primary} />
+                      <Text style={styles.metaText}>~{totalCalories} cal</Text>
+                    </View>
+                  );
+                }
+                
+                if (todayWorkoutCompleted) {
+                  (todaysWorkout.exercises || []).forEach((ex: any) => {
+                    const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
+                    const sessions = weeklyWeightsData?.exerciseLogs?.[exId] as
+                      | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
+                      | undefined;
+                    
+                    const todaySession = sessions?.find((s) => s.date === today);
+                    const sets = typeof ex.sets === 'number' ? ex.sets : 3;
+                    
+                    if (todaySession?.sets && todaySession.sets.length > 0) {
+                      completedExercises.push({
+                        name: ex.name,
+                        sets: sets,
+                        setsData: todaySession.sets
+                      });
+                    } else {
+                      completedExercises.push({
+                        name: ex.name,
+                        sets: sets
+                      });
+                    }
+                  });
+                  
+                  const todayCustomExercises = weeklyWeightsData?.customExercises?.[today] || [];
+                  
+                  todayCustomExercises.forEach((ex: any) => {
+                    const sessions = weeklyWeightsData?.exerciseLogs?.[ex.id] as
+                      | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
+                      | undefined;
+                    
+                    const todaySession = sessions?.find((s) => s.date === today);
+                    const sets = typeof ex.sets === 'number' ? ex.sets : 3;
+                    
+                    if (todaySession?.sets && todaySession.sets.length > 0) {
+                      completedExercises.push({
+                        name: ex.name,
+                        sets: sets,
+                        setsData: todaySession.sets
+                      });
+                    } else {
+                      completedExercises.push({
+                        name: ex.name,
+                        sets: sets
+                      });
+                    }
+                  });
+                } else {
+                  (todaysWorkout.exercises || []).forEach((ex: any) => {
+                    const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
+                    const sessions = weeklyWeightsData?.exerciseLogs?.[exId] as
+                      | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
+                      | undefined;
+                    
+                    if (sessions) {
+                      const todaySession = sessions.find((s) => s.date === today);
+                      if (todaySession?.sets) {
+                        const completedSets = todaySession.sets.filter((s) => !!s.isCompleted).length;
+                        if (completedSets > 0) {
+                          completedExercises.push({
+                            name: ex.name,
+                            sets: completedSets,
+                            setsData: todaySession.sets
+                          });
+                        }
+                      }
+                    }
+                  });
+                  
+                  const allCustomExercises = customExercises.length > 0 
+                    ? customExercises 
+                    : (weeklyWeightsData?.customExercises?.[today] || []);
+                  
+                  allCustomExercises.forEach((ex: any) => {
+                    const sessions = weeklyWeightsData?.exerciseLogs?.[ex.id] as
+                      | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
+                      | undefined;
+                    
+                    if (sessions) {
+                      const todaySession = sessions.find((s) => s.date === today);
+                      if (todaySession?.sets && todaySession.sets.length > 0) {
+                        const completedSets = todaySession.sets.filter((s) => !!s.isCompleted).length;
+                        if (completedSets > 0) {
+                          completedExercises.push({
+                            name: ex.name,
+                            sets: completedSets,
+                            setsData: todaySession.sets
+                          });
+                        }
+                      }
+                    }
+                  });
+                }
+                
+                const estimatedCalories = completedExercises.length > 0 
+                  ? calculateWorkoutCalories(completedExercises, userWeight)
+                  : 0;
+                
+                const weeklyWeightsDataForCalories = getWeeklyWeightsData();
+                const todayCardioEntries = weeklyWeightsDataForCalories?.cardioEntries?.[today] || [];
+                const cardioCalories = todayCardioEntries.reduce((sum: number, entry: any) => {
+                  return sum + (entry.calories || 0);
+                }, 0);
+                
+                const totalCalories = estimatedCalories + cardioCalories;
+                
+                return (
+                  <View style={styles.metaItem}>
+                    <Icon name="zap" size={16} color={colors.primary} />
+                    <Text style={styles.metaText}>~{totalCalories} cal</Text>
+                  </View>
+                );
+              })()}
             </View>
           </View>
 
@@ -580,20 +785,38 @@ export default function WorkoutSessionScreen() {
               <Text style={styles.sectionTitle}>
                 Exercises ({(todaysWorkout.exercises?.length || 0) + customExercises.length})
               </Text>
-              {workoutStarted && customExercises.length < 3 && (
-                <TouchableOpacity
-                  style={styles.addExerciseButton}
-                  onPress={() => setShowAddExerciseModal(true)}
-                  activeOpacity={1}
-                >
-                  <Icon name="plus" size={20} color={colors.black} />
-                  <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
-                </TouchableOpacity>
+              {workoutStarted && (
+                <View style={styles.addButtonsContainer}>
+                  {customExercises.length < 3 && (
+                    <TouchableOpacity
+                      style={styles.addExerciseButton}
+                      onPress={() => setShowAddExerciseModal(true)}
+                      activeOpacity={1}
+                    >
+                      <Icon name="plus" size={20} color={colors.black} />
+                      <Text style={styles.addExerciseButtonText}>Exercise</Text>
+                    </TouchableOpacity>
+                  )}
+                  {(cardioEntries?.length ?? 0) < 3 && (
+                    <TouchableOpacity
+                      style={styles.addCardioButton}
+                      onPress={() => setShowCardioModal(true)}
+                      activeOpacity={1}
+                    >
+                      <Icon name="activity" size={20} color={colors.black} />
+                      <Text style={styles.addCardioButtonText}>+ Cardio</Text>
+                    </TouchableOpacity>
+                  )}
+                  {customExercises.length >= 3 && cardioEntries.length >= 3 && (
+                    <View style={styles.maxLimitReached}>
+                      <Text style={styles.maxLimitText}>Max limits reached</Text>
+                    </View>
+                  )}
+                </View>
               )}
             </View>
             
             {todaysWorkout.exercises?.map((exercise: any, index: number) => {
-              // Convert the exercise format to match ExerciseCard expectations
               const exerciseWithId = {
                 ...exercise,
                 id: exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase(),
@@ -654,6 +877,62 @@ export default function WorkoutSessionScreen() {
               </View>
             )}
             
+            {/* Cardio Section */}
+            {(() => {
+              // Get cardio entries from both state and weeklyWeightsData to ensure we show all entries
+              const today = new Date().toISOString().split('T')[0];
+              const weeklyWeightsData = getWeeklyWeightsData();
+              const todayCardioEntries = weeklyWeightsData?.cardioEntries?.[today] || [];
+              // Merge state and database entries, preferring state (most recent)
+              const allCardioEntries = [...todayCardioEntries];
+              cardioEntries.forEach((stateEntry: any) => {
+                if (!allCardioEntries.find((e: any) => e.id === stateEntry.id)) {
+                  allCardioEntries.push(stateEntry);
+                }
+              });
+              
+              if (allCardioEntries.length === 0) return null;
+              
+              return (
+                <View style={styles.cardioSection}>
+                  <Text style={styles.cardioSectionTitle}>Cardio</Text>
+                  {allCardioEntries.map((cardio: any) => {
+                    const durationText = cardio.hours > 0 
+                      ? `${cardio.hours}h ${cardio.minutes || 0}m`
+                      : `${cardio.durationMinutes || cardio.minutes || 0}m`;
+                    
+                    return (
+                      <View key={cardio.id} style={styles.cardioCard}>
+                        <View style={styles.cardioCardContent}>
+                          <Icon name="activity" size={20} color={colors.primary} />
+                          <View style={styles.cardioCardInfo}>
+                            <View style={styles.cardioCardHeader}>
+                              <Text style={styles.cardioCardName}>{cardio.typeName}</Text>
+                              <View style={styles.completedBadge}>
+                                <Icon name="check-circle" size={14} color={colors.success} />
+                                <Text style={styles.completedBadgeText}>Completed</Text>
+                              </View>
+                            </View>
+                            <Text style={styles.cardioCardDetails}>
+                              {durationText} • {cardio.calories} cal
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {allCardioEntries.length === 3 && (
+                    <View style={styles.maxCardioInfo}>
+                      <Icon name="info" size={16} color={colors.lightGray} />
+                      <Text style={styles.maxCardioText}>
+                        Maximum of 3 cardio sessions reached
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
+            
             {workoutStarted && (
               <TouchableOpacity style={styles.finishButton} onPress={handleFinishWorkout} activeOpacity={1}>
                 <Text style={styles.finishButtonText}>
@@ -703,6 +982,13 @@ export default function WorkoutSessionScreen() {
         visible={showAddExerciseModal}
         onClose={() => setShowAddExerciseModal(false)}
         onAdd={handleAddCustomExercise}
+      />
+      
+      <CardioEntryModal
+        visible={showCardioModal}
+        onClose={() => setShowCardioModal(false)}
+        onSave={handleAddCardio}
+        userWeight={userWeight}
       />
 
       {/* Workout Completion Modal */}
@@ -934,8 +1220,10 @@ const styles = StyleSheet.create({
   exercisesSectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 16,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   addExerciseButton: {
     flexDirection: 'row',
@@ -966,6 +1254,110 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   maxCustomExercisesText: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    fontStyle: 'italic',
+  },
+  addButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    flexShrink: 0,
+  },
+  maxLimitReached: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  maxLimitText: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    fontStyle: 'italic',
+  },
+  addCardioButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 4,
+  },
+  addCardioButtonText: {
+    ...typography.bodySmall,
+    color: colors.black,
+    fontWeight: 'bold',
+  },
+  cardioSection: {
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  cardioSectionTitle: {
+    ...typography.h3,
+    color: colors.white,
+    marginBottom: 12,
+  },
+  cardioCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.mediumGray,
+  },
+  cardioCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cardioCardInfo: {
+    flex: 1,
+  },
+  cardioCardName: {
+    ...typography.body,
+    color: colors.white,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  cardioCardDetails: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+  },
+  cardioCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 255, 136, 0.15)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    gap: 4,
+  },
+  completedBadgeText: {
+    ...typography.caption,
+    color: colors.success,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  maxCardioInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.mediumGray,
+    gap: 8,
+  },
+  maxCardioText: {
     ...typography.bodySmall,
     color: colors.lightGray,
     fontStyle: 'italic',
