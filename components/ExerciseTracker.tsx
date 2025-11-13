@@ -360,6 +360,43 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     const totalSets = sets.length;
     const completionPercentage = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
     
+    // Check for PRs before showing modal
+    const completedSetsWithData = sets.filter(set => set.isCompleted && set.weight > 0 && set.reps > 0);
+    let newPRs: PersonalRecord[] = [];
+    
+    if (completedSetsWithData.length > 0 && user?.id) {
+      try {
+        // Load current PRs to compare against
+        const progress = await userProgressService.getByUserId(user.id);
+        let currentPRs: ExercisePRs = {};
+        
+        if (progress?.weeklyWeights) {
+          const weeklyWeights = JSON.parse(progress.weeklyWeights);
+          const logs = weeklyWeights?.exerciseLogs || {};
+          // Analyze PRs with current data (before adding today's session)
+          currentPRs = analyzeExercisePRs(logs);
+        }
+        
+        // Convert sets to PR tracking format
+        const prSets = completedSetsWithData.map(set => ({
+          weightKg: set.weight,
+          reps: set.reps,
+          isCompleted: set.isCompleted
+        }));
+        
+        // Check for new PRs
+        newPRs = checkForNewPRs(exerciseKey, prSets, currentPRs);
+        setAchievedPRs(newPRs);
+        
+        // Trigger haptic feedback if PRs achieved
+        if (newPRs.length > 0 && Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      } catch (error) {
+        console.error('Failed to check for PRs:', error);
+      }
+    }
+    
     // Always show modal for confirmation or congratulations
     setCompletionData({ percentage: completionPercentage, completed: completedSets, total: totalSets });
     setShowConfirmModal(true);
@@ -686,12 +723,18 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           visible={showConfirmModal}
           transparent={true}
           animationType="fade"
-          onRequestClose={() => setShowConfirmModal(false)}
+          onRequestClose={() => {
+            setShowConfirmModal(false);
+            setAchievedPRs([]); // Clear PRs when modal closes
+          }}
         >
           <TouchableOpacity 
             style={styles.modalOverlay}
             activeOpacity={1}
-            onPress={() => setShowConfirmModal(false)}
+            onPress={() => {
+              setShowConfirmModal(false);
+              setAchievedPRs([]); // Clear PRs when modal closes
+            }}
           >
             <View style={styles.modalContainer}>
               <LinearGradient
@@ -705,11 +748,56 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                       Perfect! You've completed all {completionData.total} sets. Great job staying consistent with your training!
                     </Text>
                     
+                    {/* PR Display Section */}
+                    {achievedPRs.length > 0 && (
+                      <View style={styles.prSection}>
+                        <Text style={styles.prSectionTitle}>🏆 Personal Records Achieved!</Text>
+                        {achievedPRs.map((pr, index) => {
+                          const prLabels: { [key: string]: string } = {
+                            'weight': 'Max Weight',
+                            'reps': 'Max Reps',
+                            'volume': 'Max Volume',
+                            '1rm': 'Est. 1RM'
+                          };
+                          const prIcons: { [key: string]: string } = {
+                            'weight': 'award',
+                            'reps': 'repeat',
+                            'volume': 'trending-up',
+                            '1rm': 'target'
+                          };
+                          const formatValue = (type: string, value: number) => {
+                            if (type === 'volume') return `${value.toFixed(0)}kg`;
+                            if (type === '1rm') return `${value.toFixed(1)}kg`;
+                            if (type === 'weight') return `${value.toFixed(1)}kg`;
+                            return `${value}`;
+                          };
+                          
+                          return (
+                            <View key={index} style={styles.prItem}>
+                              <Icon name={prIcons[pr.type] as any} size={20} color={colors.primary} />
+                              <View style={styles.prItemContent}>
+                                <Text style={styles.prItemLabel}>{prLabels[pr.type]}</Text>
+                                <Text style={styles.prItemValue}>
+                                  {formatValue(pr.type, pr.value)}
+                                  {pr.previousValue !== undefined && (
+                                    <Text style={styles.prItemPrevious}>
+                                      {' '}(was {formatValue(pr.type, pr.previousValue)})
+                                    </Text>
+                                  )}
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+                    
                     <View style={styles.modalButtons}>
                       <TouchableOpacity
                         style={[styles.modalButton, styles.confirmButton, styles.singleButton]}
                         onPress={() => {
                           setShowConfirmModal(false);
+                          setAchievedPRs([]); // Clear PRs
                           completeExercise();
                         }}
                       >
@@ -724,12 +812,57 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                       Awesome work on that set! You're making great progress. Ready to move on to the next exercise?
                     </Text>
                     
+                    {/* PR Display Section */}
+                    {achievedPRs.length > 0 && (
+                      <View style={styles.prSection}>
+                        <Text style={styles.prSectionTitle}>🏆 Personal Records Achieved!</Text>
+                        {achievedPRs.map((pr, index) => {
+                          const prLabels: { [key: string]: string } = {
+                            'weight': 'Max Weight',
+                            'reps': 'Max Reps',
+                            'volume': 'Max Volume',
+                            '1rm': 'Est. 1RM'
+                          };
+                          const prIcons: { [key: string]: string } = {
+                            'weight': 'award',
+                            'reps': 'repeat',
+                            'volume': 'trending-up',
+                            '1rm': 'target'
+                          };
+                          const formatValue = (type: string, value: number) => {
+                            if (type === 'volume') return `${value.toFixed(0)}kg`;
+                            if (type === '1rm') return `${value.toFixed(1)}kg`;
+                            if (type === 'weight') return `${value.toFixed(1)}kg`;
+                            return `${value}`;
+                          };
+                          
+                          return (
+                            <View key={index} style={styles.prItem}>
+                              <Icon name={prIcons[pr.type] as any} size={20} color={colors.primary} />
+                              <View style={styles.prItemContent}>
+                                <Text style={styles.prItemLabel}>{prLabels[pr.type]}</Text>
+                                <Text style={styles.prItemValue}>
+                                  {formatValue(pr.type, pr.value)}
+                                  {pr.previousValue !== undefined && (
+                                    <Text style={styles.prItemPrevious}>
+                                      {' '}(was {formatValue(pr.type, pr.previousValue)})
+                                    </Text>
+                                  )}
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+                    
                     <View style={styles.modalButtons}>
                       <TouchableOpacity
                         style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
                         onPress={() => {
                           console.log('🔴 FINISH TRAINING button clicked!');
                           setShowConfirmModal(false);
+                          setAchievedPRs([]); // Clear PRs
                           completeExercise();
                         }}
                       >
@@ -741,6 +874,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                         onPress={() => {
                           console.log('🟢 CONTINUE TRAINING button clicked!');
                           setShowConfirmModal(false);
+                          setAchievedPRs([]); // Clear PRs
                         }}
                       >
                         <Text style={styles.cancelButtonText}>Continue Exercise</Text>
@@ -1054,6 +1188,51 @@ const styles = StyleSheet.create({
     flex: 0,
     minWidth: 120,
     maxWidth: 140,
+  },
+  
+  // PR Display Section styles
+  prSection: {
+    width: '100%',
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  prSectionTitle: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  prItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  prItemContent: {
+    flex: 1,
+  },
+  prItemLabel: {
+    ...typography.caption,
+    color: colors.lightGray,
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  prItemValue: {
+    ...typography.body,
+    color: colors.white,
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  prItemPrevious: {
+    ...typography.caption,
+    color: colors.lighterGray,
+    fontSize: 12,
+    fontWeight: '400',
   },
   
   // New PR tracking styles
