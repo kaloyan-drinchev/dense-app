@@ -105,8 +105,23 @@ export default function FinishedWorkoutsDetailScreen() {
             const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
             const sessions = exerciseLogs[exId] || [];
             const sessionForDay = sessions.find((s: any) => s.date === dateKey);
+            const isCompleted = !!sessionForDay && sessionForDay.sets && sessionForDay.sets.some((set: any) => set.isCompleted);
+            
             return (
               <View key={i} style={{ marginTop: 8 }}>
+                <View style={styles.exerciseHeader}>
+                  {isCompleted ? (
+                    <View style={styles.completedBadge}>
+                      <Icon name="check-circle" size={14} color={colors.success} />
+                      <Text style={styles.completedBadgeText}>Completed</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.notCompletedBadge}>
+                      <Icon name="circle" size={14} color={colors.lightGray} />
+                      <Text style={styles.notCompletedBadgeText}>Not Completed</Text>
+                    </View>
+                  )}
+                </View>
                 <ExerciseTracker
                   exercise={{
                     id: exId,
@@ -129,8 +144,23 @@ export default function FinishedWorkoutsDetailScreen() {
             const exId = ex.id;
             const sessions = exerciseLogs[exId] || [];
             const sessionForDay = sessions.find((s: any) => s.date === dateKey);
+            const isCompleted = !!sessionForDay && sessionForDay.sets && sessionForDay.sets.some((set: any) => set.isCompleted);
+            
             return (
               <View key={exId} style={{ marginTop: 8 }}>
+                <View style={styles.exerciseHeader}>
+                  {isCompleted ? (
+                    <View style={styles.completedBadge}>
+                      <Icon name="check-circle" size={14} color={colors.success} />
+                      <Text style={styles.completedBadgeText}>Completed</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.notCompletedBadge}>
+                      <Icon name="circle" size={14} color={colors.lightGray} />
+                      <Text style={styles.notCompletedBadgeText}>Not Completed</Text>
+                    </View>
+                  )}
+                </View>
                 <ExerciseTracker
                   exercise={{
                     id: exId,
@@ -210,6 +240,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.black,
     fontWeight: '600',
+  },
+  exerciseHeader: {
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.darkGray,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.success,
+  },
+  completedBadgeText: {
+    fontSize: 12,
+    color: colors.success,
+    fontWeight: '600',
+  },
+  notCompletedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.darkGray,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.mediumGray,
+  },
+  notCompletedBadgeText: {
+    fontSize: 12,
+    color: colors.lightGray,
+    fontWeight: '500',
   },
 });
 
