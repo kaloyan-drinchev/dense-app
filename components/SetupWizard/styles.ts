@@ -103,7 +103,7 @@ export const styles = StyleSheet.create({
   },
   stepValidationError: {
     ...typography.body,
-    color: 'red',
+    color: colors.validationWarning,
     textAlign: 'center',
     marginTop: 16,
   },

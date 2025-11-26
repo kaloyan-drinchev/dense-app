@@ -21,6 +21,7 @@ export const colors = {
   success: '#00FF88',           // Success = primary green
   error: '#FF4444',             // Modern red
   warning: '#FFB347',           // Modern orange
+  validationWarning: '#FF6F00', // Warm BMW-style orange for validation
   
   // Standard colors
   white: '#FFFFFF',

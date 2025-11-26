@@ -19,12 +19,17 @@ export const getWorkoutCompletionData = async (userId: string): Promise<WorkoutC
       };
     }
 
-    // Parse completed workouts from JSON string
+    // Parse completed workouts - handle both array (from JSONB) and string (from JSON) types
     let completedWorkouts: any[] = [];
     if (userProgress.completedWorkouts) {
       try {
-        completedWorkouts = JSON.parse(userProgress.completedWorkouts);
-
+        if (Array.isArray(userProgress.completedWorkouts)) {
+          // Already an array (from Supabase JSONB)
+          completedWorkouts = userProgress.completedWorkouts;
+        } else if (typeof userProgress.completedWorkouts === 'string') {
+          // Parse JSON string
+          completedWorkouts = JSON.parse(userProgress.completedWorkouts);
+        }
       } catch (error) {
         console.warn('Failed to parse completed workouts:', error);
         completedWorkouts = [];

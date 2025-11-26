@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
   Platform,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -74,7 +75,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         isCompleted: false,
       }))
   );
-
+  
+  // Minimal loading state to prevent flash of default values
+  const [isLoadingSets, setIsLoadingSets] = useState(!presetSession);
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -89,6 +92,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const [exercisePRs, setExercisePRs] = useState<ExercisePRs>({});
   const [beatLastSuggestions, setBeatLastSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const [isPRDataLoaded, setIsPRDataLoaded] = useState(false);
   
   // PR Celebration Modal state
   const [showPRModal, setShowPRModal] = useState(false);
@@ -102,7 +106,10 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     try {
       const progress = await userProgressService.getByUserId(user.id);
       if (progress?.weeklyWeights) {
-        const weeklyWeights = JSON.parse(progress.weeklyWeights);
+        // Handle both string (from JSON) and object (from JSONB) types
+        const weeklyWeights = typeof progress.weeklyWeights === 'string'
+          ? JSON.parse(progress.weeklyWeights)
+          : progress.weeklyWeights;
         const logs = weeklyWeights?.exerciseLogs || {};
         
         setExerciseLogs(logs);
@@ -115,69 +122,70 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         const suggestions = getBeatLastWorkoutSuggestions(exerciseKey, allPRs);
         setBeatLastSuggestions(suggestions);
       }
+      setIsPRDataLoaded(true);
     } catch (error) {
       console.error('Failed to load PR data:', error);
+      setIsPRDataLoaded(true); // Set to true even on error to prevent infinite loading
+    }
+  };
+
+  // Load session data function (reusable)
+  const loadSessionData = async () => {
+    if (presetSession) {
+      const limitedSets = presetSession.sets.slice(0, MAX_SETS);
+      const hydrated: ExerciseSet[] = (limitedSets.length > 0
+        ? limitedSets
+        : Array.from({ length: MIN_SETS }, () => ({ reps: 0, weightKg: 0, isCompleted: false }))
+      ).map((s) => ({ id: generateId(), reps: s.reps, weight: s.weightKg, isCompleted: !!s.isCompleted }));
+      setUnit(presetSession.unit || 'kg');
+      setSets(hydrated);
+      setIsLoadingSets(false);
+      return;
+    }
+    
+    // Load current session data if not read-only
+    if (!user?.id || !exerciseKey) {
+      setIsLoadingSets(false);
+      return;
+    }
+    try {
+      // Load today's session data
+      const todaySession = await userProgressService.getTodayExerciseSession(user.id, exerciseKey);
+      
+      if (todaySession?.sets && todaySession.sets.length > 0) {
+        setUnit(todaySession.unit || 'kg');
+        const limitedSets = todaySession.sets.slice(0, MAX_SETS);
+        const hydrated: ExerciseSet[] = limitedSets.map((s) => ({ 
+          id: generateId(), 
+          reps: s.reps || 0, 
+          weight: s.weightKg || 0, 
+          isCompleted: !!s.isCompleted 
+        }));
+        setSets(hydrated);
+      }
+    } catch (e) {
+      // If no previous session found, start with empty sets
+      console.error('❌ Error loading session, starting fresh:', e);
+    } finally {
+      setIsLoadingSets(false);
     }
   };
 
   useEffect(() => {
-    const loadSessionData = async () => {
-      if (presetSession) {
-        const limitedSets = presetSession.sets.slice(0, MAX_SETS);
-        const hydrated: ExerciseSet[] = (limitedSets.length > 0
-          ? limitedSets
-          : Array.from({ length: MIN_SETS }, () => ({ reps: 0, weightKg: 0, isCompleted: false }))
-        ).map((s) => ({ id: generateId(), reps: s.reps, weight: s.weightKg, isCompleted: !!s.isCompleted }));
-        setUnit(presetSession.unit || 'kg');
-        setSets(hydrated);
-        return;
-      }
-      
-      // Load current session data if not read-only
-      if (!user?.id || !exerciseKey) return;
-      try {
-        console.log(`🔄 Loading today's session for ${exerciseKey}...`);
-        
-        // DEBUG: Check what's actually stored
-        const progress = await userProgressService.getByUserId(user.id);
-        if (progress?.weeklyWeights) {
-          const data = JSON.parse(progress.weeklyWeights);
-          console.log(`🔧 DEBUG - All stored exercise keys:`, Object.keys(data?.exerciseLogs || {}));
-          console.log(`🔧 DEBUG - Looking for key: "${exerciseKey}"`);
-          console.log(`🔧 DEBUG - Direct lookup:`, data?.exerciseLogs?.[exerciseKey]?.length || 0, 'sessions');
-          if (data?.exerciseLogs?.[exerciseKey]) {
-            console.log(`🔧 DEBUG - Sessions:`, data.exerciseLogs[exerciseKey].map(s => ({ date: s.date, sets: s.sets?.length })));
-          }
-        }
-        
-        const todaySession = await userProgressService.getTodayExerciseSession(user.id, exerciseKey);
-        console.log(`📋 Today's session found:`, !!todaySession, todaySession?.sets?.length || 0, 'sets');
-        
-        if (todaySession?.sets && todaySession.sets.length > 0) {
-          setUnit(todaySession.unit || 'kg');
-          const limitedSets = todaySession.sets.slice(0, MAX_SETS);
-          const hydrated: ExerciseSet[] = limitedSets.map((s) => ({ 
-            id: generateId(), 
-            reps: s.reps || 0, 
-            weight: s.weightKg || 0, 
-            isCompleted: !!s.isCompleted 
-          }));
-          setSets(hydrated);
-        } else {
-          console.log(`🆕 No today's session found for ${exerciseKey}, starting fresh`);
-        }
-      } catch (e) {
-        // If no previous session found, start with empty sets
-        console.log('❌ Error loading session, starting fresh:', e);
-      }
-    };
-    
-
-    
     loadSessionData();
     loadPRData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, exerciseKey, presetSession?.unit, JSON.stringify(presetSession?.sets)]);
+
+  // Reload data when screen is focused (user navigates back to exercise)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!readOnly) {
+        setIsLoadingSets(true); // Show loading skeleton while refetching
+        loadSessionData();
+      }
+    }, [user?.id, exerciseKey, readOnly])
+  );
 
   // Expose immediate save to parent (e.g., on back press)
   useEffect(() => {
@@ -328,9 +336,23 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     try {
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
       setSaveStatus('saved');
+      
+      // Don't update cache on auto-save - only update when exercise is completed
+      // Auto-save happens on every weight/reps change, which would mark as "in-progress"
+      // Only update cache in completeExercise() to avoid incorrect status
+      
+      // Don't reload session data after save - it creates an infinite loop
+      // The data is already correct in memory
+      // await loadSessionData();
+      
+      // Only reload PR data to update records
+      await loadPRData();
     } catch (e) {
       console.error(`❌ Failed to save ${exerciseKey}:`, e);
       setSaveStatus('error');
+      // On error, try to reload to see what was actually saved
+      await loadSessionData().catch(() => {});
+      await loadPRData().catch(() => {});
     } finally {
       isSavingRef.current = false;
       if (pendingSaveRef.current) {
@@ -371,7 +393,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         let currentPRs: ExercisePRs = {};
         
         if (progress?.weeklyWeights) {
-          const weeklyWeights = JSON.parse(progress.weeklyWeights);
+          const weeklyWeights = typeof progress.weeklyWeights === 'string' 
+            ? JSON.parse(progress.weeklyWeights)
+            : progress.weeklyWeights;
           const logs = weeklyWeights?.exerciseLogs || {};
           // Analyze PRs with current data (before adding today's session)
           currentPRs = analyzeExercisePRs(logs);
@@ -403,119 +427,169 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   };
 
   const completeExercise = async () => {
-    console.log('🎯 Completing exercise - BEFORE:', sets.map(s => ({ reps: s.reps, weight: s.weight, isCompleted: s.isCompleted })));
+    if (!user?.id) {
+      console.error('❌ No user ID available');
+      return;
+    }
     
-    // Ensure all sets are marked as completed and have valid values
+    // Prepare the completed session data
     const updatedSets = sets.map((set) => {
-      // If set has no reps or weight, give it minimum valid values
       const reps = set.reps > 0 ? set.reps : 1;
       const weight = set.weight > 0 ? set.weight : 0;
-      
       return {
         ...set,
         reps,
         weight,
-        isCompleted: true, // Mark all sets as completed
+        isCompleted: true,
       };
     });
     
-    console.log('🎯 Completing exercise - AFTER:', updatedSets.map(s => ({ reps: s.reps, weight: s.weight, isCompleted: s.isCompleted })));
-    
-    // Update the sets state to reflect completion
-    setSets(updatedSets);
-    hasUserEditedRef.current = true;
-    
-    // Save the session with completed sets - use updatedSets directly
     const payload = {
       unit,
       sets: updatedSets.map((s, idx) => ({
         setNumber: idx + 1,
         weightKg: s.weight ?? 0,
         reps: s.reps ?? 0,
-        isCompleted: !!s.isCompleted,
+        isCompleted: true,
       })),
     };
     
-    try {
-      if (!user?.id) {
-        console.error('❌ No user ID available for saving');
-        return;
-      }
-      await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
+    const today = new Date().toISOString().slice(0, 10);
+    
+    // STEP 1: OPTIMISTIC UPDATE - Update cache IMMEDIATELY (before database)
+    const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
+    const currentProgress = useWorkoutCacheStore.getState().userProgressData;
+    let originalProgress: any = null; // Store original state for rollback
+    
+    if (currentProgress) {
+      // Deep clone original state for potential rollback (including nested objects)
+      originalProgress = JSON.parse(JSON.stringify(currentProgress));
       
-      // Check for new PRs and show notifications
-      const completedSets = updatedSets.filter(set => set.isCompleted && set.weight > 0 && set.reps > 0);
-      console.log('🔍 PR Check - Completed sets:', completedSets.length);
-      
-      if (completedSets.length > 0) {
-        // Get fresh PR data directly from database instead of relying on state
-        console.log('🔄 Getting fresh PR data to include new session...');
-        const progress = await userProgressService.getByUserId(user.id);
-        
-        if (progress?.weeklyWeights) {
-          const weeklyWeights = JSON.parse(progress.weeklyWeights);
-          const freshLogs = weeklyWeights?.exerciseLogs || {};
-          console.log('📋 Fresh exercise logs:', Object.keys(freshLogs));
-          console.log(`📋 Sessions for ${exerciseKey}:`, freshLogs[exerciseKey]?.length || 0);
-          
-          // Analyze PRs with fresh data
-          const freshPRs = analyzeExercisePRs(freshLogs);
-          
-          // Convert ExerciseSet[] to PR tracking format
-          const prSets = completedSets.map(set => ({
-            weightKg: set.weight,
-            reps: set.reps,
-            isCompleted: set.isCompleted
-          }));
-          
-          // COMMENTED OUT - PR CELEBRATION FEATURE (TO BE ENABLED LATER)
-          // console.log('🎯 Checking for PRs with sets:', prSets);
-          // console.log('🎯 Previous exercise PRs:', exercisePRs[exerciseKey]);
-          // console.log('🎯 Fresh exercise PRs:', freshPRs[exerciseKey]);
-          
-          // const newPRs = checkForNewPRs(exerciseKey, prSets, exercisePRs);
-          // console.log('🏆 New PRs found:', newPRs);
-          
-          // if (newPRs.length > 0) {
-          //   // Show PR celebration modal
-          //   setAchievedPRs(newPRs);
-          //   setShowPRModal(true);
-          //   
-          //   // Also trigger haptic feedback
-          //   if (Platform.OS !== 'web') {
-          //     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          //   }
-          //   
-          //   return; // Don't go back yet, PR modal will handle navigation
-          // } else {
-          //   console.log('💭 No new PRs detected');
-          // }
-          
-          // Update state with fresh data
-          await loadPRData();
-        } else {
-          console.log('⚠️ No weeklyWeights data found');
-        }
+      // Parse weeklyWeights
+      let weeklyWeights = currentProgress.weeklyWeights;
+      if (typeof weeklyWeights === 'string') {
+        weeklyWeights = JSON.parse(weeklyWeights);
       }
-    } catch (e) {
-      console.error('❌ Failed to save completed exercise:', e);
+      // Deep clone weeklyWeights to avoid mutating the original
+      weeklyWeights = JSON.parse(JSON.stringify(weeklyWeights || {}));
+      
+      // Ensure exerciseLogs exists
+      if (!weeklyWeights.exerciseLogs) {
+        weeklyWeights.exerciseLogs = {};
+      }
+      if (!weeklyWeights.exerciseLogs[exerciseKey]) {
+        weeklyWeights.exerciseLogs[exerciseKey] = [];
+      }
+      
+      // Update or add today's session with completed data
+      const sessions = weeklyWeights.exerciseLogs[exerciseKey];
+      const todaySessionIndex = sessions.findIndex((s: any) => s.date === today);
+      const completedSession = {
+        date: today,
+        unit: payload.unit,
+        sets: payload.sets
+      };
+      
+      if (todaySessionIndex >= 0) {
+        sessions[todaySessionIndex] = completedSession;
+      } else {
+        sessions.push(completedSession);
+      }
+      
+      // Create optimistically updated progress object
+      const optimisticProgress = {
+        ...currentProgress,
+        weeklyWeights: weeklyWeights
+      };
+      
+      // Update cache with optimistic data
+      useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: optimisticProgress });
     }
     
-    
-    router.back();
+    try {
+      // STEP 2: Save to database BEFORE navigation to ensure data consistency
+      await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
+      
+      // STEP 3: Navigate back (after database save completes successfully)
+      router.back();
+      
+      // STEP 4: Sync cache with database (in background, after navigation)
+      // Use setTimeout to ensure navigation completes first
+      setTimeout(() => {
+        userProgressService.getByUserId(user.id)
+          .then((freshProgress) => {
+            if (freshProgress) {
+              useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
+            }
+          })
+          .catch((error) => {
+            console.error('❌ Failed to sync cache after exercise completion:', error);
+          });
+      }, 100);
+      
+    } catch (e) {
+      console.error('❌ Failed to complete exercise:', e);
+      
+      // STEP 5: ROLLBACK - Revert optimistic update if database save failed
+      if (originalProgress) {
+        useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: originalProgress });
+      }
+      
+      // Revert local state (sets back to incomplete)
+      const revertedSets = sets.map((set) => ({
+        ...set,
+        isCompleted: false,
+      }));
+      setSets(revertedSets);
+      
+      // Alert user about the failure
+      Alert.alert(
+        'Failed to Save',
+        'Your exercise completion could not be saved. Please check your connection and try again.',
+        [
+          {
+            text: 'OK',
+            style: 'default',
+          },
+        ]
+      );
+      
+      // Don't navigate back - keep user on exercise screen so they can retry
+    }
   };
 
   const handleResetToPending = async () => {
     if (readOnly) return;
+    
     // Mark all sets as incomplete (pending)
     setSets((prev) => prev.map((s) => ({ ...s, isCompleted: false })));
     hasUserEditedRef.current = true;
+    
+    // Save the session immediately
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
-    debounceRef.current = setTimeout(() => {
-      handleSaveSession();
-    }, 250);
+    await handleSaveSession();
+    
+    // Update the workout cache to reflect "in-progress" status (not completed)
+    try {
+      if (!user?.id) {
+        console.error('❌ No user ID available');
+        return;
+      }
+      
+      const { userProgressService } = await import('@/db/services');
+      const freshProgress = await userProgressService.getByUserId(user.id);
+      
+      if (freshProgress) {
+        const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
+        useWorkoutCacheStore.getState().setWorkoutData({ 
+          userProgressData: freshProgress 
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to update cache after reset:', error);
+    }
   };
 
   const handleClearAll = async () => {
@@ -545,8 +619,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         </TouchableOpacity>
       </View>
       
-      {/* Beat Last Workout Suggestions */}
-      {!readOnly && beatLastSuggestions.length > 0 && showSuggestions && (
+      {/* Beat Last Workout Suggestions - Temporarily commented out */}
+      {false && !readOnly && beatLastSuggestions.length > 0 && showSuggestions && isPRDataLoaded && (
         <View style={styles.suggestionsContainer}>
           <View style={styles.suggestionsHeader}>
             <Icon name="target" size={16} color={colors.primary} />
@@ -595,7 +669,12 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         <Text style={[styles.headerText, styles.repsColumn]}>REPS</Text>
       </View>
 
-      {sets.map((set, index) => {
+      {isLoadingSets ? (
+        <View style={styles.loadingSetsSkeleton}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      ) : (
+        sets.map((set, index) => {
         const editable = true; // Allow editing any set regardless of order
         const readyToComplete = editable && (set.weight ?? 0) > 0 && (set.reps ?? 0) > 0;
         return (
@@ -616,13 +695,13 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                 </TouchableOpacity>
 
                 <TextInput
-                  style={[styles.input, !editable && styles.inputDisabled]}
+                  style={[styles.input, (!editable || allSetsCompleted) && styles.inputDisabled]}
                   value={toDisplayWeight(set.weight)}
                   onChangeText={(text) => handleWeightChange(set.id, text)}
                   keyboardType="numeric"
                   placeholderTextColor={colors.lightGray}
                   placeholder={`0 (max ${MAX_WEIGHT_KG}${unit})`}
-                  editable={editable && !readOnly}
+                  editable={editable && !readOnly && !allSetsCompleted}
                 />
 
                 <TouchableOpacity
@@ -648,13 +727,13 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                 </TouchableOpacity>
 
                 <TextInput
-                  style={[styles.input, !editable && styles.inputDisabled]}
+                  style={[styles.input, (!editable || allSetsCompleted) && styles.inputDisabled]}
                   value={set.reps.toString()}
                   onChangeText={(text) => handleRepsChange(set.id, text)}
                   keyboardType="numeric"
                   placeholderTextColor={colors.lightGray}
                   placeholder={`0 (max ${MAX_REPS})`}
-                  editable={editable && !readOnly}
+                  editable={editable && !readOnly && !allSetsCompleted}
                 />
 
                 <TouchableOpacity
@@ -669,7 +748,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             </View>
           </View>
         );
-      })}
+        })
+      )}
 
       {!readOnly && (
         <View style={styles.actionsRow}>
@@ -860,7 +940,6 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                       <TouchableOpacity
                         style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
                         onPress={() => {
-                          console.log('🔴 FINISH TRAINING button clicked!');
                           setShowConfirmModal(false);
                           setAchievedPRs([]); // Clear PRs
                           completeExercise();
@@ -872,7 +951,6 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                       <TouchableOpacity
                         style={[styles.modalButton, styles.cancelButton, styles.dualButton]}
                         onPress={() => {
-                          console.log('🟢 CONTINUE TRAINING button clicked!');
                           setShowConfirmModal(false);
                           setAchievedPRs([]); // Clear PRs
                         }}
@@ -899,7 +977,6 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         }}
         onShare={() => {
           // TODO: Implement share functionality
-          console.log('Share PR achievement');
           // Could use expo-sharing here
         }}
       /> */}
@@ -909,6 +986,26 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
 };
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 40,
+    marginBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    ...typography.body,
+    color: colors.lightGray,
+  },
+  loadingSetsSkeleton: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 8,
+    padding: 30,
+    marginVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: {
     backgroundColor: colors.darkGray,
     borderRadius: 12,

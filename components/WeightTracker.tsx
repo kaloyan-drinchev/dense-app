@@ -58,7 +58,27 @@ export function WeightTracker({ targetWeight, initialWeight }: WeightTrackerProp
       
       if (progress?.weeklyWeights) {
         try {
-          const parsedWeights = JSON.parse(progress.weeklyWeights);
+          // Handle both string (JSON) and object (JSONB) types
+          let weeklyWeightsData: any;
+          if (typeof progress.weeklyWeights === 'string') {
+            weeklyWeightsData = JSON.parse(progress.weeklyWeights);
+          } else {
+            weeklyWeightsData = progress.weeklyWeights;
+          }
+          
+          // Extract weightEntries from the structure
+          let parsedWeights: any;
+          if (Array.isArray(weeklyWeightsData)) {
+            // Legacy format: weeklyWeights was saved as array directly
+            parsedWeights = weeklyWeightsData;
+          } else if (weeklyWeightsData?.weightEntries) {
+            // New format: weightEntries is a property of weeklyWeights object
+            parsedWeights = weeklyWeightsData.weightEntries;
+          } else {
+            // No weight entries found
+            parsedWeights = [];
+          }
+          
           // Ensure it's an array
           const weights = Array.isArray(parsedWeights) ? parsedWeights as WeightEntry[] : [];
           // Sort by date (newest first)
@@ -117,8 +137,26 @@ export function WeightTracker({ targetWeight, initialWeight }: WeightTrackerProp
       // Save to database
       const progress = await userProgressService.getByUserId(user.id);
       if (progress) {
+        // Preserve the weeklyWeights structure (exerciseLogs, customExercises, etc.)
+        let weeklyWeights: any = {};
+        if (progress.weeklyWeights) {
+          weeklyWeights = typeof progress.weeklyWeights === 'string'
+            ? JSON.parse(progress.weeklyWeights)
+            : progress.weeklyWeights;
+          // Ensure it's an object (not array or null)
+          if (!weeklyWeights || typeof weeklyWeights !== 'object' || Array.isArray(weeklyWeights)) {
+            weeklyWeights = {};
+          }
+        }
+        
+        // Preserve existing properties and only update weightEntries
+        weeklyWeights = {
+          ...weeklyWeights,
+          weightEntries: updatedEntries
+        };
+        
         await userProgressService.update(progress.id, {
-          weeklyWeights: JSON.stringify(updatedEntries),
+          weeklyWeights: JSON.stringify(weeklyWeights),
         });
       }
 
@@ -152,8 +190,26 @@ export function WeightTracker({ targetWeight, initialWeight }: WeightTrackerProp
               
               const progress = await userProgressService.getByUserId(user!.id);
               if (progress) {
+                // Preserve the weeklyWeights structure (exerciseLogs, customExercises, etc.)
+                let weeklyWeights: any = {};
+                if (progress.weeklyWeights) {
+                  weeklyWeights = typeof progress.weeklyWeights === 'string'
+                    ? JSON.parse(progress.weeklyWeights)
+                    : progress.weeklyWeights;
+                  // Ensure it's an object (not array or null)
+                  if (!weeklyWeights || typeof weeklyWeights !== 'object' || Array.isArray(weeklyWeights)) {
+                    weeklyWeights = {};
+                  }
+                }
+                
+                // Preserve existing properties and only update weightEntries
+                weeklyWeights = {
+                  ...weeklyWeights,
+                  weightEntries: updatedEntries
+                };
+                
                 await userProgressService.update(progress.id, {
-                  weeklyWeights: JSON.stringify(updatedEntries),
+                  weeklyWeights: JSON.stringify(weeklyWeights),
                 });
               }
               

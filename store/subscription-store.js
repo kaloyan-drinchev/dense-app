@@ -112,6 +112,22 @@ export const useSubscriptionStore = create()(
         };
       },
 
+      // Debug function to log current subscription status
+      logSubscriptionStatus: () => {
+        const { subscriptionStatus, trialStatus, hasActiveSubscription } = get();
+        console.log('📊 Current Subscription Status:');
+        console.log('  - Subscription:', subscriptionStatus ? JSON.stringify(subscriptionStatus, null, 2) : 'null');
+        console.log('  - Trial:', trialStatus ? JSON.stringify(trialStatus, null, 2) : 'null');
+        console.log('  - Has Active Subscription:', hasActiveSubscription());
+        console.log('  - Has Checked Status:', get().hasCheckedStatus);
+        return {
+          subscriptionStatus,
+          trialStatus,
+          hasActiveSubscription: hasActiveSubscription(),
+          hasCheckedStatus: get().hasCheckedStatus
+        };
+      },
+
       // Trial related methods
       isTrialActive: () => {
         const { trialStatus } = get();

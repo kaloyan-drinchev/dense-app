@@ -7,6 +7,7 @@ module.exports = function (api) {
     }]],
     plugins: [
       ['inline-import', { extensions: ['.sql'] }], // Support for importing .sql files
+      'react-native-reanimated/plugin', // MUST be last - Required for Moti animations
     ],
   };
 };

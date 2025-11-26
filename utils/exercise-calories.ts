@@ -87,7 +87,7 @@ export const EXERCISE_CALORIES: Record<string, ExerciseCalorieData> = {
   },
   'Machine Shoulder Press': {
     name: 'Machine Shoulder Press',
-    caloriesPerSet: 9, from 4.5
+    caloriesPerSet: 9, // Increased from 4.5
     caloriesPerMinute: 4,
     intensity: 'low',
     notes: 'Machine-assisted, lower calorie burn'
@@ -498,7 +498,6 @@ export function calculateWorkoutCalories(
       userWeightKg,
       exercise.setsData
     );
-    console.log(`🔥 Exercise: "${exercise.name}" (${exercise.sets} sets) = ${calories} cal`);
     return total + calories;
   }, 0);
 }

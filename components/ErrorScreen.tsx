@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '@/constants/colors';
+import { colors, gradients } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 
 interface ErrorScreenProps {
@@ -136,7 +136,7 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={colors.gradients.primaryButton}
+                colors={gradients.primaryButton}
                 style={styles.buttonGradient}
               >
                 <Text style={styles.buttonText}>Try Again</Text>

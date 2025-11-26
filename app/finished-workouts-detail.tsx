@@ -34,9 +34,14 @@ export default function FinishedWorkoutsDetailScreen() {
       try {
         const wiz = await wizardResultsService.getByUserId(user.id);
         if (wiz?.generatedSplit) {
-          try { setProgram(JSON.parse(wiz.generatedSplit)); } catch {}
+          // Handle both string (JSON) and object (JSONB) types
+          try { 
+            setProgram(typeof wiz.generatedSplit === 'string' 
+              ? JSON.parse(wiz.generatedSplit) 
+              : wiz.generatedSplit); 
+          } catch {}
         }
-        
+
         if (wiz?.weight) {
           setUserWeight(wiz.weight);
         }
@@ -44,7 +49,10 @@ export default function FinishedWorkoutsDetailScreen() {
         const progress = await userProgressService.getByUserId(user.id);
         if (progress?.weeklyWeights) {
           try {
-            const ww = JSON.parse(progress.weeklyWeights as unknown as string);
+            // Handle both string (JSON) and object (JSONB) types
+            const ww = typeof progress.weeklyWeights === 'string'
+              ? JSON.parse(progress.weeklyWeights)
+              : progress.weeklyWeights;
             setExerciseLogs(ww.exerciseLogs || {});
             
             if (date && ww.customExercises) {
@@ -61,7 +69,12 @@ export default function FinishedWorkoutsDetailScreen() {
         
         if (progress?.completedWorkouts && date) {
           try {
-            const completedData = JSON.parse(progress.completedWorkouts as unknown as string) || [];
+            // Handle both string (JSON) and array (JSONB) types
+            const completedData = Array.isArray(progress.completedWorkouts)
+              ? progress.completedWorkouts
+              : (typeof progress.completedWorkouts === 'string'
+                  ? JSON.parse(progress.completedWorkouts)
+                  : []);
             const workoutEntry = completedData.find((item: any) => 
               typeof item === 'object' && 
               item.date && 

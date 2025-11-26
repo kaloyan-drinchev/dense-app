@@ -2,8 +2,22 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { userProfileService, wizardResultsService } from '@/db/services';
-import { generateId } from '@/utils/helpers';
 import { cloudSyncService, type CloudUser } from '@/services/cloud-sync-service';
+
+// Helper to generate a proper UUID v4 (required for PostgreSQL)
+function generateUUID(): string {
+  // Use crypto.randomUUID() if available (modern browsers/Node.js/React Native)
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  
+  // Fallback: Generate UUID v4 manually
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 export interface User {
   id: string;
@@ -21,12 +35,14 @@ interface AuthState {
   error: string | null;
   hasCompletedWizard: boolean;
   isFirstTime: boolean;
+  isWizardGenerating?: boolean;
 
   // Actions
   setupNewUser: (name: string) => Promise<{ success: boolean; error?: string }>;
   clearError: () => void;
   checkUserStatus: () => Promise<void>;
   checkWizardStatus: () => Promise<void>;
+  setWizardGenerating: (isGenerating: boolean) => void;
   setWizardCompleted: () => void;
   updateUser: (updates: Partial<User>) => void;
   checkIfFirstTime: () => Promise<boolean>;
@@ -49,6 +65,9 @@ export const useAuthStore = create<AuthState>()(
       error: null,
       hasCompletedWizard: false,
       isFirstTime: true,
+      isWizardGenerating: false, // Ephemeral state to track wizard generation across remounts
+
+      setWizardGenerating: (isGenerating: boolean) => set({ isWizardGenerating: isGenerating }),
 
       // Set up new user (first time - no authentication needed)
       setupNewUser: async (name: string) => {
@@ -56,18 +75,28 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           // Setup PIN and biometric preferences
-          const userId = generateId();
+          const userId = generateUUID(); // Generate proper UUID for PostgreSQL
           const userProfile = await userProfileService.create({
             name,
-            id: userId,
+            id: userId, // Pass id explicitly for first-time setup
             profilePicture: null, // Ensure no profile picture by default
-          });
+          } as any);
 
           const user: User = {
             id: userId,
             name: name,
             createdAt: userProfile.createdAt || new Date().toISOString(),
           };
+
+          // Clear subscription state for new user (no subscription data should exist)
+          const { useSubscriptionStore } = await import('@/store/subscription-store.js');
+          useSubscriptionStore.setState({ 
+            subscriptionStatus: null, 
+            trialStatus: null, 
+            hasCheckedStatus: false,
+            isLoading: false,
+            error: null
+          });
 
           set({ 
             isLoading: false, 
@@ -93,6 +122,16 @@ export const useAuthStore = create<AuthState>()(
         // Clear workout store user profile
         const { useWorkoutStore } = await import('@/store/workout-store');
         useWorkoutStore.getState().clearUserProfile();
+        
+        // Clear subscription state
+        const { useSubscriptionStore } = await import('@/store/subscription-store.js');
+        useSubscriptionStore.setState({ 
+          subscriptionStatus: null, 
+          trialStatus: null, 
+          hasCheckedStatus: false,
+          isLoading: false,
+          error: null
+        });
         
         // Clear cloud data
         await cloudSyncService.clearCloudData();
@@ -154,9 +193,45 @@ export const useAuthStore = create<AuthState>()(
       checkWizardStatus: async () => {
         const state = get();
         if (state.user) {
-          const hasWizard = await wizardResultsService.hasCompletedWizard(state.user.id);
-          set({ hasCompletedWizard: hasWizard });
-          console.log('🧙 Wizard status checked:', hasWizard);
+          // Check if wizard results exist
+          const wizardResults = await wizardResultsService.getByUserId(state.user.id);
+          const hasWizardResults = !!wizardResults;
+          
+          // IMPORTANT: Wizard completion logic:
+          // 1. Wizard results exist = program generated (but wizard NOT completed yet)
+          // 2. Wizard completed = subscription flow handled (either subscribed or skipped)
+          // 3. If wizard results don't exist, wizard definitely not completed
+          
+          if (!hasWizardResults) {
+            // No wizard results - wizard definitely not completed
+            if (state.hasCompletedWizard) {
+              set({ hasCompletedWizard: false });
+              console.log('🧙 Wizard status: No results found, resetting completion flag');
+            } else {
+              console.log('🧙 Wizard status: No results, wizard not completed');
+            }
+          } else {
+            // Wizard results exist - check if subscription was actually handled
+            // If hasCompletedWizard is true but subscription wasn't handled, reset it
+            const { useSubscriptionStore } = await import('@/store/subscription-store.js');
+            const subscriptionState = useSubscriptionStore.getState();
+            const hasActiveSubscription = subscriptionState.hasActiveSubscription();
+            const hasCheckedStatus = subscriptionState.hasCheckedStatus;
+            
+            // If wizard results exist but subscription status hasn't been checked yet,
+            // or if subscription status shows no active subscription/trial,
+            // then wizard is NOT completed (we're in subscription phase)
+            if (state.hasCompletedWizard && (!hasCheckedStatus || !hasActiveSubscription)) {
+              // Flag says completed but subscription wasn't handled - reset it
+              console.log('🧙 Wizard status: Results exist but subscription not handled - resetting completion flag');
+              console.log('🧙   - hasCheckedStatus:', hasCheckedStatus, 'hasActiveSubscription:', hasActiveSubscription);
+              set({ hasCompletedWizard: false });
+            } else if (!state.hasCompletedWizard) {
+              console.log('🧙 Wizard status: Results exist but wizard not completed (subscription phase)');
+            } else {
+              console.log('🧙 Wizard status: Results exist and wizard completed');
+            }
+          }
         }
       },
 

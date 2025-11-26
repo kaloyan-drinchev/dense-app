@@ -17,11 +17,11 @@ import {
 } from '@expo-google-fonts/saira';
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Platform, View, Text, ActivityIndicator } from "react-native";
 
 
-import { initializeDatabase } from "@/db/migrations";
+// Database initialization removed - using Supabase now
 import { useAuthStore } from "@/store/auth-store";
 import { useSubscriptionStore } from "@/store/subscription-store.js";
 import subscriptionService from "@/services/subscription-service.js";
@@ -82,63 +82,63 @@ export default function RootLayout() {
   const [dbInitialized, setDbInitialized] = useState(false);
   const [dbError, setDbError] = useState<Error | null>(null);
   const authStore = useAuthStore();
-  
-  // Debug: Check what functions are available
-  console.log('🔍 Auth store functions:', Object.keys(authStore));
-  
-  const { user, isFirstTime, checkUserStatus, checkIfFirstTime } = authStore;
+  const { user, isFirstTime } = authStore;
 
-  // Initialize database and check auth status on app startup
+  // Initialize app (Supabase is initialized via config)
+  // Use ref to ensure this only runs once on mount
+  const hasInitialized = useRef(false);
   useEffect(() => {
+    // Prevent multiple initializations
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+
     const setupApp = async () => {
       try {
-        console.log('🔄 Initializing local database...');
-        const success = await initializeDatabase();
-        if (success) {
-          console.log('✅ Database initialization completed');
-          
-          // Initialize subscription service
-          console.log('🔄 Initializing subscription service...');
-          await subscriptionService.initialize();
-          
-          // Initialize notifications
-          console.log('🔄 Setting up notifications...');
-          await setupNotifications();
-          
-          // Check if user exists and if it's first time
-          if (typeof checkUserStatus === 'function') {
-            await checkUserStatus();
-          } else {
-            console.error('❌ checkUserStatus is not a function:', typeof checkUserStatus);
-          }
-          
-          if (typeof checkIfFirstTime === 'function') {
-            await checkIfFirstTime();
-          } else {
-            console.error('❌ checkIfFirstTime is not a function:', typeof checkIfFirstTime);
-          }
-          
-          // Check for app updates and show what's new
-          const wasUpdated = await AppUpdateManager.checkForAppUpdate();
-          if (wasUpdated) {
-            // Show update notification after a short delay
-            setTimeout(() => {
-              AppUpdateManager.showUpdateNotification();
-            }, 2000);
-          }
-          
-          setDbInitialized(true);
+        console.log('🔄 Initializing app with Supabase...');
+        
+        // Initialize subscription service
+        console.log('🔄 Initializing subscription service...');
+        await subscriptionService.initialize();
+        
+        // Initialize notifications
+        console.log('🔄 Setting up notifications...');
+        await setupNotifications();
+        
+        // Access functions directly from store to avoid dependency issues
+        const { checkUserStatus, checkIfFirstTime } = useAuthStore.getState();
+        
+        // Check if user exists and if it's first time
+        if (typeof checkUserStatus === 'function') {
+          await checkUserStatus();
         } else {
-          throw new Error('Database initialization failed');
+          console.error('❌ checkUserStatus is not a function:', typeof checkUserStatus);
         }
+        
+        if (typeof checkIfFirstTime === 'function') {
+          await checkIfFirstTime();
+        } else {
+          console.error('❌ checkIfFirstTime is not a function:', typeof checkIfFirstTime);
+        }
+        
+        // Check for app updates and show what's new
+        const wasUpdated = await AppUpdateManager.checkForAppUpdate();
+        if (wasUpdated) {
+          // Show update notification after a short delay
+          setTimeout(() => {
+            AppUpdateManager.showUpdateNotification();
+          }, 2000);
+        }
+        
+        setDbInitialized(true);
+        console.log('✅ App initialization completed');
       } catch (err) {
-        console.error('❌ Database initialization error:', err);
-        setDbError(err instanceof Error ? err : new Error('Unknown database error'));
+        console.error('❌ App initialization error:', err);
+        setDbError(err instanceof Error ? err : new Error('Unknown initialization error'));
       }
     };
 
     setupApp();
-  }, [checkUserStatus]);
+  }, []); // Empty dependency array - only run once on mount
 
   useEffect(() => {
     if (error) {
@@ -177,7 +177,6 @@ function AppNavigator() {
     checkSubscriptionStatus, 
     refreshSubscriptionStatus, 
     shouldBlockAccess,
-    isLoading: isSubscriptionLoading,
     hasCheckedStatus,
     getDaysUntilExpiry,
     triggerNavigationRefresh
@@ -286,21 +285,105 @@ function AppNavigator() {
         return;
       }
 
+      // IMPORTANT: If wizard component is already showing, don't interfere with it
+      // This prevents resetting the wizard during program generation or subscription phase
+      if (showWizard) {
+        console.log('🔍 App Layout: Wizard component is already showing, not interfering');
+        return; // Don't interfere with wizard flow (generation, subscription, etc.)
+      }
+
+      // CRITICAL: Always check wizard results FIRST before checking subscription status
+      // This prevents bypassing subscription screen if wizard isn't completed
+      if (user && !isFirstTime) {
+        const { checkWizardStatus } = useAuthStore.getState();
+        await checkWizardStatus();
+        const updatedState = useAuthStore.getState();
+        
+        // Check if wizard results exist in database (even if not marked as completed)
+        // This handles the case where program is generated but subscription hasn't been handled yet
+        const { wizardResultsService } = await import('@/db/services');
+        const wizardResults = await wizardResultsService.getByUserId(user.id);
+        
+        console.log('🔍 App Layout: Wizard check - hasCompletedWizard:', updatedState.hasCompletedWizard, 'hasWizardResults:', !!wizardResults);
+        
+        // CRITICAL FIX: If wizard results exist but hasCompletedWizard is true,
+        // verify that subscription was actually handled by checking subscription status
+        if (wizardResults && updatedState.hasCompletedWizard) {
+          // Wizard results exist AND flag says completed - verify subscription was handled
+          const { hasActiveSubscription } = useSubscriptionStore.getState();
+          const subscriptionHandled = hasActiveSubscription();
+          
+          // IMPORTANT: Even if trial is active, if wizard results exist but wizard wasn't properly completed
+          // (i.e., user reloaded before completing subscription flow), we should show subscription screen
+          // The trial might have been auto-started from a previous session
+          if (!subscriptionHandled) {
+            // Flag says completed but subscription wasn't handled - reset flag
+            console.log('🔍 App Layout: Wizard flag says completed but subscription not handled - resetting flag');
+            useAuthStore.setState({ hasCompletedWizard: false });
+            const resetState = useAuthStore.getState();
+            console.log('🔍 App Layout: Flag reset - hasCompletedWizard:', resetState.hasCompletedWizard);
+            console.log('🔍 App Layout: Showing wizard for subscription flow');
+            setShowWizard(true);
+            setShowSubscription(false);
+            return;
+          } else {
+            // Subscription is handled (trial active or subscription active) - wizard is truly completed
+            console.log('🔍 App Layout: Wizard completed and subscription handled - proceeding to home');
+          }
+        }
+        
+        if (wizardResults && !updatedState.hasCompletedWizard) {
+          // Wizard results exist but not marked as completed - we're in subscription phase
+          // CRITICAL: Don't check subscription status - stay in wizard to show subscription screen
+          // Even if user has active trial, they must complete the subscription flow first
+          console.log('🔍 App Layout: Wizard results exist but not completed - subscription phase, showing wizard');
+          console.log('🔍 App Layout: BLOCKING subscription status check - user must complete subscription flow');
+          setShowWizard(true);
+          setShowSubscription(false);
+          return; // CRITICAL: Return here to prevent subscription status check
+        }
+        
+        if (!updatedState.hasCompletedWizard && !wizardResults) {
+          // No wizard results and not completed - show wizard
+          console.log('🔍 App Layout: No wizard results found, showing wizard');
+          setShowWizard(true);
+          setShowSubscription(false);
+          return;
+        }
+      }
+
       if (isFirstTime || !user || !hasCompletedWizard) {
         // First time, no user, or hasn't completed wizard - show wizard
-        console.log('🔍 App Layout: Showing wizard - isFirstTime:', isFirstTime, 'hasUser:', !!user, 'hasCompletedWizard:', hasCompletedWizard);
-        setShowWizard(true);
-        setShowSubscription(false);
+        // But only if wizard isn't already showing (to prevent reset during generation)
+        if (!showWizard) {
+          console.log('🔍 App Layout: Showing wizard - isFirstTime:', isFirstTime, 'hasUser:', !!user, 'hasCompletedWizard:', hasCompletedWizard);
+          setShowWizard(true);
+          setShowSubscription(false);
+        }
         return;
       }
 
       // Check subscription status type for navigation decisions
       try {
+        // Log detailed subscription status for debugging
+        const { logSubscriptionStatus } = useSubscriptionStore.getState();
+        const statusDetails = logSubscriptionStatus();
+        console.log('🔍 Navigation Debug - Full subscription details:', statusDetails);
+        
         const statusType = await subscriptionService.getSubscriptionStatusType();
         const rawStatus = await subscriptionService.getSubscriptionStatus();
         
         console.log('🔍 Navigation Debug - Status type:', statusType);
         console.log('🔍 Navigation Debug - Raw status:', rawStatus);
+        
+        // IMPORTANT: If wizard results exist but wizard isn't completed, we're in subscription phase
+        // Don't check subscription status yet - let wizard handle the subscription screen
+        const { wizardResultsService } = await import('@/db/services');
+        const wizardResults = await wizardResultsService.getByUserId(user.id);
+        if (wizardResults && !hasCompletedWizard) {
+          console.log('🔍 Navigation Debug: Wizard results exist but not completed - staying in wizard for subscription');
+          return; // Don't navigate away - wizard will handle subscription
+        }
         
         if (statusType === 'subscription_expired' || statusType === 'no_subscription') {
           // Force expired or no subscription users to subscription screen

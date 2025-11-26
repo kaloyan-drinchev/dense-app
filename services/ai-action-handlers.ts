@@ -1,10 +1,6 @@
-import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
 import { ProgramGenerator, WizardResponses } from '@/utils/program-generator';
 import { Platform } from 'react-native';
-import { db } from '@/db/client';
-import { userProfiles } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 
 export interface AIActionResult {
   success: boolean;
@@ -32,16 +28,26 @@ export class AIActionHandlers {
       }
 
       const { user } = useAuthStore.getState();
-      const { generatedProgram, userProgress } = useWorkoutStore.getState();
 
-      if (!user || !generatedProgram) {
+      if (!user) {
         return {
           success: false,
-          message: 'No active user or program found to modify'
+          message: 'No active user found'
         };
       }
 
       console.log('🔄 Modifying program with:', modifications);
+
+      // Get current wizard results
+      const { wizardResultsService, userProgressService } = await import('@/db/services');
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
+
+      if (!wizardResults || !wizardResults.generatedSplit) {
+        return {
+          success: false,
+          message: 'No program found to modify'
+        };
+      }
 
       // Create wizard responses based on current user data and modifications
       const wizardResponses = this.buildWizardResponsesFromUser(user, modifications);
@@ -59,25 +65,22 @@ export class AIActionHandlers {
         this.applySetRepsChanges(modifiedProgram, modifications.setRepsChanges);
       }
 
-      // Update the program in database
-      await expo_sqlite.insertProgram({
-        ...modifiedProgram,
-        userId: user.id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isActive: true
+      // Update wizard results with modified program
+      await wizardResultsService.updateByUserId(user.id, {
+        generatedSplit: JSON.stringify(modifiedProgram)
       });
 
-      // Mark old program as inactive
-      if (generatedProgram.id) {
-        await expo_sqlite.updateProgram(generatedProgram.id, { isActive: false });
+      // Reset user progress for modified program
+      const existingProgress = await userProgressService.getByUserId(user.id);
+      if (existingProgress) {
+        await userProgressService.update(existingProgress.id, {
+          currentWeek: 1,
+          currentWorkout: 1,
+          startDate: new Date(),
+          completedWorkouts: [],
+          weeklyWeights: {}
+        });
       }
-
-      // Update Zustand store
-      useWorkoutStore.getState().setGeneratedProgram(modifiedProgram);
-      
-      // Reset progress for new program
-      useWorkoutStore.getState().resetProgress();
 
       console.log('✅ Program successfully modified');
 
@@ -150,12 +153,13 @@ export class AIActionHandlers {
       // Create new progress entry
       await userProgressService.create({
         userId: user.id,
-        programId: newProgram.programName || 'ai-generated-program',
+        programId: null, // Program is stored in generatedSplit, not as a separate program entry
         currentWeek: 1,
+        currentWorkout: 1,
+        startDate: new Date(),
         completedWorkouts: [],
         weeklyWeights: {}
       });
-      useWorkoutStore.getState().resetProgress();
 
       console.log('✅ New program successfully generated');
 
@@ -210,7 +214,11 @@ export class AIActionHandlers {
       }
 
       // Update the program name in the generated program
-      const currentProgram = JSON.parse(wizardResults.generatedSplit);
+      const generatedSplit = typeof wizardResults.generatedSplit === 'string' 
+        ? JSON.parse(wizardResults.generatedSplit)
+        : wizardResults.generatedSplit;
+      
+      const currentProgram = generatedSplit;
       currentProgram.programName = newName;
       currentProgram.displayTitle = newName;
 
@@ -279,17 +287,29 @@ export class AIActionHandlers {
       }
 
       if (!currentProfile) {
-        // Create new profile
+        // Create new profile with only valid fields
         currentProfile = await userProfileService.create({
           name: user.name,
-          fitnessGoals: settings.fitnessGoals || 'muscle_gain',
-          experienceLevel: settings.experienceLevel || 'intermediate',
-          availableDays: settings.availableDays || 6,
-          preferredSplit: settings.preferredSplit || 'push_pull_legs'
+          goal: settings.fitnessGoals || 'muscle_gain'
         });
       } else {
         // Update existing profile using the profile's id
-        await userProfileService.update(currentProfile.id, settings);
+        // Only update valid UserProfile fields
+        const validUpdates: Partial<typeof currentProfile> = {};
+        if (settings.fitnessGoals) validUpdates.goal = settings.fitnessGoals;
+        if (settings.availableDays !== undefined) {
+          // availableDays is not a UserProfile field, store in wizard results instead
+          const { wizardResultsService } = await import('@/db/services');
+          const wizardResults = await wizardResultsService.getByUserId(user.id);
+          if (wizardResults) {
+            await wizardResultsService.updateByUserId(user.id, {
+              trainingDaysPerWeek: settings.availableDays
+            });
+          }
+        }
+        if (Object.keys(validUpdates).length > 0) {
+          await userProfileService.update(currentProfile.id, validUpdates);
+        }
       }
 
       console.log('✅ Settings successfully updated');

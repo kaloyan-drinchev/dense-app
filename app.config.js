@@ -61,7 +61,11 @@ export default {
       "assets/images/*"
     ],
     extra: {
-      geminiApiKey: process.env.GEMINI_API_KEY
+      geminiApiKey: process.env.GEMINI_API_KEY,
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL,
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY,
+      // SECURITY: Never expose service role key in client app - it bypasses RLS
+      // Service role operations should be done via backend API or CLI scripts only
     },
     privacy: "public",
     privacyPolicyUrl: "https://lazarovtwins.com/dense/privacy-policy"

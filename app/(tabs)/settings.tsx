@@ -627,7 +627,7 @@ export default function SettingsScreen() {
 
     Alert.alert(
       '🚨 RESET ENTIRE APP',
-      'This will DELETE ALL YOUR DATA and reset the app to the very beginning:\n\n• All workouts & progress\n• All nutrition data\n• Subscription status\n• User profile\n• Wizard responses\n\nYou will go through the welcome screen and 12-step wizard again. This cannot be undone!',
+      'This will DELETE ALL YOUR DATA from Supabase and reset the app to the very beginning:\n\n• All workouts & progress\n• All nutrition data (daily logs & custom meals)\n• Subscription status\n• User profile\n• Wizard responses\n\nYou will go through the welcome screen and wizard again. This cannot be undone!',
       [
         {
           text: 'Cancel',
@@ -638,39 +638,14 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('🚨 RESET APP: Starting complete app reset...');
+              console.log('🚨 RESET APP: Starting complete Supabase data wipe...');
               
-              // Import AsyncStorage
-              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+              if (!user?.id) {
+                Alert.alert('Error', 'No user found. Please try again.', [{ text: 'OK' }]);
+                return;
+              }
               
-              // Clear all Zustand stores
-              console.log('🚨 RESET APP: Clearing Zustand stores...');
-              await AsyncStorage.removeItem('auth-storage');
-              await AsyncStorage.removeItem('subscription-storage');
-              await AsyncStorage.removeItem('workout-timer-storage');
-              await AsyncStorage.removeItem('workout-storage');
-              await AsyncStorage.removeItem('nutrition-storage');
-              
-              // Also reset timer store directly to ensure it's completely cleared
-              const { useTimerStore } = await import('@/store/timer-store');
-              useTimerStore.getState().resetTimer();
-              useTimerStore.getState().completeWorkout();
-              
-              // Clear all subscription-related storage
-              console.log('🚨 RESET APP: Clearing subscription data...');
-              await AsyncStorage.removeItem('user_subscription');
-              await AsyncStorage.removeItem('user_trial_status');
-              await AsyncStorage.removeItem('user_purchases');
-              await AsyncStorage.removeItem('subscription_history');
-              await AsyncStorage.removeItem('device_id');
-              await AsyncStorage.removeItem('subscription_cancelled');
-              
-              // Clear Apple IAP storage
-              console.log('🚨 RESET APP: Clearing Apple IAP data...');
-              await AsyncStorage.removeItem('apple_iap_purchases');
-              
-              // Clear any other potential storage keys
-              console.log('🚨 RESET APP: Clearing additional data...');
+              // Import services
               const { 
                 wizardResultsService, 
                 userProfileService, 
@@ -679,69 +654,89 @@ export default function SettingsScreen() {
                 userProgressService 
               } = await import('@/db/services');
               
-              // Clear all database tables (if user exists)
-              if (user?.id) {
-                try {
-                  // Clear wizard results
-                  const wizardData = await wizardResultsService.getByUserId(user.id);
-                  if (wizardData) {
-                    await wizardResultsService.delete(wizardData.id);
-                    console.log('✅ Cleared wizard results');
-                  }
-                } catch (error) {
-                  console.log('ℹ️ No wizard results to clear');
-                }
+              // SECURITY NOTE: Database truncation requires service role key
+              // Since we can't expose service role key in client app, we delete user-specific data only
+              console.log('🗑️ Deleting user-specific data from database...');
+              
+              try {
+                // Delete user's data (respects RLS - only deletes current user's data)
+                await Promise.all([
+                  userProgressService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete progress:', e)),
+                  wizardResultsService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete wizard:', e)),
+                  dailyLogService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete logs:', e)),
+                  customMealService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete meals:', e)),
+                ]);
                 
-                try {
-                  await userProfileService.delete(user.id);
-                  console.log('✅ Cleared user profile');
-                } catch (error) {
-                  console.log('ℹ️ No user profile to clear');
-                }
+                // Delete user profile last (has foreign key constraints)
+                await userProfileService.delete(user.id).catch(e => console.warn('Failed to delete profile:', e));
                 
-                try {
-                  // Clear daily logs (nutrition data)
-                  const dailyLogs = await dailyLogService.getByUserId(user.id);
-                  for (const log of dailyLogs) {
-                    await dailyLogService.delete(log.id);
-                  }
-                  console.log('✅ Cleared daily logs');
-                } catch (error) {
-                  console.log('ℹ️ No daily logs to clear');
-                }
-                
-                try {
-                  // Clear custom meals
-                  const customMeals = await customMealService.getByUserId(user.id);
-                  for (const meal of customMeals) {
-                    await customMealService.delete(meal.id);
-                  }
-                  console.log('✅ Cleared custom meals');
-                } catch (error) {
-                  console.log('ℹ️ No custom meals to clear');
-                }
-                
-                try {
-                  // Clear user progress (workout data)
-                  const progress = await userProgressService.getByUserId(user.id);
-                  if (progress) {
-                    await userProgressService.delete(progress.id);
-                  }
-                  console.log('✅ Cleared user progress');
-                } catch (error) {
-                  console.log('ℹ️ No user progress to clear');
-                }
+                console.log('✅ User data deleted from database');
+              } catch (error: any) {
+                console.error('❌ Failed to delete user data:', error);
+                console.error('❌ Error details:', error.message, error.stack);
+                Alert.alert(
+                  'Error',
+                  `Failed to delete user data: ${error.message || 'Unknown error'}. Some data may remain.`,
+                  [{ text: 'OK' }]
+                );
+                // Continue with local reset even if database deletion failed
               }
               
-              console.log('🚨 RESET APP: Clearing auth state...');
+              // Now clear local storage
+              console.log('🧹 Clearing local storage...');
+              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
               
-              // Reset auth state to trigger complete restart
-              const { checkIfFirstTime, logout } = useAuthStore.getState();
+              // Clear all Zustand stores
+              await AsyncStorage.removeItem('auth-storage');
+              await AsyncStorage.removeItem('subscription-storage');
+              await AsyncStorage.removeItem('workout-timer-storage');
+              await AsyncStorage.removeItem('workout-storage');
+              await AsyncStorage.removeItem('workout-cache-storage');
+              await AsyncStorage.removeItem('nutrition-storage');
+              
+              // Clear subscription data
+              await AsyncStorage.removeItem('user_subscription');
+              await AsyncStorage.removeItem('user_trial_status');
+              await AsyncStorage.removeItem('user_purchases');
+              await AsyncStorage.removeItem('subscription_history');
+              await AsyncStorage.removeItem('device_id');
+              await AsyncStorage.removeItem('subscription_cancelled');
+              await AsyncStorage.removeItem('apple_iap_purchases');
+              
+              // Reset timer store
+              const { useTimerStore } = await import('@/store/timer-store');
+              useTimerStore.getState().resetTimer();
+              useTimerStore.getState().completeWorkout();
+              
+              // Clear workout cache
+              const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
+              useWorkoutCacheStore.getState().clearCache();
+              
+              // Explicitly reset subscription store state
+              const { useSubscriptionStore } = await import('@/store/subscription-store.js');
+              useSubscriptionStore.setState({ 
+                subscriptionStatus: null, 
+                trialStatus: null, 
+                hasCheckedStatus: false,
+                isLoading: false,
+                error: null
+              });
+              console.log('✅ Subscription store reset!');
+              
+              console.log('✅ Local storage cleared!');
+              
+              // Explicitly reset wizard status in auth store before logout
+              const { useAuthStore } = await import('@/store/auth-store');
+              // Reset wizard status to ensure it's cleared
+              useAuthStore.setState({ hasCompletedWizard: false, isFirstTime: true });
+              
+              console.log('✅ Wizard status reset!');
               
               // Logout to clear auth state
+              const { logout } = useAuthStore.getState();
               logout();
               
-              console.log('✅ RESET APP: Complete! App will restart from welcome screen.');
+              console.log('✅ RESET COMPLETE! Restarting app...');
               
               if (Platform.OS !== 'web') {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -749,12 +744,12 @@ export default function SettingsScreen() {
               
               Alert.alert(
                 '✅ App Reset Complete',
-                'All data has been deleted. The app will now restart from the very beginning with the welcome screen and wizard.',
+                'All your data has been deleted from Supabase. The app will now restart from the beginning.',
                 [
                   {
                     text: 'OK',
                     onPress: () => {
-                      // Force app to restart completely
+                      // Force app to restart from welcome screen
                       router.replace('/');
                     }
                   }
@@ -765,7 +760,7 @@ export default function SettingsScreen() {
               console.error('❌ Error resetting app:', error);
               Alert.alert(
                 'Error',
-                'Failed to reset app completely. Some data may remain. Please try again or restart the app manually.',
+                `Failed to reset app completely. Error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
                 [{ text: 'OK' }]
               );
             }

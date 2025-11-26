@@ -97,7 +97,10 @@ export default function NutritionScreen() {
         return;
       }
       
-      const program = JSON.parse(wizardResults.generatedSplit);
+      // Handle both string (JSON) and object (JSONB) types
+      const program = typeof wizardResults.generatedSplit === 'string'
+        ? JSON.parse(wizardResults.generatedSplit)
+        : wizardResults.generatedSplit;
       const currentWorkoutIndex = progress.currentWorkout - 1;
       const todaysWorkout = program.weeklyStructure?.[currentWorkoutIndex];
       
@@ -107,12 +110,19 @@ export default function NutritionScreen() {
       }
       
       const today = new Date().toISOString().split('T')[0];
-      const completedRaw = progress.completedWorkouts || '[]';
+      
+      // Handle both string (JSON) and object/array (JSONB) types
       let completedWorkouts: any[] = [];
-      try { 
-        completedWorkouts = JSON.parse(completedRaw); 
-      } catch { 
-        completedWorkouts = []; 
+      if (progress.completedWorkouts) {
+        if (Array.isArray(progress.completedWorkouts)) {
+          completedWorkouts = progress.completedWorkouts;
+        } else if (typeof progress.completedWorkouts === 'string') {
+          try { 
+            completedWorkouts = JSON.parse(progress.completedWorkouts); 
+          } catch { 
+            completedWorkouts = []; 
+          }
+        }
       }
       
       const todayWorkoutCompleted = completedWorkouts.some((w: any) => {
@@ -123,7 +133,12 @@ export default function NutritionScreen() {
         return false;
       });
       
-      const weeklyWeights = progress.weeklyWeights ? JSON.parse(progress.weeklyWeights) : {};
+      // Handle both string (JSON) and object (JSONB) types
+      const weeklyWeights = progress.weeklyWeights 
+        ? (typeof progress.weeklyWeights === 'string' 
+            ? JSON.parse(progress.weeklyWeights) 
+            : progress.weeklyWeights)
+        : {};
       const exerciseLogs = weeklyWeights?.exerciseLogs || {};
       const customExercises = weeklyWeights?.customExercises?.[today] || [];
       

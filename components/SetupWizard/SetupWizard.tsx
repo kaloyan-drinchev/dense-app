@@ -6,20 +6,21 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Animated,
   Alert,
+  Platform,
 } from 'react-native';
+
 import { colors } from '@/constants/colors';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { wizardResultsService, userProfileService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
 import { useSubscriptionStore } from '@/store/subscription-store.js';
 import { ProgramGenerator, type WizardResponses } from '@/utils/program-generator';
 import { SubscriptionScreen } from '@/components/SubscriptionScreen';
+import { AnimatePresence, MotiView } from 'moti';
 
 // Import extracted constants and types
 import {
@@ -43,16 +44,194 @@ interface SetupWizardProps {
   onClose: () => void;
 }
 
+// Simple phase-based state machine (KISS principle)
+type WizardPhase = 'wizard' | 'generating' | 'subscription' | 'complete';
+
 export default function SetupWizard({ onClose }: SetupWizardProps) {
   const router = useRouter();
-  const { user, setWizardCompleted } = useAuthStore();
+  const { user, setWizardCompleted, hasCompletedWizard, setWizardGenerating, isWizardGenerating } = useAuthStore();
   const { setSubscriptionStatus } = useSubscriptionStore();
-  
 
+  // SINGLE SOURCE OF TRUTH: One phase state replaces 8+ boolean flags
+  // Initialize phase based on whether we're already generating (handles remounts)
+  const [phase, setPhase] = useState<WizardPhase>(isWizardGenerating ? 'generating' : 'wizard');
   
-  const [currentStep, setCurrentStep] = useState(0);
+  // Wizard step state with direction tracking for animations
+  const [[currentStep, direction], setStepAndDirection] = useState<[number, number]>([0, 1]);
   const [validationError, setValidationError] = useState('');
-  const [isGeneratingProgram, setIsGeneratingProgram] = useState(false);
+  const [scrollKey, setScrollKey] = useState(0);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  
+  // Generation state
+  const [generationStep, setGenerationStep] = useState('');
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [showCheckProgramButton, setShowCheckProgramButton] = useState(false);
+  const [generatedProgramData, setGeneratedProgramData] = useState<any>(null);
+  const [isNavigatingToProgram, setIsNavigatingToProgram] = useState(false);
+  const [showProgramView, setShowProgramView] = useState(false);
+  
+  // SIMPLE: Check wizard results ONCE on mount - no complex dependencies
+  useEffect(() => {
+    const initializePhase = async () => {
+      // If we're already generating (from global store), don't reset phase
+      if (isWizardGenerating) {
+        console.log('🔄 Wizard: Resuming generation phase after remount');
+        setPhase('generating');
+        // Set a visual indicator that we are waiting for the background process
+        setGenerationStep('Finalizing your program...');
+        
+        // Smooth "resume" animation from 0 to 90% instead of jumping
+        // This makes it feel like it's processing rather than stuck
+        const animateResume = async () => {
+          const steps = 60; // 60 steps
+          const duration = 2000; // 2 seconds
+          const stepTime = duration / steps;
+          
+          for (let i = 0; i <= steps; i++) {
+            // Check if we're still in generating phase (safety check)
+            // Note: We can't easily check isMounted here without ref, but phase check helps
+            // Ease-out curve: starts fast, slows down
+            const ratio = i / steps;
+            const progress = 0.9 * (1 - Math.pow(1 - ratio, 2));
+            setGenerationProgress(progress);
+            await new Promise(resolve => setTimeout(resolve, stepTime));
+          }
+        };
+        
+        // Start animation (fire-and-forget is intentional for background animation)
+        animateResume().catch(() => {
+          // Silently ignore errors (e.g., if component unmounts during animation)
+        });
+        return;
+      }
+
+      // Don't check if wizard is already completed
+      if (hasCompletedWizard) {
+        setPhase('complete');
+        return;
+      }
+      
+      // Don't check if no user yet
+      if (!user?.id) {
+        setPhase('wizard');
+        return;
+      }
+      
+      // Check if wizard results exist (program already generated)
+      try {
+        const wizardResults = await wizardResultsService.getByUserId(user.id);
+        if (wizardResults?.generatedSplit) {
+          // Program exists but wizard not completed = subscription phase
+          const programData = typeof wizardResults.generatedSplit === 'string'
+            ? JSON.parse(wizardResults.generatedSplit)
+            : wizardResults.generatedSplit;
+          setGeneratedProgramData(programData);
+          setPhase('subscription');
+          console.log('✅ Found existing program, showing subscription screen');
+        } else {
+          // No program yet
+          if (isWizardGenerating) {
+            // Generation in progress - stay in generating phase
+            setPhase('generating');
+            console.log('✅ Generation in progress, showing generation screen');
+          } else {
+            // No generation, show wizard
+            setPhase('wizard');
+            console.log('✅ No existing program, showing wizard');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error checking wizard results:', error);
+        // Default to wizard on error (unless generating)
+        setPhase(isWizardGenerating ? 'generating' : 'wizard');
+      }
+    };
+    
+    initializePhase();
+  }, []); // Run ONCE on mount - no dependencies to cause re-runs
+  
+  // Watch for global generation flag changes (handles background completion)
+  useEffect(() => {
+    const checkCompletion = async () => {
+      // If global generation turned off, but we are still in 'generating' phase locally
+      if (!isWizardGenerating && phase === 'generating') {
+        console.log('🔄 Wizard: Global generation finished, checking for results...');
+        
+        let currentUserId = user?.id;
+        
+        // Polling for User ID
+        if (!currentUserId) {
+          console.log('⚠️ Wizard: User ID missing during completion check, polling...');
+          let userRetries = 0;
+          const maxUserRetries = 40; // 20 seconds
+          
+          while (!currentUserId && userRetries < maxUserRetries) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const currentUser = useAuthStore.getState().user;
+            if (currentUser?.id) {
+              currentUserId = currentUser.id;
+              console.log('✅ Wizard: Found user ID after polling');
+              break;
+            }
+            userRetries++;
+            if (userRetries % 5 === 0) console.log(`⏳ Wizard: Waiting for user ID... (${userRetries}/${maxUserRetries})`);
+          }
+          
+          if (!currentUserId) {
+            console.error('❌ Wizard: Timed out waiting for user ID');
+            setPhase('wizard');
+            return;
+          }
+        }
+
+        try {
+          // Give DB a moment to settle
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          let wizardResults = null;
+          let resultRetries = 0;
+          const maxResultRetries = 40; // 20 seconds
+          
+          console.log(`🔄 Wizard: Polling for results for user ${currentUserId}...`);
+          
+          while (!wizardResults && resultRetries < maxResultRetries) {
+            try {
+              const results = await wizardResultsService.getByUserId(currentUserId);
+              if (results?.generatedSplit) {
+                wizardResults = results;
+                break;
+              }
+            } catch (e) {
+              // Ignore errors during polling (e.g. 404 or connection issues)
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 500));
+            resultRetries++;
+            if (resultRetries % 2 === 0) console.log(`⏳ Wizard: Waiting for results... (${resultRetries}/${maxResultRetries})`);
+          }
+
+          if (wizardResults?.generatedSplit) {
+            console.log('✅ Wizard: Found results after background generation');
+            const programData = typeof wizardResults.generatedSplit === 'string'
+              ? JSON.parse(wizardResults.generatedSplit)
+              : wizardResults.generatedSplit;
+            setGeneratedProgramData(programData);
+            setPhase('subscription');
+            setStepAndDirection([0, 0]);
+          } else {
+            console.log('❌ Wizard: Generation finished but no results found after polling');
+            setPhase('wizard'); // Fallback to start
+            Alert.alert('Error', 'Program generation failed. Please try again.');
+          }
+        } catch (error) {
+          console.error('❌ Error checking results after generation:', error);
+          setPhase('wizard');
+        }
+      }
+    };
+    
+    checkCompletion();
+  }, [isWizardGenerating, phase, user?.id]);
   
   // Safety check: ensure currentStep is valid when component mounts or steps change
   useEffect(() => {
@@ -63,19 +242,12 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     
     if (currentStep >= steps.length) {
       console.warn('⚠️ currentStep out of bounds, resetting to 0. currentStep:', currentStep, 'steps.length:', steps.length);
-      setCurrentStep(0);
+      setStepAndDirection([0, 0]);
     } else if (currentStep < 0) {
       console.warn('⚠️ currentStep is negative, resetting to 0. currentStep:', currentStep);
-      setCurrentStep(0);
+      setStepAndDirection([0, 0]);
     }
   }, [currentStep, steps.length]);
-  const [generationStep, setGenerationStep] = useState('');
-  const [generationProgress, setGenerationProgress] = useState(0);
-  const [showCheckProgramButton, setShowCheckProgramButton] = useState(false);
-  const [generatedProgramData, setGeneratedProgramData] = useState<any>(null);
-  const [isNavigatingToProgram, setIsNavigatingToProgram] = useState(false);
-  const [showProgramView, setShowProgramView] = useState(false);
-  const [showSubscriptionScreen, setShowSubscriptionScreen] = useState(false);
   
   const [preferences, setPreferences] = useState<WizardPreferences>({
     // Step 1: Motivation
@@ -123,14 +295,14 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     // Safety check: ensure currentStep is within valid bounds
     if (currentStep < 0 || currentStep >= steps.length) {
       console.error('❌ currentStep out of bounds:', currentStep, 'steps.length:', steps.length);
-      setCurrentStep(0);
+      setStepAndDirection([0, 0]);
       return false;
     }
     
     const step = steps[currentStep];
     if (!step) {
       console.error('❌ Step is undefined at index:', currentStep);
-      setCurrentStep(0);
+      setStepAndDirection([0, 0]);
       return false;
     }
 
@@ -167,25 +339,67 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         return true;
 
       case 'tdee-calculation':
-        const tdeeErrors = validateTDEEInputs({
-          age: preferences.age ? parseInt(preferences.age) : undefined,
-          gender: preferences.gender as 'male' | 'female',
-          weight: preferences.weight ? parseFloat(preferences.weight) : undefined,
-          height: preferences.height ? parseFloat(preferences.height) : undefined,
-          activityLevel: preferences.trainingDaysPerWeek ? getActivityLevelFromTrainingDays(preferences.trainingDaysPerWeek) : undefined,
-          goal: preferences.goal
-        });
+        const errors: Record<string, boolean> = {};
+        let hasError = false;
         
-        // Add training days validation
+        // Validate each field and track errors
+        const ageValue = preferences.age ? parseInt(preferences.age) : undefined;
+        if (!ageValue || ageValue < 16 || ageValue > 100) {
+          errors.age = true;
+          hasError = true;
+        }
+        
+        if (!preferences.gender) {
+          errors.gender = true;
+          hasError = true;
+        }
+        
+        const weightValue = preferences.weight ? parseFloat(preferences.weight) : undefined;
+        if (!weightValue || weightValue < 30 || weightValue > 300) {
+          errors.weight = true;
+          hasError = true;
+        }
+        
+        const heightValue = preferences.height ? parseFloat(preferences.height) : undefined;
+        if (!heightValue || heightValue < 120 || heightValue > 250) {
+          errors.height = true;
+          hasError = true;
+        }
+        
+        if (!preferences.goal) {
+          errors.goal = true;
+          hasError = true;
+        }
+        
         if (!preferences.trainingDaysPerWeek) {
-          setValidationError('Please select how many days you can train per week');
+          errors.trainingDays = true;
+          hasError = true;
+        }
+        
+        // Update field errors state
+        setFieldErrors(errors);
+        
+        // If there are errors, show the first error message
+        if (hasError) {
+          const tdeeErrors = validateTDEEInputs({
+            age: ageValue,
+            gender: preferences.gender as 'male' | 'female',
+            weight: weightValue,
+            height: heightValue,
+            activityLevel: preferences.trainingDaysPerWeek ? getActivityLevelFromTrainingDays(preferences.trainingDaysPerWeek) : undefined,
+            goal: preferences.goal
+          });
+          
+          if (!preferences.trainingDaysPerWeek) {
+            setValidationError('Please select how many days you can train per week');
+          } else if (tdeeErrors.length > 0) {
+            setValidationError(tdeeErrors[0]);
+          }
           return false;
         }
         
-        if (tdeeErrors.length > 0) {
-          setValidationError(tdeeErrors[0]);
-          return false;
-        }
+        // Clear field errors if validation passes
+        setFieldErrors({});
         return true;
 
       case 'muscle-priorities':
@@ -223,13 +437,23 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     }
   };
 
+  const paginate = (newDirection: number) => {
+    const newStep = currentStep + newDirection;
+    if (newStep >= 0 && newStep < steps.length) {
+      setStepAndDirection([newStep, newDirection]);
+      setValidationError(''); // Clear errors when navigating
+      setScrollKey(prev => prev + 1);
+    }
+  };
+
   const handleNext = () => {
     if (!validateCurrentStep()) {
+      setScrollKey(prev => prev + 1);
       return;
     }
 
     if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
+      paginate(1); // Move forward
     } else {
       handleComplete();
     }
@@ -237,18 +461,28 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
 
   const handleComplete = async () => {
     try {
-      setIsGeneratingProgram(true);
+      console.log('🚀 Starting program generation...');
+      // Mark global state as generating immediately to prevent premature completion checks
+      useAuthStore.getState().setWizardGenerating(true);
+      
+      // Clear any previous program data and reset generation state
+      setGeneratedProgramData(null);
+      setPhase('generating'); // Simple: set phase to generating
+      setGenerationStep('Initializing...');
+      setGenerationProgress(0);
       
       // Create user if not exists (with name from wizard)
       let currentUser = user;
       if (!currentUser || !currentUser.id) {
+        console.log('👤 Creating new user...');
         const { setupNewUser } = useAuthStore.getState();
         const result = await setupNewUser(preferences.name);
         
         if (!result.success) {
           console.error('❌ Failed to create user:', result.error);
+          useAuthStore.getState().setWizardGenerating(false);
           Alert.alert('Error', 'Failed to create user. Please try again.');
-          setIsGeneratingProgram(false);
+          setPhase('wizard'); // Go back to wizard on error
           return;
         }
         
@@ -256,14 +490,18 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         currentUser = useAuthStore.getState().user;
         if (!currentUser) {
           console.error('❌ User creation failed: No user returned');
+          useAuthStore.getState().setWizardGenerating(false);
           Alert.alert('Error', 'User creation failed. Please restart the app.');
-          setIsGeneratingProgram(false);
+          setPhase('wizard'); // Go back to wizard on error
           return;
         }
+        console.log('✅ User created:', currentUser.id);
       }
       
       // Simulate AI generation process
+      console.log('⚡ Starting AI generation simulation...');
       await simulateAIGeneration();
+      console.log('✅ AI generation simulation completed');
       
       // Generate the actual program
       const wizardResponses: WizardResponses = {
@@ -299,86 +537,149 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
           console.warn('Failed to calculate TDEE:', error);
         }
 
-        await wizardResultsService.create({
-          userId: currentUser.id,
-          motivation: JSON.stringify(preferences.motivation),
-          trainingExperience: preferences.trainingExperience,
-          bodyFatLevel: 'athletic_15_18', // Default value since we now use TDEE calculation
-          trainingDaysPerWeek: preferences.trainingDaysPerWeek,
-          preferredTrainingDays: JSON.stringify(preferences.preferredTrainingDays),
-          musclePriorities: JSON.stringify(preferences.musclePriorities),
-          pumpWorkPreference: preferences.pumpWorkPreference,
-          recoveryProfile: preferences.recoveryProfile,
-          programDurationWeeks: preferences.programDurationWeeks,
-          generatedSplit: JSON.stringify(generatedProgram),
-          suggestedPrograms: JSON.stringify([generatedProgram.programName]),
-          // squatKg: preferences.squatKg ? parseFloat(preferences.squatKg) : null,
-          // benchKg: preferences.benchKg ? parseFloat(preferences.benchKg) : null,
-          // deadliftKg: preferences.deadliftKg ? parseFloat(preferences.deadliftKg) : null,
-          // // Store TDEE data for nutrition tracking
-          tdeeData: tdeeData ? JSON.stringify(tdeeData) : null,
-          age: preferences.age ? parseInt(preferences.age) : null,
-          gender: preferences.gender || null,
-          weight: preferences.weight ? parseFloat(preferences.weight) : null,
-          height: preferences.height ? parseFloat(preferences.height) : null,
-          activityLevel: preferences.trainingDaysPerWeek ? getActivityLevelFromTrainingDays(preferences.trainingDaysPerWeek) : null,
-          goal: preferences.goal || null,
-        });
+        console.log('💾 Saving wizard results to database for user:', currentUser.id);
+        
+        try {
+          const savedResults = await wizardResultsService.create({
+            userId: currentUser.id,
+            motivation: JSON.stringify(preferences.motivation),
+            trainingExperience: preferences.trainingExperience,
+            bodyFatLevel: 'athletic_15_18', // Default value since we now use TDEE calculation
+            trainingDaysPerWeek: preferences.trainingDaysPerWeek,
+            preferredTrainingDays: JSON.stringify(preferences.preferredTrainingDays),
+            musclePriorities: JSON.stringify(preferences.musclePriorities),
+            pumpWorkPreference: preferences.pumpWorkPreference,
+            recoveryProfile: preferences.recoveryProfile,
+            programDurationWeeks: preferences.programDurationWeeks,
+            generatedSplit: JSON.stringify(generatedProgram),
+            suggestedPrograms: JSON.stringify([generatedProgram.programName]),
+            // squatKg: preferences.squatKg ? parseFloat(preferences.squatKg) : null,
+            // benchKg: preferences.benchKg ? parseFloat(preferences.benchKg) : null,
+            // deadliftKg: preferences.deadliftKg ? parseFloat(preferences.deadliftKg) : null,
+            // // Store TDEE data for nutrition tracking
+            tdeeData: tdeeData ? JSON.stringify(tdeeData) : null,
+            age: preferences.age ? parseInt(preferences.age) : null,
+            gender: preferences.gender || null,
+            weight: preferences.weight ? parseFloat(preferences.weight) : null,
+            height: preferences.height ? parseFloat(preferences.height) : null,
+            activityLevel: preferences.trainingDaysPerWeek ? getActivityLevelFromTrainingDays(preferences.trainingDaysPerWeek) : null,
+            goal: preferences.goal || null,
+          });
+          
+          console.log('✅ Wizard results saved successfully:', savedResults?.id);
+          
+          // Verify the save was successful by checking if we can retrieve it
+          const verifyResults = await wizardResultsService.getByUserId(currentUser.id);
+          if (!verifyResults) {
+            throw new Error('Failed to verify wizard results were saved - database may be empty or connection issue');
+          }
+          console.log('✅ Verified wizard results exist in database');
+          
+        } catch (dbError: any) {
+          console.error('❌ Database error saving wizard results:', dbError);
+          const errorMessage = dbError?.message || 'Unknown database error';
+          
+          // Check if it's a connection/auth issue
+          if (errorMessage.includes('JWT') || errorMessage.includes('auth') || errorMessage.includes('permission')) {
+            throw new Error('Database authentication failed. Please check your database connection.');
+          }
+          
+          // Check if it's a foreign key constraint issue
+          if (errorMessage.includes('foreign key') || errorMessage.includes('constraint')) {
+            throw new Error('Database constraint error. The user profile may not exist. Please try creating a new profile.');
+          }
+          
+          // Generic database error
+          throw new Error(`Failed to save program to database: ${errorMessage}`);
+        }
 
         // TDEE data is now being saved to the database for the nutrition tab
         if (tdeeData) {
           console.log('✅ TDEE calculation completed and saved to database');
         }
+        
+        // DO NOT mark wizard as completed here - wait until subscription is handled
+        // Marking it here triggers app navigator which checks subscription status
+        // and skips the subscription screen if it finds an active trial
+        console.log('✅ Wizard results saved (wizard will be marked complete after subscription)');
       } else {
         console.error('❌ No user or user.id available:', { currentUser, userId: currentUser?.id });
         throw new Error('User not authenticated or missing ID');
       }
       
-      // Store the generated program data
+      // Store the generated program data FIRST
       setGeneratedProgramData(generatedProgram);
       
       console.log('🚀 Generated program:', generatedProgram.programName);
+      console.log('✅ Program generation completed successfully');
       
-      // Show subscription screen instead of completing wizard
-      setIsGeneratingProgram(false);
-      setShowSubscriptionScreen(true);
+      // CRITICAL: Set phase to subscription IMMEDIATELY and synchronously
+      // React will batch these updates, but checking generatedProgramData in render ensures
+      // subscription screen shows even if phase hasn't updated yet
+      setPhase('subscription');
+      setStepAndDirection([0, 0]); // Reset step to prevent showing wizard steps
+      
+      // Generation is done
+      useAuthStore.getState().setWizardGenerating(false);
+      
+      console.log('✅ Phase set to subscription, subscription screen should show now');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to save wizard results:', error);
-      setIsGeneratingProgram(false);
-      setGenerationStep('❌ Error generating program');
+      console.error('❌ Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name
+      });
+      
+      useAuthStore.getState().setWizardGenerating(false);
+      setPhase('wizard'); // Go back to wizard on error
+      
+      // Show user-friendly error message
+      const errorMessage = error?.message || 'Unknown error occurred';
+      setGenerationStep(`❌ Error: ${errorMessage}`);
+      
+      // Alert the user with actionable information
+      Alert.alert(
+        'Program Generation Failed',
+        errorMessage + '\n\nPlease check your internet connection and try again. If the problem persists, try restarting the app.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Reset generation state but keep user on wizard
+              // DON'T reset currentStep - keep user on the last step they were on
+              setGenerationStep('');
+              setGenerationProgress(0);
+            }
+          }
+        ]
+      );
     }
   };
 
   const handleSubscriptionComplete = async () => {
-    console.log('🎯 handleSubscriptionComplete called');
+    console.log('✅ User subscribed');
+    setWizardCompleted();
+    setPhase('complete');
     
-    // Refresh subscription status using the store method
+    // Refresh subscription status
     const { refreshSubscriptionStatus } = useSubscriptionStore.getState();
     await refreshSubscriptionStatus();
     
-    // Mark wizard as completed
-    setWizardCompleted();
-    console.log('✅ Subscription completed, wizard marked as completed');
-    
-    // Navigate directly to home with delay to prevent timing issues
-    console.log('🎯 Navigating directly to home...');
-    setTimeout(() => {
-      router.replace('/(tabs)');
-      console.log('🎯 Navigation to home completed');
-    }, 200);
-    
-    // Close the entire wizard component after navigation
-    setTimeout(() => {
-      onClose();
-    }, 100);
+    // Navigate to home
+    router.replace('/(tabs)');
+    onClose();
   };
 
-  const handleSubscriptionSkip = () => {
-    // User chose not to subscribe, go back to wizard
-    setShowSubscriptionScreen(false);
-    setIsGeneratingProgram(false);
-    // Could also show a different flow or just stay on the last step
+  const handleSubscriptionSkip = async () => {
+    console.log('✅ User skipped subscription');
+    setWizardCompleted();
+    setPhase('complete');
+    
+    // Navigate to home
+    router.replace('/(tabs)');
+    onClose();
   };
 
   const simulateAIGeneration = async () => {
@@ -457,7 +758,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         return (
           <View style={styles.welcomeContent}>
             <Text style={styles.welcomeText}>
-              Answer 9 quick questions and we'll create the perfect 12-week program tailored to your goals and preferences.
+              Answer 9 quick questions and we'll create the perfect {preferences.programDurationWeeks || 12}-week program tailored to your goals and preferences.
             </Text>
             <View style={styles.featureList}>
               <View style={styles.featureItem}>
@@ -466,7 +767,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               </View>
               <View style={styles.featureItem}>
                 <Icon name="trending-up" size={20} color={colors.secondary} />
-                <Text style={styles.featureText}>12-week structured plans</Text>
+                <Text style={styles.featureText}>{preferences.programDurationWeeks || 12}-week structured plans</Text>
               </View>
               <View style={styles.featureItem}>
                 <Icon name="zap" size={20} color={colors.success} />
@@ -611,12 +912,19 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               <View style={{ flex: 0.6 }}>
                 <Text style={styles.inputLabel}>Age</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[
+                    styles.textInput,
+                    fieldErrors.age && { borderWidth: 1.5, borderColor: colors.validationWarning }
+                  ]}
                   value={preferences.age}
                   onChangeText={(value) => {
                     // Filter to only allow numbers (no range validation while typing)
                     const numericValue = value.replace(/[^0-9]/g, '');
                     handleInputChange('age', numericValue);
+                    // Clear error when user starts typing
+                    if (fieldErrors.age) {
+                      setFieldErrors(prev => ({ ...prev, age: false }));
+                    }
                   }}
                   placeholder="e.g 25"
                   placeholderTextColor={colors.lightGray}
@@ -626,7 +934,16 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               </View>
               <View style={{ flex: 1.4 }}>
                 <Text style={styles.inputLabel}>Gender</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ 
+                  flexDirection: 'row', 
+                  gap: 8,
+                  ...(fieldErrors.gender && { 
+                    borderWidth: 1.5, 
+                    borderColor: colors.validationWarning,
+                    borderRadius: 8,
+                    padding: 4 
+                  })
+                }}>
                   {genderOptions.map((option) => (
                     <TouchableOpacity
                       key={option.id}
@@ -635,7 +952,13 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                         { flex: 1, marginBottom: 0 },
                         preferences.gender === option.id && styles.selectedOption,
                       ]}
-                      onPress={() => handleInputChange('gender', option.id)}
+                      onPress={() => {
+                        handleInputChange('gender', option.id);
+                        // Clear error when user selects
+                        if (fieldErrors.gender) {
+                          setFieldErrors(prev => ({ ...prev, gender: false }));
+                        }
+                      }}
                       activeOpacity={1}
                     >
                       <Text
@@ -657,7 +980,10 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.inputLabel}>Weight (kg)</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[
+                    styles.textInput,
+                    fieldErrors.weight && { borderWidth: 1.5, borderColor: colors.validationWarning }
+                  ]}
                   value={preferences.weight}
                   onChangeText={(value) => {
                     // Filter to allow numbers and decimal point (no range validation while typing)
@@ -666,6 +992,10 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                     const parts = filteredValue.split('.');
                     const cleanValue = parts[0] + (parts.length > 1 ? '.' + parts[1] : '');
                     handleInputChange('weight', cleanValue);
+                    // Clear error when user starts typing
+                    if (fieldErrors.weight) {
+                      setFieldErrors(prev => ({ ...prev, weight: false }));
+                    }
                   }}
                   placeholder="e.g 75"
                   placeholderTextColor={colors.lightGray}
@@ -676,7 +1006,10 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.inputLabel}>Height (cm)</Text>
                 <TextInput
-                  style={styles.textInput}
+                  style={[
+                    styles.textInput,
+                    fieldErrors.height && { borderWidth: 1.5, borderColor: colors.validationWarning }
+                  ]}
                   value={preferences.height}
                   onChangeText={(value) => {
                     // Filter to allow numbers and decimal point (no range validation while typing)
@@ -685,6 +1018,10 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                     const parts = filteredValue.split('.');
                     const cleanValue = parts[0] + (parts.length > 1 ? '.' + parts[1] : '');
                     handleInputChange('height', cleanValue);
+                    // Clear error when user starts typing
+                    if (fieldErrors.height) {
+                      setFieldErrors(prev => ({ ...prev, height: false }));
+                    }
                   }}
                   placeholder="e.g 170"
                   placeholderTextColor={colors.lightGray}
@@ -697,7 +1034,15 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
             {/* Goal */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Your Goal</Text>
-              <View style={styles.optionsContainer}>
+              <View style={[
+                styles.optionsContainer,
+                fieldErrors.goal && { 
+                  borderWidth: 1.5, 
+                  borderColor: colors.validationWarning,
+                  borderRadius: 8,
+                  padding: 8 
+                }
+              ]}>
                 {goalOptions.map((option) => (
                   <TouchableOpacity
                     key={option.id}
@@ -705,7 +1050,13 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                       styles.optionButton,
                       preferences.goal === option.id && styles.selectedOption,
                     ]}
-                    onPress={() => handleInputChange('goal', option.id)}
+                    onPress={() => {
+                      handleInputChange('goal', option.id);
+                      // Clear error when user selects
+                      if (fieldErrors.goal) {
+                        setFieldErrors(prev => ({ ...prev, goal: false }));
+                      }
+                    }}
                     activeOpacity={1}
                   >
                     <Text
@@ -724,7 +1075,15 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
             {/* Training Days */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Training Days per Week</Text>
-              <View style={styles.trainingDaysContainer}>
+              <View style={[
+                styles.trainingDaysContainer,
+                fieldErrors.trainingDays && { 
+                  borderWidth: 1.5, 
+                  borderColor: colors.validationWarning,
+                  borderRadius: 8,
+                  padding: 8 
+                }
+              ]}>
                 {trainingDaysOptions.map((option) => (
                   <TouchableOpacity
                     key={option.id}
@@ -737,6 +1096,10 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       }
                       handleInputChange('trainingDaysPerWeek', option.id);
+                      // Clear error when user selects
+                      if (fieldErrors.trainingDays) {
+                        setFieldErrors(prev => ({ ...prev, trainingDays: false }));
+                      }
                     }}
                     activeOpacity={1}
                   >
@@ -1289,29 +1652,21 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     );
   }
 
-  // Show loading screen during generation
-  // Show subscription screen after program generation
-  if (showSubscriptionScreen) {
-    return (
-      <SubscriptionScreen
-        onSubscribed={handleSubscriptionComplete}
-        onSkip={handleSubscriptionSkip}
-        showSkipOption={false} // Don't allow skipping - must subscribe
-        programPreview={generatedProgramData}
-      />
-    );
-  }
-
-  if (isGeneratingProgram) {
+  // SIMPLE RENDER LOGIC: Check phase in order - generating screen takes priority
+  
+  // Phase: Generating - check FIRST to show loading screen during generation
+  // This must come before subscription check to ensure generating screen shows
+  if (phase === 'generating') {
+    // Show generating screen - this will display during simulateAIGeneration()
     return (
       <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
         <View style={[styles.content, styles.contentContainer]}>
           <Text style={styles.generatingIcon}>⚡</Text>
           <Text style={styles.stepTitle}>Creating Your Custom Program</Text>
           <Text style={styles.generatingDescription}>
-            We're analyzing your preferences and building a personalized 12-week workout plan just for you
+            We're analyzing your preferences and building a personalized {preferences.programDurationWeeks || 12}-week workout plan just for you
           </Text>
-          <Text style={styles.stepSubtitle}>{generationStep}</Text>
+          <Text style={styles.stepSubtitle}>{generationStep || 'Initializing...'}</Text>
           
           <View style={styles.loadingProgressContainer}>
             <View style={styles.loadingProgressBar}>
@@ -1323,12 +1678,30 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     );
   }
 
+  // Phase: Subscription - show after generation completes
+  if (phase === 'subscription' && generatedProgramData) {
+    return (
+      <SubscriptionScreen
+        onSubscribed={handleSubscriptionComplete}
+        onSkip={handleSubscriptionSkip}
+        showSkipOption={false}
+        programPreview={generatedProgramData}
+      />
+    );
+  }
+
+  // Phase: Complete (shouldn't render, but just in case)
+  if (phase === 'complete') {
+    return null; // Component should be closed
+  }
+
+  // Phase: Wizard (default)
   // Main wizard interface  
   // Safety check: ensure currentStep is within valid bounds
   if (currentStep < 0 || currentStep >= steps.length) {
     console.error('❌ Main render: currentStep out of bounds:', currentStep, 'steps.length:', steps.length);
     // Reset to first step and return loading state
-    setTimeout(() => setCurrentStep(0), 0);
+    setTimeout(() => setStepAndDirection([0, 0]), 0);
     return (
       <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
         <View style={styles.header}>
@@ -1345,7 +1718,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
   if (!step) {
     console.error('❌ Main render: Step is undefined at index:', currentStep);
     // Reset to first step and return loading state
-    setTimeout(() => setCurrentStep(0), 0);
+    setTimeout(() => setStepAndDirection([0, 0]), 0);
     return (
       <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
         <View style={styles.header}>
@@ -1376,31 +1749,57 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
         </View>
       </View>
 
-      {/* Content */}
-      <ScrollView 
-        style={styles.scrollContent} 
-        contentContainerStyle={{ paddingBottom: 20 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={step.subtitle ? styles.stepHeader : styles.stepHeaderNoSubtitle}>
-          <Text style={styles.stepTitle}>{step.title}</Text>
-          {step.subtitle ? <Text style={styles.stepSubtitle}>{step.subtitle}</Text> : null}
-          
-          {/* Validation error below subtitle */}
-          {validationError ? (
-            <Text style={styles.stepValidationError}>{validationError}</Text>
-          ) : null}
-        </View>
+      {/* Content with Moti AnimatePresence */}
+      <View style={{ flex: 1, overflow: 'hidden' }}>
+        <AnimatePresence exitBeforeEnter>
+          <MotiView
+            key={currentStep}
+            from={{
+              opacity: 0,
+              translateX: direction * 300, // Next (1): from right (300), Back (-1): from left (-300)
+            }}
+            animate={{
+              opacity: 1,
+              translateX: 0,
+            }}
+            exit={{
+              opacity: 0,
+              translateX: -direction * 300, // Next (1): to left (-300), Back (-1): to right (300)
+            }}
+            transition={{
+              type: 'timing',
+              duration: 300,
+            }}
+            style={{ flex: 1, width: '100%' }}
+          >
+            <ScrollView 
+              key={scrollKey}
+              style={styles.scrollContent} 
+              contentContainerStyle={{ paddingBottom: 20 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={step.subtitle ? styles.stepHeader : styles.stepHeaderNoSubtitle}>
+                <Text style={styles.stepTitle}>{step.title}</Text>
+                {step.subtitle ? <Text style={styles.stepSubtitle}>{step.subtitle}</Text> : null}
+                
+                {/* Validation error below subtitle - always rendered to prevent layout shift */}
+                <Text style={[styles.stepValidationError, { opacity: validationError ? 1 : 0 }]}>
+                  {validationError || ' '}
+                </Text>
+              </View>
 
-        {/* Step-specific content */}
-        {renderStepContent()}
-      </ScrollView>
+              {/* Step-specific content */}
+              {renderStepContent()}
+            </ScrollView>
+          </MotiView>
+        </AnimatePresence>
+      </View>
 
       {/* Navigation buttons - Fixed at bottom */}
       <View style={styles.bottomNavigationContainer}>
         {currentStep > 0 ? (
           <TouchableOpacity 
-            onPress={() => setCurrentStep(currentStep - 1)}
+            onPress={() => paginate(-1)}
             style={styles.backButton}
             activeOpacity={1}
           >

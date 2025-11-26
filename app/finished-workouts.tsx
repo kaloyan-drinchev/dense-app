@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -37,26 +37,19 @@ export default function FinishedWorkoutsScreen() {
         if (progress?.completedWorkouts) {
           let arr: CompletedEntry[] = [];
           try { 
-            const completedData = JSON.parse(progress.completedWorkouts as unknown as string) || [];
-            console.log('🔍 Finished workouts raw data:', completedData);
+            // Handle both string (JSON) and array (JSONB) types
+            const completedData = Array.isArray(progress.completedWorkouts)
+              ? progress.completedWorkouts
+              : (typeof progress.completedWorkouts === 'string' 
+                  ? JSON.parse(progress.completedWorkouts) 
+                  : []);
             
             // Filter only detailed workout objects (not calendar entries)
-            console.log('🔍 Checking each item:');
-            completedData.forEach((item: any, index: number) => {
-              console.log(`Item ${index}:`, item, 'Type:', typeof item);
-              if (typeof item === 'object') {
-                console.log(`  - has date: ${!!item.date}`);
-                console.log(`  - has workoutIndex: ${item.workoutIndex !== undefined}`);
-                console.log(`  - has workoutName: ${!!item.workoutName}`);
-              }
-            });
-            
             arr = completedData.filter((item: any) => 
               typeof item === 'object' && 
               item.date && 
               (item.workoutIndex !== undefined || item.workoutName)
             );
-            console.log('🔍 Filtered workout entries:', arr);
             
             arr.sort((a, b) => (a.date < b.date ? 1 : -1));
             setEntries(arr);
@@ -69,7 +62,12 @@ export default function FinishedWorkoutsScreen() {
         }
         const wiz = await wizardResultsService.getByUserId(user.id);
         if (wiz?.generatedSplit) {
-          try { setProgram(JSON.parse(wiz.generatedSplit)); } catch {}
+          // Handle both string (JSON) and object (JSONB) types
+          try { 
+            setProgram(typeof wiz.generatedSplit === 'string' 
+              ? JSON.parse(wiz.generatedSplit) 
+              : wiz.generatedSplit); 
+          } catch {}
         }
       } catch (e) {
         setEntries([]);
@@ -92,8 +90,9 @@ export default function FinishedWorkoutsScreen() {
 
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
           {loading ? (
-            <View style={styles.centerBox}>
-              <Text style={styles.loadingText}>Loading…</Text>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Loading workouts...</Text>
             </View>
           ) : entries.length === 0 ? (
             <View style={styles.centerBox}>
@@ -147,7 +146,17 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   contentContainer: { padding: 16, paddingBottom: 24 },
   centerBox: { padding: 24, alignItems: 'center' },
-  loadingText: { ...typography.body, color: colors.white },
+  loadingContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: { 
+    ...typography.body, 
+    color: colors.lightGray, 
+    marginTop: 16,
+  },
   emptyText: { ...typography.body, color: colors.lightGray },
   debugText: { ...typography.bodySmall, color: colors.secondary, textAlign: 'center', marginTop: 8 },
   entryCard: {

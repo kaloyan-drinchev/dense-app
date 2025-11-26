@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   Image,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
+import { useWorkoutCacheStore } from '@/store/workout-cache-store';
 import { useTimerStore } from '@/store/timer-store';
 import { useSubscriptionStore } from '@/store/subscription-store.js';
 import { wizardResultsService, userProgressService } from '@/db/services';
@@ -42,6 +44,7 @@ export default function HomeScreen() {
   const { user } = useAuthStore();
   const { userProfile, userProgress, activeProgram, programs } =
     useWorkoutStore();
+  const { generatedProgram: cachedProgram, userProgressData: cachedProgress, isCacheValid } = useWorkoutCacheStore();
   const { isWorkoutActive, timeElapsed, isRunning, updateTimeElapsed } = useTimerStore();
   const { shouldBlockAccess } = useSubscriptionStore();
   const [currentTime, setCurrentTime] = useState(timeElapsed);
@@ -49,27 +52,149 @@ export default function HomeScreen() {
 
 
   
-  // State for generated program data
-  const [generatedProgram, setGeneratedProgram] = useState<any>(null);
-  const [loadingProgram, setLoadingProgram] = useState(true);
+  // State for generated program data - initialize from cache if available
+  const [generatedProgram, setGeneratedProgram] = useState<any>(cachedProgram);
+  const [loadingProgram, setLoadingProgram] = useState(!cachedProgram);
   
-  // State for user progress tracking
-  const [userProgressData, setUserProgressData] = useState<any>(null);
-  const [loadingProgress, setLoadingProgress] = useState(true);
+  // State for user progress tracking - initialize from cache if available
+  const [userProgressData, setUserProgressData] = useState<any>(cachedProgress);
+  const [loadingProgress, setLoadingProgress] = useState(!cachedProgress);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
   
+  // Loading state for workout info update (for instant feedback after completing workout)
+  const [isRefreshingWorkout, setIsRefreshingWorkout] = useState(false);
 
   
   // State for workout availability
   const [workoutAvailability, setWorkoutAvailability] = useState<WorkoutAvailability | null>(null);
   const [showUnavailableModal, setShowUnavailableModal] = useState(false);
 
+  const loadGeneratedProgram = useCallback(async () => {
+    if (!user?.id) {
+      setLoadingProgram(false);
+      return;
+    }
+
+    try {
+      console.log('🔍 Home: Loading program for user ID:', user.id);
+      const wizardResults = await wizardResultsService.getByUserId(user.id);
+      console.log('🔍 Home: Wizard results:', wizardResults ? 'Found' : 'Not found');
+      
+      if (!wizardResults) {
+        console.log('⚠️ Home: No wizard results found for user ID:', user.id);
+        console.log('💡 Home: User may need to complete the setup wizard');
+        setLoadingProgram(false);
+        return;
+      }
+      
+      console.log('🔍 Home: Has generatedSplit:', !!wizardResults.generatedSplit);
+      
+      if (!wizardResults.generatedSplit) {
+        console.log('⚠️ Home: Wizard results found but no generatedSplit - wizard may not be completed');
+        setLoadingProgram(false);
+        return;
+      }
+      
+      // Handle both string (from JSON) and object (from JSONB) types
+      const generatedSplit = typeof wizardResults.generatedSplit === 'string' 
+        ? JSON.parse(wizardResults.generatedSplit)
+        : wizardResults.generatedSplit;
+      const generatedProgram = generatedSplit;
+      
+      // Create a better program title based on muscle priorities
+      if (wizardResults.musclePriorities) {
+        // Handle both string (from JSON) and object (from JSONB) types
+        const priorities = typeof wizardResults.musclePriorities === 'string'
+          ? JSON.parse(wizardResults.musclePriorities)
+          : wizardResults.musclePriorities;
+        const priorityText = priorities.slice(0, 2).join(' & ').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+        generatedProgram.displayTitle = `${priorityText} Focus`;
+      }
+      
+      setGeneratedProgram(generatedProgram);
+      // Cache the program data for workout session screen
+      useWorkoutCacheStore.getState().setWorkoutData({ generatedProgram });
+    } catch (error) {
+      console.error('❌ Failed to load generated program:', error);
+    } finally {
+      setLoadingProgram(false);
+    }
+  }, [user?.id]);
+
+  const loadUserProgress = useCallback(async () => {
+    if (!user?.id) {
+      setLoadingProgress(false);
+      return;
+    }
+
+    try {
+      const progress = await userProgressService.getByUserId(user.id);
+      
+      if (progress) {
+        setUserProgressData(progress);
+        // Cache the progress data for workout session screen
+        useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: progress });
+      } else {
+        // Create default progress starting at week 1, day 1
+        const defaultProgress = await userProgressService.create({
+          userId: user.id,
+          programId: null, // No program assigned yet
+          currentWeek: 1,
+          currentWorkout: 1,
+          startDate: new Date(),
+          completedWorkouts: [],
+          weeklyWeights: {}
+        });
+        setUserProgressData(defaultProgress);
+        // Cache the default progress
+        useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: defaultProgress });
+      }
+    } catch (error) {
+      console.error('❌ Failed to load user progress:', error);
+    } finally {
+      setLoadingProgress(false);
+    }
+  }, [user?.id]);
+
   // Load user's generated program and progress
   useEffect(() => {
+    if (!user?.id) {
+      setLoadingProgram(false);
+      setLoadingProgress(false);
+      return;
+    }
+
+    // Use cached data immediately if available
+    const cache = useWorkoutCacheStore.getState();
+    if (cache.generatedProgram && cache.userProgressData && cache.isCacheValid()) {
+      setGeneratedProgram(cache.generatedProgram);
+      setUserProgressData(cache.userProgressData);
+      setLoadingProgram(false);
+      setLoadingProgress(false);
+      
+      // Check cache age to decide if background refresh is needed
+      const cacheAge = cache.lastUpdated ? Date.now() - cache.lastUpdated : Infinity;
+      if (cacheAge < 60000) {
+        return; // Cache is fresh (< 1 minute) - skip refresh
+      }
+      
+      // Cache is stale (>= 1 minute) - refresh in background
+      Promise.allSettled([loadGeneratedProgram(), loadUserProgress()])
+        .then((results) => {
+          // Check for any failed promises
+          const failures = results.filter(r => r.status === 'rejected');
+          if (failures.length > 0) {
+            console.error('❌ Failed to refresh cached data:', failures.map(f => (f as PromiseRejectedResult).reason));
+          }
+        });
+      return;
+    }
+
+    // No valid cache - load fresh data
     loadGeneratedProgram();
     loadUserProgress();
-  }, [user]);
+  }, [user?.id, loadGeneratedProgram, loadUserProgress]);
 
   // Check workout availability when data changes
   useEffect(() => {
@@ -81,85 +206,40 @@ export default function HomeScreen() {
   // Refresh progress when returning to Home to avoid stale day/workout
   useFocusEffect(
     useCallback(() => {
-      loadUserProgress();
-    }, [user?.id])
-  );
-
-
-
-  const loadGeneratedProgram = async () => {
-    if (!user?.id) {
-      console.log('❌ No user ID found');
-      setLoadingProgram(false);
-      return;
-    }
-
-    try {
-      const wizardResults = await wizardResultsService.getByUserId(user.id);
+      // Check if we're returning from a workout completion
+      const cache = useWorkoutCacheStore.getState();
+      const cacheAge = cache.lastUpdated ? Date.now() - cache.lastUpdated : Infinity;
       
-      if (wizardResults?.generatedSplit) {
-        const generatedProgram = JSON.parse(wizardResults.generatedSplit);
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      
+      // If cache was updated very recently (within 3 seconds), we're likely returning from a workout completion
+      if (cacheAge < 3000) {
+        setIsRefreshingWorkout(true);
         
-        // Create a better program title based on muscle priorities
-        if (wizardResults.musclePriorities) {
-          const priorities = JSON.parse(wizardResults.musclePriorities);
-          const priorityText = priorities.slice(0, 2).join(' & ').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-          generatedProgram.displayTitle = `${priorityText} Focus`;
+        // Load fresh data with a small delay to ensure database is committed
+        timeoutId = setTimeout(() => {
+          loadUserProgress()
+            .then(() => {
+              setIsRefreshingWorkout(false);
+            })
+            .catch((error) => {
+              console.error('❌ Failed to refresh workout data:', error);
+              setIsRefreshingWorkout(false);
+            });
+        }, 300);
+      } else {
+        // Normal focus, just load data
+        loadUserProgress();
+      }
+      
+      // Cleanup function to clear timeout if screen loses focus or component unmounts
+      return () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
         }
-        
-        setGeneratedProgram(generatedProgram);
-        console.log('✅ Loaded generated program:', generatedProgram.programName);
-        console.log('🎯 Display title:', generatedProgram.displayTitle);
-      } else {
-        console.log('⚠️ No generated program found in wizard results');
-      }
-    } catch (error) {
-      console.error('❌ Failed to load generated program:', error);
-    } finally {
-      setLoadingProgram(false);
-      console.log('🏁 loadGeneratedProgram completed');
-    }
-  };
-
-
-
-  const loadUserProgress = async () => {
-    if (!user?.id) {
-      setLoadingProgress(false);
-      return;
-    }
-
-    try {
-      const progress = await userProgressService.getByUserId(user.id);
-      
-      if (progress) {
-        setUserProgressData(progress);
-        console.log('✅ User progress loaded:', {
-          week: progress.currentWeek,
-          workout: progress.currentWorkout,
-          programId: progress.programId
-        });
-      } else {
-        console.log('⚠️ No user progress found - will create default');
-        // Create default progress starting at week 1, day 1
-        const defaultProgress = await userProgressService.create({
-          userId: user.id,
-          programId: 'ai-generated-program',
-          currentWeek: 1,
-          currentWorkout: 1,
-          startDate: new Date().toISOString(),
-          completedWorkouts: '[]',
-          weeklyWeights: '{}'
-        });
-        setUserProgressData(defaultProgress);
-        console.log('✅ Created default progress:', defaultProgress);
-      }
-    } catch (error) {
-      console.error('❌ Failed to load user progress:', error);
-    } finally {
-      setLoadingProgress(false);
-    }
-  };
+      };
+    }, [loadUserProgress])
+  );
 
   const checkAvailability = async () => {
     if (!user?.id || !generatedProgram || !userProgressData) return;
@@ -171,7 +251,6 @@ export default function HomeScreen() {
         userProgressData
       );
       setWorkoutAvailability(availability);
-      console.log('🔍 Workout availability checked:', availability);
     } catch (error) {
       console.error('❌ Failed to check workout availability:', error);
     }
@@ -389,17 +468,6 @@ export default function HomeScreen() {
 
   const nextWorkout = getNextWorkout();
 
-  // Debug logging (only when loading changes to avoid timer spam)
-  useEffect(() => {
-    console.log('🏠 Home render - State:', {
-      hasGeneratedProgram: !!generatedProgram,
-      generatedProgramName: generatedProgram?.programName,
-      hasUserProgress: !!userProgressData,
-      currentWorkout: userProgressData?.currentWorkout || 0,
-      loadingProgram,
-      loadingProgress
-    });
-  }, [generatedProgram?.programName, userProgressData?.currentWorkout, loadingProgram, loadingProgress]);
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
@@ -419,8 +487,29 @@ export default function HomeScreen() {
           </Text>
         </View>
 
+        {/* Loading State */}
+        {(loadingProgram || loadingProgress) && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Loading your workout...</Text>
+          </View>
+        )}
+
+        {/* Empty State - No Program */}
+        {!loadingProgram && !loadingProgress && !generatedProgram && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No Active Program</Text>
+            <Text style={styles.emptyText}>
+              {!user?.id 
+                ? "Please restart the app to load your profile."
+                : "Complete the setup wizard to generate your personalized training program."
+              }
+            </Text>
+          </View>
+        )}
+
         {/* Weekly Schedule */}
-        {generatedProgram && (
+        {!loadingProgram && !loadingProgress && generatedProgram && (
           <WeeklySchedule 
             trainingDays={generatedProgram.trainingSchedule || []} 
           />
@@ -461,7 +550,11 @@ export default function HomeScreen() {
                   style={styles.workoutGradient}
                 >
                   <View style={styles.workoutHeader}>
-                    <Text style={styles.workoutName}>{todaysWorkout?.name}</Text>
+                    {isRefreshingWorkout ? (
+                      <View style={styles.loadingWorkoutName} />
+                    ) : (
+                      <Text style={styles.workoutName}>{todaysWorkout?.name}</Text>
+                    )}
                     <Text style={styles.workoutDuration}>{todaysWorkout?.estimatedDuration} min</Text>
                   </View>
                   
@@ -582,7 +675,7 @@ export default function HomeScreen() {
                         );
                         return detailedWorkouts.length;
                       } catch (error) {
-                        console.log('🚨 Error in workout counting:', error);
+                        console.error('❌ Error in workout counting:', error);
                         return 0;
                       }
                     })() : 0,
@@ -683,6 +776,33 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.lightGray,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+    minHeight: 200,
+  },
+  loadingText: {
+    ...typography.body,
+    color: colors.lightGray,
+    marginTop: 16,
+  },
+  emptyState: {
+    padding: 24,
+    alignItems: 'center',
+    marginTop: 40,
+  },
+  emptyTitle: {
+    ...typography.h2,
+    color: colors.white,
+    marginBottom: 8,
+  },
+  emptyText: {
+    ...typography.body,
+    color: colors.lightGray,
+    textAlign: 'center',
+  },
   bannerButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 8,
@@ -733,6 +853,13 @@ const styles = StyleSheet.create({
     ...typography.h3,
     color: colors.white,
     flex: 1,
+  },
+  loadingWorkoutName: {
+    height: 28,
+    width: '70%',
+    backgroundColor: colors.mediumGray,
+    borderRadius: 6,
+    opacity: 0.5,
   },
   workoutDuration: {
     ...typography.bodySmall,

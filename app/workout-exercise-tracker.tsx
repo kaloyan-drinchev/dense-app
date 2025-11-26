@@ -45,7 +45,10 @@ export default function WorkoutExerciseTrackerScreen() {
       if (exerciseId.startsWith('custom-')) {
         const progress = await userProgressService.getByUserId(user.id);
         if (progress?.weeklyWeights) {
-          const weeklyWeights = JSON.parse(progress.weeklyWeights);
+          // Handle both string (from JSON) and object (from JSONB) types
+          const weeklyWeights = typeof progress.weeklyWeights === 'string'
+            ? JSON.parse(progress.weeklyWeights)
+            : progress.weeklyWeights;
           const today = new Date().toISOString().split('T')[0];
           const customExercises = weeklyWeights?.customExercises?.[today] || [];
           
@@ -63,7 +66,10 @@ export default function WorkoutExerciseTrackerScreen() {
         // Load from generated program data
         const wizardResults = await wizardResultsService.getByUserId(user.id);
         if (wizardResults?.generatedSplit) {
-          const program = JSON.parse(wizardResults.generatedSplit);
+          // Handle both string (from JSON) and object (from JSONB) types
+          const program = typeof wizardResults.generatedSplit === 'string'
+            ? JSON.parse(wizardResults.generatedSplit)
+            : wizardResults.generatedSplit;
           
           // Find the exercise in the program structure
           for (const workout of program.weeklyStructure || []) {
@@ -109,7 +115,10 @@ export default function WorkoutExerciseTrackerScreen() {
               
               const progress = await userProgressService.getByUserId(user.id);
               if (progress?.weeklyWeights) {
-                const weeklyWeights = JSON.parse(progress.weeklyWeights);
+                // Handle both string (from JSON) and object (from JSONB) types
+                const weeklyWeights = typeof progress.weeklyWeights === 'string'
+                  ? JSON.parse(progress.weeklyWeights)
+                  : progress.weeklyWeights;
                 const today = new Date().toISOString().split('T')[0];
                 
                 if (weeklyWeights.customExercises && weeklyWeights.customExercises[today]) {

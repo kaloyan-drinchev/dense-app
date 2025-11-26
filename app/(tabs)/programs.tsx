@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from "@/store/auth-store";
+import { useWorkoutCacheStore } from "@/store/workout-cache-store";
 import { colors } from "@/constants/colors";
 import { typography } from "@/constants/typography";
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,58 +14,206 @@ import { LoadingState } from '@/components/LoadingState';
 export default function ProgramsScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const [generatedProgram, setGeneratedProgram] = useState<any>(null);
-  const [userProgressData, setUserProgressData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { generatedProgram: cachedProgram, userProgressData: cachedProgress, isCacheValid } = useWorkoutCacheStore();
+  const [generatedProgram, setGeneratedProgram] = useState<any>(cachedProgram);
+  const [userProgressData, setUserProgressData] = useState<any>(cachedProgress);
+  const [loading, setLoading] = useState(!cachedProgram || !cachedProgress);
 
-  // Load generated program and progress
-  useEffect(() => {
-    loadGeneratedProgram();
-    loadUserProgress();
-  }, [user?.id]);
+  // Use separate refs to prevent multiple simultaneous calls for each function
+  const isLoadingProgramRef = useRef(false);
+  const isLoadingProgressRef = useRef(false);
 
-  const loadGeneratedProgram = async () => {
-    if (!user?.id) return;
+  // Load generated program - wrapped in useCallback to prevent stale closures
+  const loadGeneratedProgram = useCallback(async () => {
+    if (!user?.id) {
+      return;
+    }
+
+    // Prevent multiple simultaneous calls of this specific function
+    if (isLoadingProgramRef.current) {
+      return;
+    }
 
     try {
+      isLoadingProgramRef.current = true;
       const { wizardResultsService } = await import('@/db/services');
       const wizardResults = await wizardResultsService.getByUserId(user.id);
       
-      if (wizardResults?.generatedSplit) {
-        const program = JSON.parse(wizardResults.generatedSplit);
-        
-        // Create a better program title based on muscle priorities
-        if (wizardResults.musclePriorities) {
-          const priorities = JSON.parse(wizardResults.musclePriorities);
-          const priorityText = priorities.slice(0, 2).join(' & ').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-          program.displayTitle = `${priorityText} Focus`;
+      console.log('🔍 Programs tab - Wizard results:', wizardResults ? 'Found' : 'Not found');
+      console.log('🔍 Programs tab - Has generatedSplit:', !!wizardResults?.generatedSplit);
+      
+      if (!wizardResults) {
+        console.log('⚠️ Programs tab - No wizard results found for user');
+        return;
+      }
+      
+      if (wizardResults.generatedSplit) {
+        try {
+          // Handle both string and object types
+          const program = typeof wizardResults.generatedSplit === 'string' 
+            ? JSON.parse(wizardResults.generatedSplit)
+            : wizardResults.generatedSplit;
+          
+          console.log('🔍 Programs tab - Program parsed:', program?.programName || 'Unknown');
+          
+          // Create a better program title based on muscle priorities
+          if (wizardResults.musclePriorities) {
+            try {
+              const priorities = typeof wizardResults.musclePriorities === 'string'
+                ? JSON.parse(wizardResults.musclePriorities)
+                : wizardResults.musclePriorities;
+              const priorityText = priorities.slice(0, 2).join(' & ').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+              program.displayTitle = `${priorityText} Focus`;
+            } catch (e) {
+              console.error('Failed to parse muscle priorities:', e);
+            }
+          }
+          
+          setGeneratedProgram(program);
+          // Update cache
+          const { setWorkoutData } = useWorkoutCacheStore.getState();
+          setWorkoutData({ generatedProgram: program });
+          console.log('✅ Programs tab - Program loaded successfully:', program.programName || program.displayTitle);
+        } catch (parseError) {
+          console.error('❌ Failed to parse generatedSplit:', parseError);
+          console.error('Raw generatedSplit type:', typeof wizardResults.generatedSplit);
+          console.error('Raw generatedSplit:', wizardResults.generatedSplit);
         }
-        
-        setGeneratedProgram(program);
+      } else {
+        console.log('⚠️ Programs tab - No generatedSplit found in wizard results');
+        console.log('Wizard results keys:', Object.keys(wizardResults));
       }
     } catch (error) {
-      console.error('Failed to load generated program:', error);
+      console.error('❌ Failed to load generated program:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error));
     } finally {
-      setLoading(false);
+      isLoadingProgramRef.current = false;
+      // Loading state is managed by loadAllData, not here
     }
-  };
+  }, [user?.id]);
 
-  const loadUserProgress = async () => {
+  // Load user progress - wrapped in useCallback to prevent stale closures
+  const loadUserProgress = useCallback(async () => {
     if (!user?.id) return;
 
+    // Prevent multiple simultaneous calls of this specific function
+    if (isLoadingProgressRef.current) {
+      return;
+    }
+
     try {
+      isLoadingProgressRef.current = true;
       const { userProgressService } = await import('@/db/services');
       const progress = await userProgressService.getByUserId(user.id);
-      setUserProgressData(progress);
+      
+      if (progress) {
+        setUserProgressData(progress);
+        // Update cache
+        const { setWorkoutData } = useWorkoutCacheStore.getState();
+        setWorkoutData({ userProgressData: progress });
+      }
     } catch (error) {
-      console.error('Failed to load user progress:', error);
+      console.error('❌ Failed to load user progress:', error);
+    } finally {
+      isLoadingProgressRef.current = false;
+      // Loading state is managed by loadAllData, not here
     }
-  };
+  }, [user?.id]);
+
+  // Coordinated loading function that ensures loading state is managed correctly
+  const loadAllData = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    // Use cached data immediately if available
+    const cache = useWorkoutCacheStore.getState();
+    if (cache.generatedProgram && cache.userProgressData && cache.isCacheValid()) {
+      setGeneratedProgram(cache.generatedProgram);
+      setUserProgressData(cache.userProgressData);
+      setLoading(false);
+      
+      // Check cache age to decide if background refresh is needed
+      const cacheAge = cache.lastUpdated 
+        ? Date.now() - cache.lastUpdated 
+        : Infinity;
+      if (cacheAge < 60000) {
+        return; // Cache is fresh (< 1 minute) - skip refresh
+      }
+      
+      // Cache is stale (>= 1 minute) - refresh in background WITHOUT showing loading spinner
+      Promise.allSettled([
+        loadGeneratedProgram(),
+        loadUserProgress()
+      ]).then((results) => {
+        // Check for any failed promises
+        const failures = results.filter(r => r.status === 'rejected');
+        if (failures.length > 0) {
+          console.error('❌ Failed to refresh cached data:', failures.map(f => (f as PromiseRejectedResult).reason));
+        }
+      });
+      return; // Don't set loading to true - keep showing cached data
+    }
+
+    // No valid cache - show loading spinner and load fresh data
+    setLoading(true);
+    
+    // Load both in parallel
+    const programPromise = loadGeneratedProgram();
+    const progressPromise = loadUserProgress();
+    
+    // Wait for both to complete
+    await Promise.allSettled([programPromise, progressPromise]);
+    
+    // Set loading to false after both complete
+    setLoading(false);
+  }, [user?.id, loadGeneratedProgram, loadUserProgress]);
+
+  // Load generated program and progress on mount
+  useEffect(() => {
+    if (user?.id) {
+      loadAllData();
+    }
+  }, [user?.id, loadAllData]);
+
+  // Reload when tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) {
+        const cache = useWorkoutCacheStore.getState();
+        // Use cache if valid, otherwise reload
+        if (cache.generatedProgram && cache.userProgressData && cache.isCacheValid()) {
+          setGeneratedProgram(cache.generatedProgram);
+          setUserProgressData(cache.userProgressData);
+          setLoading(false);
+        } else {
+          loadAllData();
+        }
+      }
+    }, [user?.id, loadAllData])
+  );
 
   // Helper function to get completed workouts count
   const getCompletedWorkoutsCount = () => {
     try {
-      const completed = userProgressData?.completedWorkouts ? JSON.parse(userProgressData.completedWorkouts) : [];
+      if (!userProgressData?.completedWorkouts) return 0;
+      
+      // Handle both array (from JSONB) and string (from JSON) types
+      const completedRaw = userProgressData.completedWorkouts;
+      let completed: any[] = [];
+      
+      if (Array.isArray(completedRaw)) {
+        // Already an array (from Supabase JSONB)
+        completed = completedRaw;
+      } else if (typeof completedRaw === 'string') {
+        // Parse JSON string
+        completed = JSON.parse(completedRaw);
+      } else {
+        // Unknown type, return 0
+        return 0;
+      }
+      
       return Array.isArray(completed) ? completed.length : 0;
     } catch {
       return 0;
@@ -81,7 +231,7 @@ export default function ProgramsScreen() {
         </View>
 
         {/* Current Program Progress Banner */}
-        {userProgressData && generatedProgram && (
+        {generatedProgram && userProgressData && (
           <View style={styles.progressBanner}>
             <LinearGradient
               colors={['#000000', '#0A0A0A']}
@@ -89,8 +239,10 @@ export default function ProgramsScreen() {
             >
               <View style={styles.bannerContent}>
                 <Text style={styles.bannerTitle}>Your Current Program</Text>
-                <Text style={styles.bannerProgramName}>{generatedProgram.displayTitle || generatedProgram.programName}</Text>
-                <Text style={styles.bannerProgress}>Week {userProgressData?.currentWeek || 1}</Text>
+                <Text style={styles.bannerProgramName}>{generatedProgram.displayTitle || generatedProgram.programName || 'Your Program'}</Text>
+                <Text style={styles.bannerProgress}>
+                  Week {userProgressData.currentWeek || 1}
+                </Text>
               </View>
               
               <TouchableOpacity 
@@ -145,7 +297,7 @@ export default function ProgramsScreen() {
         )}
 
         {/* Placeholder for when no program is active */}
-        {!loading && (!userProgressData || !generatedProgram) && (
+        {!loading && !generatedProgram && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>No Active Program</Text>
             <Text style={styles.emptyText}>
