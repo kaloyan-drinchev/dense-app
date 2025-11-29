@@ -1,0 +1,72 @@
+# Dependencies
+node_modules/
+ios/Pods/
+android/app/build/
+ios/build/
+.expo/
+.yarn/
+
+# Build & Dist
+dist/
+web-build/
+.docusaurus/
+.next/
+out/
+build/
+
+# Version Control
+.git/
+.svn/
+.hg/
+
+# Assets (AI doesn't need to read binary files)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.ico
+*.svg
+*.mp4
+*.mov
+*.avi
+*.pdf
+*.ttf
+*.otf
+*.woff
+*.woff2
+assets/images/
+assets/videos/
+assets/pdfs/
+assets/fonts/
+
+# Lock Files (Large and rarely needed for logic)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+Podfile.lock
+Cargo.lock
+
+# Database & Local Storage (Binary/Large)
+*.sqlite
+*.db
+*.sqlite3
+*.sql # Keep migration SQLs if needed, but maybe ignore large dumps if any
+terminals/
+
+# Environment & Secrets (Safety)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.cert
+
+# IDE & System
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
