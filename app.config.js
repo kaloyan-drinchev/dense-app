@@ -51,7 +51,8 @@ export default {
       ],
       "expo-font",
       "expo-sqlite", 
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-in-app-purchases"
     ],
     experiments: {
       typedRoutes: true
