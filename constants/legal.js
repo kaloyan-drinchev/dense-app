@@ -32,7 +32,6 @@ export const LEGAL_CONTENT = {
       'Device information for app functionality'
     ],
     optional: [
-      'Camera access for food barcode scanning',
       'Photos for progress tracking',
       'Location for gym recommendations (if enabled)'
     ]

@@ -19,20 +19,14 @@ import {
   initializeNutritionGoals,
 } from '@/store/nutrition-store';
 import { startMidnightLogger, checkForUnloggedMeals } from '@/utils/midnight-logger';
-import { FoodSearchBar } from '@/components/FoodSearchBar';
-import { FoodEntryForm } from '@/components/FoodEntryForm';
 import { NutritionSummary } from '@/components/NutritionSummary';
 import { NutritionProgressCharts } from '@/components/NutritionProgressCharts';
 import { DailyMacroTargets } from '@/components/DailyMacroTargets';
 import { MealSection } from '@/components/MealSection';
 import { TDEETargets } from '@/components/TDEETargets';
 
-import { FoodScanModal } from '@/components/FoodScanModal';
-import { ScanResultsModal } from '@/components/ScanResultsModal';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
-// import { FoodSelectionModal } from '@/components/FoodSelectionModal'; // Replaced with add-food-page
-import { FoodItem, MealType } from '@/types/nutrition';
-import { FoodItem as AllowedFoodItem } from '@/constants/allowed-foods';
+import { MealType } from '@/types/nutrition';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { wizardResultsService, userProgressService } from '@/db/services';
@@ -53,16 +47,6 @@ export default function NutritionScreen() {
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split('T')[0]
   );
-  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
-  const [showFoodForm, setShowFoodForm] = useState(false);
-  const [showScanModal, setShowScanModal] = useState(false);
-  const [scanResults, setScanResults] = useState<
-    Array<{ food: FoodItem; amount: number }>
-  >([]);
-  const [scanMealType, setScanMealType] = useState<MealType>('breakfast');
-  const [showScanResults, setShowScanResults] = useState(false);
-  // const [showFoodSelection, setShowFoodSelection] = useState(false); // Replaced with navigation
-  const [barcodeData, setBarcodeData] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<{ entryId: string; entryName: string } | null>(null);
   const [workoutCalories, setWorkoutCalories] = useState<number | null>(null);
@@ -268,22 +252,6 @@ export default function NutritionScreen() {
     return acc;
   }, {} as Record<MealType, typeof dailyLog.entries>);
 
-  const handleSelectFood = (food: FoodItem) => {
-    setSelectedFood(food);
-    setShowFoodForm(true);
-
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  };
-
-  const handleFoodFormComplete = () => {
-    setSelectedFood(null);
-    setShowFoodForm(false);
-  };
-
-  // handleFoodSelection - REMOVED since we now use add-food-page instead of modal
-
   const handleRemoveEntry = (entryId: string, entryName: string) => {
     setEntryToDelete({ entryId, entryName });
     setShowDeleteConfirmation(true);
@@ -300,31 +268,6 @@ export default function NutritionScreen() {
     setEntryToDelete(null);
     setShowDeleteConfirmation(false);
   };
-
-  const handleScanFood = () => {
-    setShowScanModal(true);
-  };
-
-  const handleScanResult = (
-    foods: Array<{ food: FoodItem; amount: number }>,
-    mealType: MealType
-  ) => {
-    setScanResults(foods);
-    setScanMealType(mealType);
-    setShowScanModal(false);
-    setShowScanResults(true);
-  };
-
-  const handleBarcodeScanned = (barcode: string) => {
-    setBarcodeData(barcode);
-    // In a real app, you would query a food database with this barcode
-    // For now, we'll just show a message
-    Alert.alert(
-      'Barcode Scanned',
-      `Barcode: ${barcode}\nThis would search a food database in a production app.`
-    );
-  };
-
 
   const handleLogDaily = () => {
     const totalEntries = Object.keys(entriesByMeal).length;
@@ -404,13 +347,6 @@ export default function NutritionScreen() {
           </View>
         )}
 
-        {/* FoodSearchBar - Temporarily commented out */}
-        {/* <FoodSearchBar
-          onSelectFood={handleSelectFood}
-          onScanFood={handleScanFood}
-        /> */}
-
-
         <NutritionProgressCharts dailyLog={dailyLog} />
 
         <View style={styles.quickActions}>
@@ -443,25 +379,6 @@ export default function NutritionScreen() {
             <Icon name="list" size={18} color={colors.white} />
             <Text style={styles.quickActionText}>Allowed Foods</Text>
           </TouchableOpacity>
-
-          {/* <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={handleScanFood}
-          >
-            <Icon name="camera" size={18} color={colors.white} />
-            <Text style={styles.quickActionText}>Scan Food</Text>
-          </TouchableOpacity> */}
-
-          {/* <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => {
-              setShowScanModal(true);
-              // This will be handled by the FoodScanModal component
-            }}
-          >
-            <MaterialIcon name="qr-code" size={18} color={colors.white} />
-            <Text style={styles.quickActionText}>Barcode</Text>
-          </TouchableOpacity> */}
         </View>
 
         {/* Meal Entries Display - Individual foods removed, full meals kept */}
@@ -583,81 +500,6 @@ export default function NutritionScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {/* Individual Food Tracking Modals - COMMENTED OUT */}
-      {/* Food Entry Form Modal */}
-      {/* <Modal
-        visible={showFoodForm && selectedFood !== null}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleFoodFormComplete}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {selectedFood && (
-              <FoodEntryForm
-                food={selectedFood}
-                onComplete={handleFoodFormComplete}
-              />
-            )}
-          </View>
-        </View>
-      </Modal> */}
-
-
-
-      {/* Food Scan Modal */}
-      {/* <FoodScanModal
-        visible={showScanModal}
-        onClose={() => setShowScanModal(false)}
-        onScanResult={handleScanResult}
-        onBarcodeScanned={handleBarcodeScanned}
-      /> */}
-
-      {/* Scan Results Modal */}
-      {/* <ScanResultsModal
-        visible={showScanResults}
-        onClose={() => setShowScanResults(false)}
-        scanResults={scanResults}
-        mealType={scanMealType}
-        onAddFood={(food, amount, mealType) => {
-          // Create a food entry and add it to the log
-          const entry = {
-            id: `${Date.now()}`,
-            foodId: food.id,
-            name: food.name,
-            amount,
-            unit: food.servingUnit,
-            mealType,
-            timestamp: new Date().toISOString(),
-            nutrition: {
-              calories: Math.round(food.nutritionPer100g.calories * (amount / 100)),
-              protein: parseFloat(
-                (food.nutritionPer100g.protein * (amount / 100)).toFixed(1)
-              ),
-              carbs: parseFloat(
-                (food.nutritionPer100g.carbs * (amount / 100)).toFixed(1)
-              ),
-              fat: parseFloat(
-                (food.nutritionPer100g.fat * (amount / 100)).toFixed(1)
-              ),
-            },
-          };
-
-          addFoodEntry(selectedDate, entry);
-
-          if (Platform.OS !== 'web') {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }
-        }}
-      /> */}
-
-      {/* Food Selection Modal - REPLACED WITH add-food-page */}
-      {/* <FoodSelectionModal
-        visible={showFoodSelection}
-        onClose={() => setShowFoodSelection(false)}
-        onSelectFood={handleFoodSelection}
-      /> */}
 
       {/* Delete Confirmation Modal */}
       <ConfirmationModal

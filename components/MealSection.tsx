@@ -6,10 +6,8 @@ import {
   TouchableOpacity,
   FlatList,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { colors } from '@/constants/colors';
 import { FoodEntry, MealType } from '@/types/nutrition';
-import { COMMON_FOODS } from '@/mocks/foods';
 import { Feather as Icon } from '@expo/vector-icons';
 
 interface MealSectionProps {
@@ -73,12 +71,6 @@ export const MealSection: React.FC<MealSectionProps> = ({
     0
   );
 
-  // Find food images
-  const getFoodImage = (foodId: string) => {
-    const food = COMMON_FOODS.find((f) => f.id === foodId);
-    return food?.image;
-  };
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -95,13 +87,6 @@ export const MealSection: React.FC<MealSectionProps> = ({
         scrollEnabled={false}
         renderItem={({ item }) => (
           <View style={styles.foodItem}>
-            {getFoodImage(item.foodId) && (
-              <Image
-                source={{ uri: getFoodImage(item.foodId) }}
-                style={styles.foodImage}
-                contentFit="cover"
-              />
-            )}
             <View style={styles.foodInfo}>
               <Text style={styles.foodName}>{item.name}</Text>
               <Text style={styles.foodAmount}>

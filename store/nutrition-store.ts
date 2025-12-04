@@ -9,7 +9,6 @@ import {
   CustomMeal,
   LoggedMealSession,
 } from '@/types/nutrition';
-import { COMMON_FOODS, calculateNutrition } from '@/mocks/foods';
 import { generateId } from '@/utils/helpers';
 import { ApiService } from '@/utils/api';
 import { wizardResultsService } from '@/db/services';
@@ -421,37 +420,8 @@ export const useNutritionStore = create<NutritionState>()(
       },
 
       addCustomMealToLog: (date, mealId) => {
-        const { customMeals } = get();
-        const meal = customMeals.find((m) => m.id === mealId);
-
-        if (!meal) return;
-
-        // Create entries for each food in the custom meal
-        const foodEntries: FoodEntry[] = [];
-
-        meal.foods.forEach(({ foodId, amount }) => {
-          const food = COMMON_FOODS.find((f) => f.id === foodId);
-
-          if (!food) return;
-
-          const entry: FoodEntry = {
-            id: generateId(),
-            foodId,
-            name: food.name,
-            amount,
-            unit: food.servingUnit,
-            mealType: meal.mealType,
-            timestamp: new Date().toISOString(),
-            nutrition: calculateNutrition(food, amount),
-          };
-
-          foodEntries.push(entry);
-        });
-
-        // Add each entry to the log
-        foodEntries.forEach((entry) => {
-          get().addFoodEntry(date, entry);
-        });
+        // Custom meals feature disabled - COMMON_FOODS removed
+        console.warn('Custom meals feature is not available');
       },
     }),
     {

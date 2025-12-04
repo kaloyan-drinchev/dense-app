@@ -15,7 +15,6 @@ export type FoodItem = {
   servingUnit: string;
   nutritionPer100g: NutritionInfo;
   image?: string;
-  barcode?: string;
 };
 
 export type MealType = 
