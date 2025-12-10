@@ -26,10 +26,15 @@ interface SubscriptionPlan {
   name: string;
   duration: number;
   price: number;
-  originalPrice?: number;
+  originalPrice: number;
   discount?: number;
   popular?: boolean;
+  isPopular?: boolean;
   description?: string;
+  savingsPercentage: number;
+  monthlyPrice: number;
+  features: string[];
+  bonusFeatures?: string[];
 }
 import { useSubscriptionStore } from '@/store/subscription-store.js';
 import { useRouter } from 'expo-router';
@@ -444,10 +449,6 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           {/* Benefits */}
           <View style={styles.benefitsContainer}>
             <Text style={styles.benefitsTitle}>Why DENSE Pro?</Text>
-            <View style={styles.benefitRow}>
-              <Icon name="target" size={20} color={colors.primary} />
-              <Text style={styles.benefitText}>AI-powered program generation</Text>
-            </View>
             <View style={styles.benefitRow}>
               <Icon name="trending-up" size={20} color={colors.primary} />
               <Text style={styles.benefitText}>Real-time progress tracking</Text>

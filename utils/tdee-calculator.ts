@@ -51,9 +51,10 @@ export function adjustCaloriesForGoal(tdee: number, goal: string): number {
 
 /**
  * Calculate macronutrient distribution
- * Protein: Based on goal (1.6-2.0g per kg body weight)
- * Fat: 25-30% of total calories
- * Carbs: Remaining calories
+ * Optimized for insulin-resistant population (75% of Americans are overweight/obese, 40% insulin resistant)
+ * Fat: 30% of total calories (increased for satiety and blood sugar control)
+ * Carbs: Max 45% of total calories (reduced to manage insulin response)
+ * Protein: Remaining calories (typically 25-30%)
  */
 export function calculateMacronutrients(
   adjustedCalories: number, 
@@ -65,22 +66,31 @@ export function calculateMacronutrients(
     throw new Error(`Invalid goal: ${goal}`);
   }
   
-  // Calculate protein (in grams)
-  const proteinGrams = weight * goalOption.proteinMultiplier;
-  const proteinCalories = proteinGrams * 4; // 4 calories per gram
-  
-  // Calculate fat (25% of total calories)
-  const fatCalories = adjustedCalories * 0.25;
+  // Calculate fat (30% of total calories - increased for insulin-resistant population)
+  const fatCalories = adjustedCalories * 0.30;
   const fatGrams = fatCalories / 9; // 9 calories per gram
   
-  // Calculate carbs (remaining calories)
-  const carbCalories = adjustedCalories - proteinCalories - fatCalories;
-  const carbGrams = carbCalories / 4; // 4 calories per gram
+  // Calculate carbs (max 45% of total calories - reduced for better insulin management)
+  const maxCarbCalories = adjustedCalories * 0.45;
+  const maxCarbGrams = maxCarbCalories / 4; // 4 calories per gram
+  
+  // Calculate protein (remaining calories, minimum from goal multiplier)
+  const minProteinGrams = weight * goalOption.proteinMultiplier;
+  const minProteinCalories = minProteinGrams * 4; // 4 calories per gram
+  
+  // Remaining calories go to protein (ensuring we meet minimum protein needs)
+  const remainingCalories = adjustedCalories - fatCalories - maxCarbCalories;
+  const proteinCalories = Math.max(remainingCalories, minProteinCalories);
+  const proteinGrams = proteinCalories / 4;
+  
+  // Adjust carbs if we needed more protein than initially allocated
+  const finalCarbCalories = adjustedCalories - proteinCalories - fatCalories;
+  const finalCarbGrams = Math.max(0, finalCarbCalories / 4);
   
   return {
     protein: Math.round(proteinGrams),
     fat: Math.round(fatGrams),
-    carbs: Math.round(carbGrams)
+    carbs: Math.round(finalCarbGrams)
   };
 }
 

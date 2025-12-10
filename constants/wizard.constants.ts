@@ -130,7 +130,7 @@ export const genderOptions = [
 ];
 
 export const goalOptions = [
-  { id: 'lose_weight', label: 'Lose Weight', calorieAdjustment: -0.2, proteinMultiplier: 2.0 },
+  { id: 'lose_weight', label: 'Reduce Body Fat', calorieAdjustment: -0.2, proteinMultiplier: 2.0 },
   { id: 'maintain_weight', label: 'Maintain Weight', calorieAdjustment: 0, proteinMultiplier: 1.6 },
   { id: 'gain_weight', label: 'Gain Weight', calorieAdjustment: 0.15, proteinMultiplier: 1.8 }
 ];
@@ -138,7 +138,7 @@ export const goalOptions = [
 export const motivationOptions = [
   { id: 'build_muscle', label: 'Build Muscle & Size', emoji: '💪' },
   { id: 'get_stronger', label: 'Get Stronger', emoji: '🏋️' },
-  { id: 'lose_weight', label: 'Lose Weight', emoji: '🔥' },
+  { id: 'lose_weight', label: 'Reduce Body Fat', emoji: '🔥' },
   { id: 'improve_health', label: 'Improve Overall Health', emoji: '❤️' },
   { id: 'boost_confidence', label: 'Boost Confidence', emoji: '🚀' },
   { id: 'stress_relief', label: 'Stress Relief', emoji: '🧘' },
