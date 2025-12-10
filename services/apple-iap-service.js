@@ -33,7 +33,8 @@ class AppleIAPService {
    */
   isExpoGo() {
     // If RNIap module is null, we're in Expo Go
-    return RNIap === null;
+    // Also check if the key methods exist
+    return RNIap === null || !RNIap.getSubscriptions || !RNIap.initConnection;
   }
 
   /**
@@ -124,6 +125,41 @@ class AppleIAPService {
    */
   async loadProducts() {
     try {
+      // Check if getSubscriptions is available
+      if (!RNIap || typeof RNIap.getSubscriptions !== 'function') {
+        console.warn('⚠️ IAP methods not fully available, using fallback pricing');
+        this.products = [
+          {
+            productId: APPLE_PRODUCT_IDS.monthly,
+            price: '$7.99',
+            priceAmountMicros: 7990000,
+            priceCurrencyCode: 'USD',
+            title: 'DENSE Monthly Pro',
+            description: 'Monthly subscription to DENSE Pro',
+            type: 'subscription'
+          },
+          {
+            productId: APPLE_PRODUCT_IDS.sixmonths,
+            price: '$35.99',
+            priceAmountMicros: 35990000,
+            priceCurrencyCode: 'USD',
+            title: 'DENSE 6-Month Pro',
+            description: '6-month subscription to DENSE Pro',
+            type: 'subscription'
+          },
+          {
+            productId: APPLE_PRODUCT_IDS.yearly,
+            price: '$47.99',
+            priceAmountMicros: 47990000,
+            priceCurrencyCode: 'USD',
+            title: 'DENSE Annual Pro',
+            description: 'Annual subscription to DENSE Pro',
+            type: 'subscription'
+          }
+        ];
+        return;
+      }
+
       const productIds = Object.values(APPLE_PRODUCT_IDS);
       console.log('📦 Loading products:', productIds);
 
