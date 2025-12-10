@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev-web": "concurrently \"npm run web-proxy\" \"npx expo start\"",
-    "start": "cross-env EXPO_USERNAME=dense expo start --tunnel",
+    "start": "cross-env EXPO_USERNAME=dense expo start --dev-client --tunnel",
     "start-tunnel": "cross-env EXPO_USERNAME=dense expo start --tunnel",
     "start-web": "expo start --web",
     "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
@@ -77,7 +77,7 @@
     "react-native-gesture-handler": "~2.28.0",
     "react-native-iap": "^14.2.2",
     "react-native-purchases": "^9.5.0",
-    "react-native-reanimated": "^4.1.5",
+    "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
