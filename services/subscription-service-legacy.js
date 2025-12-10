@@ -8,11 +8,11 @@ export const SUBSCRIPTION_PLANS = [
     id: 'yearly',
     name: 'Annual Pro',
     duration: 12,
-    price: 47.99,
-    monthlyPrice: 4.00,
-    originalPrice: 119.88,
-    savings: 71.89,
-    savingsPercentage: 60,
+    price: 59.88,
+    monthlyPrice: 4.99,
+    originalPrice: 95.88,
+    savings: 36.00,
+    savingsPercentage: 38,
     features: [
       'Unlimited AI workouts',
       'Progress tracking',
@@ -22,17 +22,17 @@ export const SUBSCRIPTION_PLANS = [
       'Priority support'
     ],
     isPopular: true,
-    bonusFeatures: ['Save 60%', 'Best Value']
+    bonusFeatures: ['Save $3/month', 'Best Value']
   },
   {
     id: 'sixmonths',
     name: '6-Month Pro',
     duration: 6,
-    price: 35.99,
-    monthlyPrice: 6.00,
-    originalPrice: 59.94,
-    savings: 23.95,
-    savingsPercentage: 40,
+    price: 41.94,
+    monthlyPrice: 6.99,
+    originalPrice: 47.94,
+    savings: 6.00,
+    savingsPercentage: 13,
     features: [
       'Unlimited AI workouts',
       'Progress tracking',
@@ -41,7 +41,7 @@ export const SUBSCRIPTION_PLANS = [
       'Advanced analytics'
     ],
     isPopular: false,
-    bonusFeatures: ['Save 40%']
+    bonusFeatures: ['Save $1/month']
   },
   {
     id: 'monthly',

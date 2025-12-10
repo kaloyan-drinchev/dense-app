@@ -68,16 +68,24 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
                 todayFlag && styles.todayBorder
               ]}
             >
-              <Text style={[
-                styles.dayAbbr,
-                isTraining ? styles.trainingText : styles.restText
-              ]}>
+              <Text 
+                style={[
+                  styles.dayAbbr,
+                  isTraining ? styles.trainingText : styles.restText
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
                 {dayAbbreviations[index]}
               </Text>
-              <Text style={[
-                styles.dayNumber,
-                isTraining ? styles.trainingText : styles.restText
-              ]}>
+              <Text 
+                style={[
+                  styles.dayNumber,
+                  isTraining ? styles.trainingText : styles.restText
+                ]}
+                numberOfLines={1}
+              >
                 {date.getDate()}
               </Text>
             </View>
@@ -109,16 +117,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
   },
   dayContainer: {
     flex: 1,
     alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     borderRadius: 10,
     minHeight: 48,
-    minWidth: 40,
+    minWidth: 38,
     justifyContent: 'center',
   },
   trainingDay: {
@@ -135,9 +143,10 @@ const styles = StyleSheet.create({
     borderColor: colors.white,
   },
   dayAbbr: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     marginBottom: 4,
+    textTransform: 'uppercase',
   },
   dayNumber: {
     fontSize: 18,
