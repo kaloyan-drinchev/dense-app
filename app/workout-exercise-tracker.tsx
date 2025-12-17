@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   Keyboard,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,11 +27,27 @@ export default function WorkoutExerciseTrackerScreen() {
   const { user } = useAuthStore();
   const [exercise, setExercise] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
+  const [isExerciseCompleted, setIsExerciseCompleted] = useState(false);
   const isCustomExercise = exerciseId?.startsWith('custom-');
 
   useEffect(() => {
     loadExerciseData();
   }, [exerciseId, user]);
+
+  useEffect(() => {
+    // Only show loading overlay if exercise is completed
+    if (isExerciseCompleted) {
+      setShowLoadingOverlay(true);
+      
+      // Hide loading overlay after 1 second
+      const timer = setTimeout(() => {
+        setShowLoadingOverlay(false);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isExerciseCompleted]);
 
   const loadExerciseData = async () => {
     if (!user?.id || !exerciseId) {
@@ -41,9 +58,27 @@ export default function WorkoutExerciseTrackerScreen() {
     try {
       let foundExercise = null;
       
+      // Check if exercise is completed today
+      const progress = await userProgressService.getByUserId(user.id);
+      let isCompleted = false;
+      
+      if (progress?.weeklyWeights) {
+        const weeklyWeights = typeof progress.weeklyWeights === 'string'
+          ? JSON.parse(progress.weeklyWeights)
+          : progress.weeklyWeights;
+        const today = new Date().toISOString().split('T')[0];
+        const exerciseLogs = weeklyWeights?.exerciseLogs || {};
+        const todaySession = exerciseLogs[exerciseId]?.find((session: any) => session.date === today);
+        
+        if (todaySession?.sets) {
+          isCompleted = todaySession.sets.every((set: any) => set.isCompleted);
+        }
+      }
+      
+      setIsExerciseCompleted(isCompleted);
+      
       // Check if it's a custom exercise (starts with 'custom-')
       if (exerciseId.startsWith('custom-')) {
-        const progress = await userProgressService.getByUserId(user.id);
         if (progress?.weeklyWeights) {
           // Handle both string (from JSON) and object (from JSONB) types
           const weeklyWeights = typeof progress.weeklyWeights === 'string'
@@ -58,7 +93,7 @@ export default function WorkoutExerciseTrackerScreen() {
             foundExercise = {
               ...foundExercise,
               targetMuscle: foundExercise.targetMuscle || 'Custom',
-              restTime: foundExercise.restSeconds || 60,
+              restTime: Math.min(foundExercise.restSeconds || 60, 120),
             };
           }
         }
@@ -84,7 +119,7 @@ export default function WorkoutExerciseTrackerScreen() {
                 ...found,
                 id: found.id || found.name.replace(/\s+/g, '-').toLowerCase(),
                 targetMuscle: found.targetMuscle || 'General',
-                restTime: found.restSeconds || 60,
+                restTime: Math.min(found.restSeconds || 60, 120),
               };
               break;
             }
@@ -144,19 +179,7 @@ export default function WorkoutExerciseTrackerScreen() {
     );
   };
 
-  if (loading) {
-    return (
-      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>🔄 Loading exercise...</Text>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
-    );
-  }
-
-  if (!exercise) {
+  if (!exercise && !loading) {
     return (
       <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
@@ -190,59 +213,72 @@ export default function WorkoutExerciseTrackerScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Icon name="arrow-left" size={24} color={colors.white} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{exercise.name}</Text>
-          {isCustomExercise && (
+          <Text style={styles.headerTitle}>{exercise?.name || 'Exercise'}</Text>
+          {isCustomExercise && exercise && (
             <TouchableOpacity onPress={handleDeleteCustomExercise} style={styles.deleteButton}>
               <Icon name="trash-2" size={20} color={colors.error} />
             </TouchableOpacity>
           )}
         </View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.contentContainer}
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
-          onScrollBeginDrag={() => Keyboard.dismiss()}
-        >
-          {/* Details header intentionally hidden */}
+        {exercise && (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.contentContainer}
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+            onScrollBeginDrag={() => Keyboard.dismiss()}
+          >
+            {/* Details header intentionally hidden */}
 
-          <View style={styles.infoContainer}>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Sets</Text>
-              <Text style={styles.infoValue}>{exercise.sets}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Reps</Text>
-              <Text style={styles.infoValue}>{exercise.reps}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Rest</Text>
-              <Text style={styles.infoValue}>{exercise.restTime}s</Text>
-            </View>
-          </View>
-
-          {exercise.notes && (
-            <View style={styles.notesContainer}>
-              <Text style={styles.notesTitle}>Technique Notes:</Text>
-              <Text style={styles.notesText}>{exercise.notes}</Text>
-            </View>
-          )}
-
-          <View style={styles.trackerContainer}>
-            <Text style={styles.trackerTitle}>Track Your Sets</Text>
-            <View style={styles.instructionContainer}>
-              <Text style={styles.instructionText}>💪 Do more reps than the previous workout</Text>
+            <View style={styles.infoContainer}>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Sets</Text>
+                <Text style={styles.infoValue}>{exercise.sets}</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Reps</Text>
+                <Text style={styles.infoValue}>{exercise.reps}</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Rest</Text>
+                <Text style={styles.infoValue}>{exercise.restTime}s</Text>
+              </View>
             </View>
             <ExerciseTracker
-              exercise={exercise}
-              exerciseKey={exercise.id}
-              registerSave={(fn) => {
-                // hook for future if we add custom back handling
-              }}
-            />
+                exercise={exercise}
+                exerciseKey={exercise.id}
+                registerSave={(fn) => {
+                  // hook for future if we add custom back handling
+                }}
+              />
+            {exercise.notes && (
+              <View style={styles.notesContainer}>
+                <Text style={styles.notesTitle}>Technique Notes:</Text>
+                <Text style={styles.notesText}>{exercise.notes}</Text>
+              </View>
+            )}
+            <View style={styles.trackerContainer}>
+              <Text style={styles.trackerTitle}>Track Your Sets</Text>
+              <View style={styles.instructionContainer}>
+                <Text style={styles.instructionText}>💪 Do more reps than the previous workout</Text>
+              </View>
+            </View>
+          </ScrollView>
+        )}
+        
+        {/* Loading Overlay - Only shows for completed exercises */}
+        {showLoadingOverlay && (
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingOverlayContent}>
+              <ActivityIndicator size="large" color={colors.primary} style={styles.spinner} />
+              <Text style={styles.loadingOverlayText}>
+                Loading exercise
+                <Text style={styles.loadingDots}>...</Text>
+              </Text>
+            </View>
           </View>
-        </ScrollView>
+        )}
       </SafeAreaView>
     </LinearGradient>
   );
@@ -254,16 +290,6 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 18,
-    color: colors.white,
-    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -397,5 +423,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.white,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.dark,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  loadingOverlayContent: {
+    padding: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  spinner: {
+    marginBottom: 16,
+  },
+  loadingOverlayText: {
+    fontSize: 20,
+    color: colors.lightGray,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  loadingDots: {
+    color: colors.primary,
   },
 });

@@ -82,6 +82,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [completionData, setCompletionData] = useState<{percentage: number, completed: number, total: number} | null>(null);
+  const [isCompletingExercise, setIsCompletingExercise] = useState(false);
   const hasUserEditedRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSavingRef = useRef(false);
@@ -377,51 +378,12 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const handleCompleteExercise = async () => {
     if (readOnly || allSetsCompleted) return;
     
-    // Calculate completion percentage
+    // Calculate completion data for modal
     const completedSets = sets.filter(s => s.isCompleted).length;
     const totalSets = sets.length;
     const completionPercentage = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
     
-    // Check for PRs before showing modal
-    const completedSetsWithData = sets.filter(set => set.isCompleted && set.weight > 0 && set.reps > 0);
-    let newPRs: PersonalRecord[] = [];
-    
-    if (completedSetsWithData.length > 0 && user?.id) {
-      try {
-        // Load current PRs to compare against
-        const progress = await userProgressService.getByUserId(user.id);
-        let currentPRs: ExercisePRs = {};
-        
-        if (progress?.weeklyWeights) {
-          const weeklyWeights = typeof progress.weeklyWeights === 'string' 
-            ? JSON.parse(progress.weeklyWeights)
-            : progress.weeklyWeights;
-          const logs = weeklyWeights?.exerciseLogs || {};
-          // Analyze PRs with current data (before adding today's session)
-          currentPRs = analyzeExercisePRs(logs);
-        }
-        
-        // Convert sets to PR tracking format
-        const prSets = completedSetsWithData.map(set => ({
-          weightKg: set.weight,
-          reps: set.reps,
-          isCompleted: set.isCompleted
-        }));
-        
-        // Check for new PRs
-        newPRs = checkForNewPRs(exerciseKey, prSets, currentPRs);
-        setAchievedPRs(newPRs);
-        
-        // Trigger haptic feedback if PRs achieved
-        if (newPRs.length > 0 && Platform.OS !== 'web') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-      } catch (error) {
-        console.error('Failed to check for PRs:', error);
-      }
-    }
-    
-    // Always show modal for confirmation or congratulations
+    // Simple confirmation modal - no PR tracking
     setCompletionData({ percentage: completionPercentage, completed: completedSets, total: totalSets });
     setShowConfirmModal(true);
   };
@@ -431,6 +393,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       console.error('❌ No user ID available');
       return;
     }
+    
+    // IMMEDIATELY set completing flag to hide buttons
+    setIsCompletingExercise(true);
     
     // Prepare the completed session data
     const updatedSets = sets.map((set) => {
@@ -443,6 +408,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         isCompleted: true,
       };
     });
+    
+    // IMMEDIATELY update local state to show completed status
+    setSets(updatedSets);
     
     const payload = {
       unit,
@@ -507,14 +475,10 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     }
     
     try {
-      // STEP 2: Save to database BEFORE navigation to ensure data consistency
+      // STEP 2: Save to database to ensure data consistency
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
       
-      // STEP 3: Navigate back (after database save completes successfully)
-      router.back();
-      
-      // STEP 4: Sync cache with database (in background, after navigation)
-      // Use setTimeout to ensure navigation completes first
+      // STEP 3: Sync cache with database (in background)
       setTimeout(() => {
         userProgressService.getByUserId(user.id)
           .then((freshProgress) => {
@@ -527,10 +491,18 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           });
       }, 100);
       
+      // Show success feedback - DISABLED
+      // if (Platform.OS !== 'web') {
+      //   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // }
+      
+      // Reset completing flag - exercise is now completed and buttons will stay disabled due to allSetsCompleted
+      setIsCompletingExercise(false);
+      
     } catch (e) {
       console.error('❌ Failed to complete exercise:', e);
       
-      // STEP 5: ROLLBACK - Revert optimistic update if database save failed
+      // STEP 4: ROLLBACK - Revert optimistic update if database save failed
       if (originalProgress) {
         useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: originalProgress });
       }
@@ -541,6 +513,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         isCompleted: false,
       }));
       setSets(revertedSets);
+      
+      // Reset completing flag so buttons can appear again
+      setIsCompletingExercise(false);
       
       // Alert user about the failure
       Alert.alert(
@@ -610,17 +585,27 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           <Text style={styles.title}>{exercise.name}</Text>
           <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.historyButton}
-          onPress={() => router.push(`/exercise-history?exerciseId=${exerciseKey}&exerciseName=${encodeURIComponent(exercise.name)}`)}
-        >
-          <Icon name="bar-chart-2" size={20} color={colors.primary} />
-          <Text style={styles.historyButtonText}>History</Text>
-        </TouchableOpacity>
+        {!allSetsCompleted && (
+          <TouchableOpacity 
+            style={styles.historyButton}
+            onPress={() => router.push(`/exercise-history?exerciseId=${exerciseKey}&exerciseName=${encodeURIComponent(exercise.name)}`)}
+          >
+            <Icon name="bar-chart-2" size={20} color={colors.primary} />
+            <Text style={styles.historyButtonText}>History</Text>
+          </TouchableOpacity>
+        )}
       </View>
       
-      {/* Beat Last Workout Suggestions - Temporarily commented out */}
-      {false && !readOnly && beatLastSuggestions.length > 0 && showSuggestions && isPRDataLoaded && (
+      {/* Completed Badge - Simple and Clean */}
+      {allSetsCompleted && (
+        <View style={styles.completedBanner}>
+          <Icon name="check-circle" size={20} color={colors.success} />
+          <Text style={styles.completedBannerText}>Completed</Text>
+        </View>
+      )}
+      
+      {/* Beat Last Workout Suggestions - Hidden when completed */}
+      {!allSetsCompleted && false && !readOnly && beatLastSuggestions.length > 0 && showSuggestions && isPRDataLoaded && (
         <View style={styles.suggestionsContainer}>
           <View style={styles.suggestionsHeader}>
             <Icon name="target" size={16} color={colors.primary} />
@@ -754,17 +739,17 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       {!readOnly && (
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={[styles.secondaryButton, sets.length <= MIN_SETS && styles.disabledButton]}
+            style={[styles.secondaryButton, (sets.length <= MIN_SETS || allSetsCompleted || isLoadingSets || isCompletingExercise) && styles.disabledButton]}
             onPress={() => handleRemoveSet()}
-            disabled={sets.length <= MIN_SETS}
+            disabled={sets.length <= MIN_SETS || allSetsCompleted || isLoadingSets || isCompletingExercise}
           >
             <Icon name="minus" size={16} color={colors.white} />
             <Text style={styles.secondaryButtonText}>Remove last</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.secondaryButton, sets.length >= MAX_SETS && styles.disabledButton]}
+            style={[styles.secondaryButton, (sets.length >= MAX_SETS || allSetsCompleted || isLoadingSets || isCompletingExercise) && styles.disabledButton]}
             onPress={handleAddSet}
-            disabled={sets.length >= MAX_SETS}
+            disabled={sets.length >= MAX_SETS || allSetsCompleted || isLoadingSets || isCompletingExercise}
           >
             <Icon name="plus" size={16} color={colors.white} />
             <Text style={styles.secondaryButtonText}>Add set</Text>
@@ -775,29 +760,18 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       {!readOnly && (
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={[styles.completeButton, allSetsCompleted && styles.completedButton]}
+            style={[styles.completeButton, (allSetsCompleted || isLoadingSets || isCompletingExercise) && styles.disabledButton]}
             onPress={handleCompleteExercise}
-            disabled={allSetsCompleted}
+            disabled={allSetsCompleted || isLoadingSets || isCompletingExercise}
           >
-            <Text style={[styles.completeButtonText, allSetsCompleted && styles.completedButtonText]}>
-              {allSetsCompleted ? 'Completed ✓' : 'Complete Exercise'}
+            <Text style={styles.completeButtonText}>
+              {allSetsCompleted ? 'Completed' : 'Complete Exercise'}
             </Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {!readOnly && allSetsCompleted && (
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.resetButton}
-            onPress={handleResetToPending}
-          >
-            <Text style={styles.resetButtonText}>Reset to Pending (Testing)</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal - Simple and Clean */}
       {completionData && (
         <Modal
           visible={showConfirmModal}
@@ -821,145 +795,33 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                 colors={[colors.darkGray, colors.mediumGray]}
                 style={styles.modalContent}
               >
-                {completionData.percentage === 100 ? (
-                  <>
-                    <Text style={styles.modalTitle}>🎉 Excellent Work!</Text>
-                    <Text style={styles.modalDescription}>
-                      Perfect! You've completed all {completionData.total} sets. Great job staying consistent with your training!
-                    </Text>
-                    
-                    {/* PR Display Section */}
-                    {achievedPRs.length > 0 && (
-                      <View style={styles.prSection}>
-                        <Text style={styles.prSectionTitle}>🏆 Personal Records Achieved!</Text>
-                        {achievedPRs.map((pr, index) => {
-                          const prLabels: { [key: string]: string } = {
-                            'weight': 'Max Weight',
-                            'reps': 'Max Reps',
-                            'volume': 'Max Volume',
-                            '1rm': 'Est. 1RM'
-                          };
-                          const prIcons: { [key: string]: string } = {
-                            'weight': 'award',
-                            'reps': 'repeat',
-                            'volume': 'trending-up',
-                            '1rm': 'target'
-                          };
-                          const formatValue = (type: string, value: number) => {
-                            if (type === 'volume') return `${value.toFixed(0)}kg`;
-                            if (type === '1rm') return `${value.toFixed(1)}kg`;
-                            if (type === 'weight') return `${value.toFixed(1)}kg`;
-                            return `${value}`;
-                          };
-                          
-                          return (
-                            <View key={index} style={styles.prItem}>
-                              <Icon name={prIcons[pr.type] as any} size={20} color={colors.primary} />
-                              <View style={styles.prItemContent}>
-                                <Text style={styles.prItemLabel}>{prLabels[pr.type]}</Text>
-                                <Text style={styles.prItemValue}>
-                                  {formatValue(pr.type, pr.value)}
-                                  {pr.previousValue !== undefined && (
-                                    <Text style={styles.prItemPrevious}>
-                                      {' '}(was {formatValue(pr.type, pr.previousValue)})
-                                    </Text>
-                                  )}
-                                </Text>
-                              </View>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    )}
-                    
-                    <View style={styles.modalButtons}>
-                      <TouchableOpacity
-                        style={[styles.modalButton, styles.confirmButton, styles.singleButton]}
-                        onPress={() => {
-                          setShowConfirmModal(false);
-                          setAchievedPRs([]); // Clear PRs
-                          completeExercise();
-                        }}
-                      >
-                        <Text style={styles.confirmButtonText}>Continue</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.modalTitle}>Great Job! 🎉</Text>
-                    <Text style={styles.modalDescription}>
-                      Awesome work on that set! You're making great progress. Ready to move on to the next exercise?
-                    </Text>
-                    
-                    {/* PR Display Section */}
-                    {achievedPRs.length > 0 && (
-                      <View style={styles.prSection}>
-                        <Text style={styles.prSectionTitle}>🏆 Personal Records Achieved!</Text>
-                        {achievedPRs.map((pr, index) => {
-                          const prLabels: { [key: string]: string } = {
-                            'weight': 'Max Weight',
-                            'reps': 'Max Reps',
-                            'volume': 'Max Volume',
-                            '1rm': 'Est. 1RM'
-                          };
-                          const prIcons: { [key: string]: string } = {
-                            'weight': 'award',
-                            'reps': 'repeat',
-                            'volume': 'trending-up',
-                            '1rm': 'target'
-                          };
-                          const formatValue = (type: string, value: number) => {
-                            if (type === 'volume') return `${value.toFixed(0)}kg`;
-                            if (type === '1rm') return `${value.toFixed(1)}kg`;
-                            if (type === 'weight') return `${value.toFixed(1)}kg`;
-                            return `${value}`;
-                          };
-                          
-                          return (
-                            <View key={index} style={styles.prItem}>
-                              <Icon name={prIcons[pr.type] as any} size={20} color={colors.primary} />
-                              <View style={styles.prItemContent}>
-                                <Text style={styles.prItemLabel}>{prLabels[pr.type]}</Text>
-                                <Text style={styles.prItemValue}>
-                                  {formatValue(pr.type, pr.value)}
-                                  {pr.previousValue !== undefined && (
-                                    <Text style={styles.prItemPrevious}>
-                                      {' '}(was {formatValue(pr.type, pr.previousValue)})
-                                    </Text>
-                                  )}
-                                </Text>
-                              </View>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    )}
-                    
-                    <View style={styles.modalButtons}>
-                      <TouchableOpacity
-                        style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
-                        onPress={() => {
-                          setShowConfirmModal(false);
-                          setAchievedPRs([]); // Clear PRs
-                          completeExercise();
-                        }}
-                      >
-                        <Text style={styles.confirmButtonText}>Finish Exercise</Text>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity
-                        style={[styles.modalButton, styles.cancelButton, styles.dualButton]}
-                        onPress={() => {
-                          setShowConfirmModal(false);
-                          setAchievedPRs([]); // Clear PRs
-                        }}
-                      >
-                        <Text style={styles.cancelButtonText}>Continue Exercise</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
+                <Text style={styles.modalTitle}>Complete Exercise?</Text>
+                <Text style={styles.modalDescription}>
+                  Mark this exercise as completed and move to the next one?
+                </Text>
+                
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
+                    onPress={() => {
+                      setShowConfirmModal(false);
+                      setAchievedPRs([]); // Clear PRs
+                      completeExercise();
+                    }}
+                  >
+                    <Text style={styles.confirmButtonText}>Complete</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton, styles.dualButton]}
+                    onPress={() => {
+                      setShowConfirmModal(false);
+                      setAchievedPRs([]); // Clear PRs
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
               </LinearGradient>
             </View>
           </TouchableOpacity>
@@ -1208,6 +1070,24 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.lighterGray,
     textAlign: 'center',
+  },
+  completedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.darkGray,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.success,
+  },
+  completedBannerText: {
+    ...typography.body,
+    color: colors.success,
+    fontWeight: '600',
+    fontSize: 16,
   },
   
   // Modal styles

@@ -498,7 +498,7 @@ export class ProgramGenerator {
         name: ex.name,
         sets: progressiveSets, // DENSE: Progressive sets based on week and program duration
         reps: ex.repRange || (isCompound ? '6-12' : '10-15'),
-        restSeconds: isCompound ? 180 : 90, // Compounds: 3min, Isolation: 90s
+        restSeconds: isCompound ? 120 : 90, // Compounds: 2min, Isolation: 90s
         type: exerciseType as 'compound' | 'isolation',
         notes: 'Train to failure on every working set. Stop at last clean rep.',
         warmupSets: isCompound ? [
@@ -576,7 +576,7 @@ export class ProgramGenerator {
       '• Track all sets for AI-guided progression',
       '',
       '⏱️ Rest Periods:',
-      '• Compounds: 2-4 minutes',
+      '• Compounds: 2 minutes',
       '• Isolations: 30-90 seconds', 
       '• Pump work: 15-30 seconds only'
     ];

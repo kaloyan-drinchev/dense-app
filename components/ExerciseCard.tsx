@@ -25,9 +25,6 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   prPotential = false,
 }) => {
   const [showDemoModal, setShowDemoModal] = useState(false);
-  
-  const statusLabel =
-    status === 'completed' ? 'Completed' : status === 'in-progress' ? 'In Progress' : 'Pending';
 
   const handleDemoPress = () => {
     setShowDemoModal(true);
@@ -81,21 +78,13 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
                   <Text style={styles.prText}>PR</Text>
                 </View>
               )}
-              <View
-                style={[
-                  styles.statusBadge,
-                  status === 'completed'
-                    ? styles.statusCompleted
-                    : status === 'in-progress'
-                    ? styles.statusInProgress
-                    : styles.statusPending,
-                ]}
-              >
-                <Text style={[
-                  styles.statusText,
-                  status === 'completed' && styles.statusTextCompleted
-                ]}>{statusLabel}</Text>
-              </View>
+              {status === 'completed' && (
+                <View style={[styles.statusBadge, styles.statusCompleted]}>
+                  <Text style={[styles.statusText, styles.statusTextCompleted]}>
+                    Completed
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
