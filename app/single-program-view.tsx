@@ -131,6 +131,7 @@ const SingleProgramView = () => {
   const [selectedRangeIndex, setSelectedRangeIndex] = useState(0);
   const [generatedProgram, setGeneratedProgram] = useState<any>(null);
   const [wizardResponses, setWizardResponses] = useState<any>(null);
+  const [showDescription, setShowDescription] = useState(false);
 
   React.useEffect(() => {
     loadGeneratedProgram();
@@ -148,7 +149,7 @@ const SingleProgramView = () => {
       console.log('📊 Wizard results:', wizardResults);
       
       if (wizardResults && wizardResults.generatedSplit) {
-        const program = JSON.parse(wizardResults.generatedSplit);
+        const program = JSON.parse(wizardResults.generatedSplit as string);
         
         // Reconstruct wizard responses from the individual fields
         const responses = {
@@ -158,8 +159,8 @@ const SingleProgramView = () => {
           trainingExperience: wizardResults.trainingExperience,
           bodyFatLevel: wizardResults.bodyFatLevel,
           trainingDaysPerWeek: wizardResults.trainingDaysPerWeek,
-          preferredTrainingDays: wizardResults.preferredTrainingDays ? JSON.parse(wizardResults.preferredTrainingDays) : [],
-          musclePriorities: wizardResults.musclePriorities ? JSON.parse(wizardResults.musclePriorities) : [],
+          preferredTrainingDays: wizardResults.preferredTrainingDays ? JSON.parse(wizardResults.preferredTrainingDays as string) : [],
+          musclePriorities: wizardResults.musclePriorities ? JSON.parse(wizardResults.musclePriorities as string) : [],
           pumpWorkPreference: wizardResults.pumpWorkPreference,
           recoveryProfile: wizardResults.recoveryProfile,
           programDurationWeeks: wizardResults.programDurationWeeks,
@@ -225,16 +226,31 @@ const SingleProgramView = () => {
           {/* Program Overview */}
           <View style={styles.programOverview}>
             <Text style={styles.programName}>{generatedProgram.programName}</Text>
-            <View style={styles.overviewBullets}>
-              {formatOverviewAsBullets(generatedProgram.overview).map((bullet, index) => (
-                <View key={index} style={styles.bulletPoint}>
-                  <Text style={styles.bulletDot}>•</Text>
-                  <Text style={styles.bulletTextContainer}>
-                    {renderTextWithHighlight(bullet)}
-                  </Text>
-                </View>
-              ))}
-            </View>
+            
+            {/* Info Button to toggle description */}
+            <TouchableOpacity 
+              style={styles.infoButton}
+              onPress={() => setShowDescription(!showDescription)}
+            >
+              <Icon name="info-outline" size={20} color={colors.primary} />
+              <Text style={styles.infoButtonText}>
+                {showDescription ? 'Hide Info' : 'Show Info'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Collapsible Overview Bullets */}
+            {showDescription && (
+              <View style={styles.overviewBullets}>
+                {formatOverviewAsBullets(generatedProgram.overview).map((bullet, index) => (
+                  <View key={index} style={styles.bulletPoint}>
+                    <Text style={styles.bulletDot}>•</Text>
+                    <Text style={styles.bulletTextContainer}>
+                      {renderTextWithHighlight(bullet)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
             
             <View style={styles.programStats}>
               <View style={styles.statItem}>
@@ -318,7 +334,6 @@ const SingleProgramView = () => {
                   )}
                 </View>
               </View>
-              <Text style={styles.scheduleNote}>💡 You can train any day if needed!</Text>
             </View>
           )}
 
@@ -459,6 +474,26 @@ const styles = StyleSheet.create({
     color: colors.white,
     textAlign: 'center',
     marginBottom: 8,
+  },
+  infoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    marginBottom: 16,
+    marginHorizontal: 60,
+  },
+  infoButtonText: {
+    ...typography.body,
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
   },
   programDescription: {
     ...typography.body,
