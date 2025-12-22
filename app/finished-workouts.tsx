@@ -17,6 +17,14 @@ type CompletedEntry = {
   workoutName?: string;
   duration?: number; // in seconds
   percentageSuccess?: number; // completion percentage
+  totalVolume?: number; // total volume lifted in kg
+  exercises?: Array<{
+    name: string;
+    sets: number;
+    completedSets: number;
+    totalReps: number;
+    totalVolume: number;
+  }>;
 };
 
 export default function FinishedWorkoutsScreen() {
@@ -25,6 +33,7 @@ export default function FinishedWorkoutsScreen() {
   const [entries, setEntries] = useState<CompletedEntry[]>([]);
   const [program, setProgram] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [totalVolumeLifted, setTotalVolumeLifted] = useState(0);
 
   useEffect(() => {
     const load = async () => {
@@ -53,12 +62,18 @@ export default function FinishedWorkoutsScreen() {
             
             arr.sort((a, b) => (a.date < b.date ? 1 : -1));
             setEntries(arr);
+            
+            // Calculate total volume lifted all time
+            const totalVolume = arr.reduce((sum, entry) => sum + (entry.totalVolume || 0), 0);
+            setTotalVolumeLifted(totalVolume);
           } catch { 
             arr = []; 
             setEntries([]);
+            setTotalVolumeLifted(0);
           }
         } else {
           setEntries([]);
+          setTotalVolumeLifted(0);
         }
         const wiz = await wizardResultsService.getByUserId(user.id);
         if (wiz?.generatedSplit) {
@@ -99,7 +114,48 @@ export default function FinishedWorkoutsScreen() {
               <Text style={styles.debugText}>No finished workouts yet</Text>
             </View>
           ) : (
-            entries.map((item, idx) => {
+            <>
+              {/* Total Volume Stats */}
+              <View style={styles.statsCard}>
+                <View style={styles.statsHeader}>
+                  <Icon name="trending-up" size={24} color={colors.secondary} />
+                  <Text style={styles.statsTitle}>Your Lifting Stats</Text>
+                </View>
+                
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>
+                      {totalVolumeLifted >= 1000 
+                        ? `${(totalVolumeLifted / 1000).toFixed(1)}t` 
+                        : `${Math.round(totalVolumeLifted)}kg`}
+                    </Text>
+                    <Text style={styles.statLabel}>Total Volume Lifted</Text>
+                  </View>
+                  
+                  <View style={styles.statDivider} />
+                  
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{entries.length}</Text>
+                    <Text style={styles.statLabel}>Workouts Completed</Text>
+                  </View>
+                  
+                  <View style={styles.statDivider} />
+                  
+                  <View style={styles.statItem}>
+                    <Text style={styles.statValue}>
+                      {entries.length > 0 
+                        ? `${Math.round(totalVolumeLifted / entries.length)}kg`
+                        : '0kg'}
+                    </Text>
+                    <Text style={styles.statLabel}>Avg per Workout</Text>
+                  </View>
+                </View>
+              </View>
+              
+              {/* Workout History */}
+              <Text style={styles.sectionTitle}>Workout History</Text>
+              
+              {entries.map((item, idx) => {
               const workout = program?.weeklyStructure?.[item.workoutIndex];
               return (
                 <TouchableOpacity
@@ -113,8 +169,20 @@ export default function FinishedWorkoutsScreen() {
                     </Text>
                     <View style={styles.entryMeta}>
                       <Text style={styles.entrySubtitle}>{new Date(item.date).toLocaleString()}</Text>
-                      <View style={styles.percentageBadge}>
-                        <Text style={styles.percentageBadgeText}>{item.percentageSuccess}%</Text>
+                      <View style={styles.metaBadges}>
+                        {item.totalVolume && item.totalVolume > 0 && (
+                          <View style={styles.volumeBadge}>
+                            <Icon name="trending-up" size={12} color={colors.secondary} />
+                            <Text style={styles.volumeBadgeText}>
+                              {item.totalVolume >= 1000 
+                                ? `${(item.totalVolume / 1000).toFixed(1)}t` 
+                                : `${Math.round(item.totalVolume)}kg`}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={styles.percentageBadge}>
+                          <Text style={styles.percentageBadgeText}>{item.percentageSuccess}%</Text>
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -123,7 +191,8 @@ export default function FinishedWorkoutsScreen() {
                   </View>
                 </TouchableOpacity>
               );
-            })
+            })}
+            </>
           )}
         </ScrollView>
       </SafeAreaView>
@@ -222,6 +291,83 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: { ...typography.timerTiny, color: colors.white },
+  statsCard: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: colors.secondary,
+  },
+  statsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  statsTitle: {
+    ...typography.h3,
+    color: colors.white,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    ...typography.h2,
+    color: colors.white,
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  statLabel: {
+    ...typography.caption,
+    color: colors.lightGray,
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.mediumGray,
+    marginHorizontal: 8,
+  },
+  sectionTitle: {
+    ...typography.h3,
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  metaBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  volumeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+  },
+  volumeBadgeText: {
+    ...typography.caption,
+    color: colors.secondary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
 });
 
 

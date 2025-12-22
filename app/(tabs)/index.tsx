@@ -256,33 +256,11 @@ export default function HomeScreen() {
     }
   };
 
-  // Get workout to display (today's if not completed, next if completed)
+  // Get workout to display - Always show current workout (multiple workouts per day allowed)
   const getTodaysWorkout = () => {
     if (!generatedProgram || !userProgressData) return null;
     
-    const total = generatedProgram.weeklyStructure?.length || 0;
     const currentWorkout = userProgressData.currentWorkout;
-    const isCompleted = workoutAvailability?.isCompletedToday;
-    
-
-    
-    // If today's workout is completed, show the current workout (which is already the next one)
-    if (isCompleted) {
-      // currentWorkout is already pointing to the next workout we should do
-      const nextWorkoutIndex = currentWorkout - 1; // -1 because array is 0-indexed
-      const workout = generatedProgram.weeklyStructure?.[nextWorkoutIndex] || null;
-      
-      // Fix duration if too low
-      if (workout) {
-        return {
-          ...workout,
-          estimatedDuration: ensureMinimumDuration(workout.estimatedDuration)
-        };
-      }
-      return null;
-    }
-    
-    // Otherwise show current workout
     const currentWorkoutIndex = currentWorkout - 1; // currentWorkout is 1-indexed
     const workout = generatedProgram.weeklyStructure?.[currentWorkoutIndex] || null;
     
@@ -541,7 +519,7 @@ export default function HomeScreen() {
         {generatedProgram && userProgressData && (
           <View style={styles.todaysWorkout}>
             <Text style={styles.sectionTitle}>
-              {workoutAvailability?.isCompletedToday ? "Next Workout" : "Today's Workout"}
+              Today's Workout
             </Text>
             {todaysWorkout ? (
               <View style={styles.workoutCard}>
@@ -558,7 +536,7 @@ export default function HomeScreen() {
                     <Text style={styles.workoutDuration}>{todaysWorkout?.estimatedDuration} min</Text>
                   </View>
                   
-                  <View style={styles.exercisePreview}>
+                  {/* <View style={styles.exercisePreview}>
                     <Text style={styles.exercisePreviewTitle}>Key Exercises:</Text>
                     {todaysWorkout?.exercises?.slice(0, 3).map((exercise: any, index: number) => (
                       <Text key={index} style={styles.exercisePreviewItem}>
@@ -570,7 +548,7 @@ export default function HomeScreen() {
                         +{todaysWorkout?.exercises?.length - 3} more exercises
                       </Text>
                     )}
-                  </View>
+                  </View> */}
                   
                   <TouchableOpacity 
                     style={styles.startWorkoutButtonContainer}
@@ -626,7 +604,7 @@ export default function HomeScreen() {
               <View style={styles.noWorkoutCard}>
                 <Icon name="check-circle" size={48} color={colors.primary} />
                 <Text style={styles.noWorkoutTitle}>Great job!</Text>
-                <Text style={styles.noWorkoutText}>You've completed all workouts for today</Text>
+                <Text style={styles.noWorkoutText}>You've completed all workouts in your program</Text>
                 <TouchableOpacity 
                   style={[styles.bannerButton, { marginTop: 12 }]}
                   onPress={() => router.push('/finished-workouts')}

@@ -9,6 +9,7 @@ export interface WorkoutAvailability {
 
 /**
  * Check if user can start a workout today based on completion status
+ * UPDATED: Always allows workouts - no more one workout per day restriction
  */
 export const checkWorkoutAvailability = async (
   userId: string,
@@ -22,38 +23,24 @@ export const checkWorkoutAvailability = async (
     const { getWorkoutCompletionData } = await import('./workout-completion-tracker');
     const completionData = await getWorkoutCompletionData(userId);
     
-    // Check if today's workout was completed
+    // Check if today's workout was completed (for display purposes only)
     const isCompletedToday = completionData.completedDates.includes(today);
     
     // Get current and next workout info
     const currentWorkout = getCurrentWorkout(generatedProgram, userProgressData);
     const nextWorkout = getNextWorkout(generatedProgram, userProgressData);
     
-    if (!isCompletedToday) {
-      // Can start today's workout
-      return {
-        canStartWorkout: true,
-        isCompletedToday: false,
-        nextAvailableDate: null,
-        currentWorkoutName: currentWorkout?.name || null,
-        nextWorkoutName: nextWorkout?.name || null,
-        motivationalMessage: "Ready to crush today's workout! 💪"
-      };
-    } else {
-      // Already completed today, next workout available tomorrow
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
-      
-      return {
-        canStartWorkout: false,
-        isCompletedToday: true,
-        nextAvailableDate: tomorrowStr,
-        currentWorkoutName: currentWorkout?.name || null,
-        nextWorkoutName: nextWorkout?.name || null,
-        motivationalMessage: getMotivationalMessage()
-      };
-    }
+    // Always allow starting workouts - users can do multiple workouts per day
+    return {
+      canStartWorkout: true,
+      isCompletedToday: isCompletedToday,
+      nextAvailableDate: null,
+      currentWorkoutName: currentWorkout?.name || null,
+      nextWorkoutName: nextWorkout?.name || null,
+      motivationalMessage: isCompletedToday 
+        ? "Great work today! Ready for another session? 💪" 
+        : "Ready to crush today's workout! 💪"
+    };
   } catch (error) {
     console.error('Failed to check workout availability:', error);
     // Default to allowing workout if check fails

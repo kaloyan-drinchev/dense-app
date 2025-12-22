@@ -499,6 +499,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       // Reset completing flag - exercise is now completed and buttons will stay disabled due to allSetsCompleted
       setIsCompletingExercise(false);
       
+      // Navigate back to workout session
+      router.back();
+      
     } catch (e) {
       console.error('❌ Failed to complete exercise:', e);
       

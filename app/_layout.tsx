@@ -642,6 +642,20 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="workout-overview" 
+        options={{ 
+          headerShown: false,
+          animation: 'slide_from_right',
+        }} 
+      />
+      <Stack.Screen 
+        name="my-achievements" 
+        options={{ 
+          headerShown: false,
+          animation: 'slide_from_right',
+        }} 
+      />
+      <Stack.Screen 
         name="profile" 
         options={{ 
           title: "Profile",

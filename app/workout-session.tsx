@@ -769,6 +769,41 @@ export default function WorkoutSessionScreen() {
       const currentWorkout = userProgressData.currentWorkout || 1;
       const currentWorkoutIndex = currentWorkout - 1;
       
+      // Calculate workout volume
+      const { calculateWorkoutVolume } = await import('@/utils/volume-calculator');
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Fetch FRESH data from database to ensure we have the latest completed exercises
+      const freshProgress = await userProgressService.getByUserId(user.id);
+      let latestExerciseLogs: any = {};
+      if (freshProgress?.weeklyWeights) {
+        const weeklyWeights = typeof freshProgress.weeklyWeights === 'string'
+          ? JSON.parse(freshProgress.weeklyWeights)
+          : freshProgress.weeklyWeights;
+        latestExerciseLogs = weeklyWeights?.exerciseLogs || {};
+      }
+      
+      // Build exercises data with completed sets for volume calculation
+      const exercisesWithSets = (todaysWorkout?.exercises || []).map((ex: any) => {
+        const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
+        const sessions = latestExerciseLogs[exId] as Array<{ date: string; unit: string; sets: Array<{ reps: number; weightKg: number; isCompleted: boolean }> }> || [];
+        const todaySession = sessions.find((s: any) => s.date === today);
+        
+        console.log(`📊 Exercise: ${ex.name} (${exId})`);
+        console.log(`📊 Sessions found:`, sessions.length);
+        console.log(`📊 Today's session:`, todaySession);
+        console.log(`📊 Sets:`, todaySession?.sets);
+        
+        return {
+          name: ex.name,
+          sets: todaySession?.sets || [],
+        };
+      });
+      
+      console.log('📊 Exercises with sets:', exercisesWithSets);
+      const volumeData = calculateWorkoutVolume(exercisesWithSets);
+      console.log('📊 Volume data:', volumeData);
+      
       // Handle both array (from JSONB) and string (from JSON) types
       let completedArr: any[] = [];
       if (userProgressData.completedWorkouts) {
@@ -792,6 +827,8 @@ export default function WorkoutSessionScreen() {
         percentageSuccess: workoutProgress.percentage,
         startTime: startTimeToSave,
         finishTime: finishTime,
+        totalVolume: volumeData.totalVolume, // Store total volume
+        exercises: volumeData.exerciseBreakdown, // Store exercise breakdown
       });
       
       const nextWorkout = Math.min(
@@ -803,15 +840,25 @@ export default function WorkoutSessionScreen() {
         completedWorkouts: JSON.stringify(completedArr),
       });
       
-      // Mark today's workout as completed (one workout per day restriction)
-      await markTodayWorkoutCompleted(user.id);
+      // Mark today's workout as completed - REMOVED: Allow multiple workouts per day
+      // await markTodayWorkoutCompleted(user.id);
       
       if (updated) {
         setUserProgressData(updated);
         // Update cache to trigger loading state in home screen
         const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
         useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
-        router.back();
+        
+        // Navigate to workout overview page with workout data
+        router.push({
+          pathname: '/workout-overview',
+          params: {
+            workoutName: todaysWorkout?.name || 'Workout',
+            duration: duration.toString(),
+            totalVolume: volumeData.totalVolume.toString(),
+            exercises: JSON.stringify(volumeData.exerciseBreakdown),
+          },
+        });
       }
     } catch (e) {
       console.error('❌ Failed to finish workout:', e);
@@ -855,7 +902,7 @@ export default function WorkoutSessionScreen() {
             <View style={styles.noWorkoutContainer}>
               <Icon name="check-circle" size={64} color={colors.primary} />
               <Text style={styles.noWorkoutTitle}>All Done!</Text>
-              <Text style={styles.noWorkoutText}>You've completed all workouts for today</Text>
+              <Text style={styles.noWorkoutText}>You've completed all workouts in your program</Text>
                 <TouchableOpacity 
                   style={styles.backHomeButton}
                   onPress={() => router.push('/(tabs)')}

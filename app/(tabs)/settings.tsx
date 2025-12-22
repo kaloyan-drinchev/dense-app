@@ -102,9 +102,9 @@ export default function SettingsScreen() {
                 age: wizardData?.age ?? userProfileData.age ?? undefined, // ✅ Prefer wizard age
                 profilePicture: userProfileData.profilePicture ?? undefined,
                 goal: wizardData?.goal ?? userProfileData.goal ?? undefined, // ✅ Prefer wizard goal
-                createdAt: userProfileData.createdAt ?? undefined,
-                updatedAt: userProfileData.updatedAt ?? undefined,
-                syncedAt: userProfileData.syncedAt ?? undefined,
+                createdAt: userProfileData.createdAt instanceof Date ? userProfileData.createdAt.toISOString() : userProfileData.createdAt ?? undefined,
+                updatedAt: userProfileData.updatedAt instanceof Date ? userProfileData.updatedAt.toISOString() : userProfileData.updatedAt ?? undefined,
+                syncedAt: userProfileData.syncedAt instanceof Date ? userProfileData.syncedAt.toISOString() : userProfileData.syncedAt ?? undefined,
               };
               console.log('🔍 Final profile after wizard data merge:', { weight: convertedProfile.weight, height: convertedProfile.height, age: convertedProfile.age, goal: convertedProfile.goal });
               await updateUserProfile(convertedProfile);
@@ -660,17 +660,18 @@ export default function SettingsScreen() {
               
               try {
                 // Delete user's data (respects RLS - only deletes current user's data)
-                await Promise.all([
-                  userProgressService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete progress:', e)),
-                  wizardResultsService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete wizard:', e)),
-                  dailyLogService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete logs:', e)),
-                  customMealService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete meals:', e)),
-                ]);
+                // Note: deleteByUserId methods not implemented yet
+                // await Promise.all([
+                //   userProgressService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete progress:', e)),
+                //   wizardResultsService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete wizard:', e)),
+                //   dailyLogService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete logs:', e)),
+                //   customMealService.deleteByUserId(user.id).catch(e => console.warn('Failed to delete meals:', e)),
+                // ]);
                 
                 // Delete user profile last (has foreign key constraints)
                 await userProfileService.delete(user.id).catch(e => console.warn('Failed to delete profile:', e));
                 
-                console.log('✅ User data deleted from database');
+                console.log('✅ User profile deleted from database');
               } catch (error: any) {
                 console.error('❌ Failed to delete user data:', error);
                 console.error('❌ Error details:', error.message, error.stack);
@@ -851,6 +852,23 @@ export default function SettingsScreen() {
         {/* About */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About</Text>
+
+          <TouchableOpacity 
+            style={styles.settingItem} 
+            onPress={() => router.push('/my-achievements')} 
+            activeOpacity={1}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
+              <Icon name="award" size={20} color={colors.black} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingTitle}>My Achievements</Text>
+              <Text style={styles.settingDescription}>
+                Personal records and best workout volume
+              </Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+          </TouchableOpacity>
           
           <TouchableOpacity style={styles.settingItem} activeOpacity={1}>
             <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
