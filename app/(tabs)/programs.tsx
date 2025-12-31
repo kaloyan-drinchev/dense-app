@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from '@react-navigation/native';
@@ -10,6 +10,7 @@ import { typography } from "@/constants/typography";
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather as Icon } from '@expo/vector-icons';
 import { LoadingState } from '@/components/LoadingState';
+import { wizardResultsService } from '@/db/services';
 
 export default function ProgramsScreen() {
   const router = useRouter();
@@ -18,6 +19,8 @@ export default function ProgramsScreen() {
   const [generatedProgram, setGeneratedProgram] = useState<any>(cachedProgram);
   const [userProgressData, setUserProgressData] = useState<any>(cachedProgress);
   const [loading, setLoading] = useState(!cachedProgram || !cachedProgress);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedDays, setSelectedDays] = useState(3);
 
   // Use separate refs to prevent multiple simultaneous calls for each function
   const isLoadingProgramRef = useRef(false);
@@ -39,29 +42,32 @@ export default function ProgramsScreen() {
       const { wizardResultsService } = await import('@/db/services');
       const wizardResults = await wizardResultsService.getByUserId(user.id);
       
+      // Cast to any for legacy property access
+      const legacyResults = wizardResults as any;
+      
       console.log('🔍 Programs tab - Wizard results:', wizardResults ? 'Found' : 'Not found');
-      console.log('🔍 Programs tab - Has generatedSplit:', !!wizardResults?.generatedSplit);
+      console.log('🔍 Programs tab - Has generatedSplit:', !!legacyResults?.generatedSplit);
       
       if (!wizardResults) {
         console.log('⚠️ Programs tab - No wizard results found for user');
         return;
       }
       
-      if (wizardResults.generatedSplit) {
+      if (legacyResults.generatedSplit) {
         try {
           // Handle both string and object types
-          const program = typeof wizardResults.generatedSplit === 'string' 
-            ? JSON.parse(wizardResults.generatedSplit)
-            : wizardResults.generatedSplit;
+          const program = typeof legacyResults.generatedSplit === 'string' 
+            ? JSON.parse(legacyResults.generatedSplit)
+            : legacyResults.generatedSplit;
           
           console.log('🔍 Programs tab - Program parsed:', program?.programName || 'Unknown');
           
           // Create a better program title based on muscle priorities
-          if (wizardResults.musclePriorities) {
+          if (legacyResults.musclePriorities) {
             try {
-              const priorities = typeof wizardResults.musclePriorities === 'string'
-                ? JSON.parse(wizardResults.musclePriorities)
-                : wizardResults.musclePriorities;
+              const priorities = typeof legacyResults.musclePriorities === 'string'
+                ? JSON.parse(legacyResults.musclePriorities)
+                : legacyResults.musclePriorities;
               const priorityText = priorities.slice(0, 2).join(' & ').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
               program.displayTitle = `${priorityText} Focus`;
             } catch (e) {
@@ -76,8 +82,8 @@ export default function ProgramsScreen() {
           console.log('✅ Programs tab - Program loaded successfully:', program.programName || program.displayTitle);
         } catch (parseError) {
           console.error('❌ Failed to parse generatedSplit:', parseError);
-          console.error('Raw generatedSplit type:', typeof wizardResults.generatedSplit);
-          console.error('Raw generatedSplit:', wizardResults.generatedSplit);
+          console.error('Raw generatedSplit type:', typeof legacyResults.generatedSplit);
+          console.error('Raw generatedSplit:', legacyResults.generatedSplit);
         }
       } else {
         console.log('⚠️ Programs tab - No generatedSplit found in wizard results');
@@ -220,16 +226,33 @@ export default function ProgramsScreen() {
     }
   };
 
-
+  // Save training days preference
+  const handleSavePreference = async () => {
+    try {
+      // Update the training schedule in the generated program
+      const updatedProgram = {
+        ...generatedProgram,
+        trainingSchedule: Array(selectedDays).fill('').map((_, idx) => 
+          ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'][idx]
+        ).filter(Boolean),
+      };
+      
+      setGeneratedProgram(updatedProgram);
+      
+      // Update cache
+      const { setWorkoutData } = useWorkoutCacheStore.getState();
+      setWorkoutData({ generatedProgram: updatedProgram });
+      
+      setShowEditModal(false);
+      console.log('✅ Training days updated to:', selectedDays);
+    } catch (error) {
+      console.error('❌ Failed to save preference:', error);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Your Program</Text>
-          <Text style={styles.subtitle}>Track your current training progress</Text>
-        </View>
-
         {/* Current Program Progress Banner */}
         {generatedProgram && userProgressData && (
           <View style={styles.progressBanner}>
@@ -238,10 +261,9 @@ export default function ProgramsScreen() {
               style={styles.bannerGradient}
             >
               <View style={styles.bannerContent}>
-                <Text style={styles.bannerTitle}>Your Current Program</Text>
-                <Text style={styles.bannerProgramName}>{generatedProgram.displayTitle || generatedProgram.programName || 'Your Program'}</Text>
-                <Text style={styles.bannerProgress}>
-                  Week {userProgressData.currentWeek || 1}
+                <Text style={styles.bannerTitle}>Push Pull Legs Program</Text>
+                <Text style={styles.bannerProgramName}>
+                  {getCompletedWorkoutsCount()} workouts completed
                 </Text>
               </View>
               
@@ -249,41 +271,55 @@ export default function ProgramsScreen() {
                 style={styles.bannerButton}
                 onPress={() => router.push('/single-program-view')}
               >
-                <Text style={styles.bannerButtonText}>View Program</Text>
+                <Text style={styles.bannerButtonText}>View Details</Text>
                 <Icon name="arrow-right" size={16} color={colors.black} />
               </TouchableOpacity>
             </LinearGradient>
           </View>
         )}
 
-        {/* Training Schedule */}
-        {generatedProgram && generatedProgram.trainingSchedule && (
-          <View style={styles.scheduleContainer}>
-            <Text style={styles.scheduleTitle}>Your Training Schedule</Text>
-            <View style={styles.scheduleRow}>
-              <View style={styles.scheduleColumn}>
-                <Text style={styles.scheduleLabel}>Workout Days:</Text>
-                <Text style={styles.scheduleText}>
-                  {generatedProgram.trainingSchedule.map((day: string) => 
-                    day.charAt(0).toUpperCase() + day.slice(1)
-                  ).join(', ')}
-                </Text>
+        {/* Training Preferences */}
+        {generatedProgram && (
+          <View style={styles.preferencesContainer}>
+            <View style={styles.preferencesHeader}>
+              <Text style={styles.preferencesTitle}>Training Preferences</Text>
+              <TouchableOpacity 
+                style={styles.editButton}
+                onPress={() => {
+                  setSelectedDays(generatedProgram.trainingSchedule?.length || 3);
+                  setShowEditModal(true);
+                }}
+              >
+                <Icon name="edit-2" size={16} color={colors.primary} />
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.preferenceItem}>
+              <View style={styles.preferenceIconContainer}>
+                <Icon name="calendar" size={24} color={colors.primary} />
               </View>
-              <View style={styles.scheduleColumn}>
-                <Text style={styles.scheduleLabel}>Rest Days:</Text>
-                <Text style={styles.scheduleText}>
-                  {generatedProgram.restDays && generatedProgram.restDays.length > 0 
-                    ? generatedProgram.restDays.map((day: string) => 
-                        day.charAt(0).toUpperCase() + day.slice(1)
-                      ).join(', ')
-                    : 'Active Recovery'
-                  }
+              <View style={styles.preferenceContent}>
+                <Text style={styles.preferenceLabel}>Training Days Per Week</Text>
+                <Text style={styles.preferenceValue}>
+                  {generatedProgram.trainingSchedule?.length || 3} days
                 </Text>
               </View>
             </View>
-            <Text style={styles.scheduleNote}>
-              💡 This is your suggested schedule. You can train on any day if needed!
-            </Text>
+
+            <View style={styles.preferenceSeparator} />
+
+            <View style={styles.preferenceItem}>
+              <View style={styles.preferenceIconContainer}>
+                <Icon name="target" size={24} color={colors.primary} />
+              </View>
+              <View style={styles.preferenceContent}>
+                <Text style={styles.preferenceLabel}>Fitness Goal</Text>
+                <Text style={styles.preferenceValue}>
+                  {generatedProgram.goal || 'Muscle Building'}
+                </Text>
+              </View>
+            </View>
           </View>
         )}
 
@@ -311,6 +347,70 @@ export default function ProgramsScreen() {
 
 
       </ScrollView>
+
+      {/* Edit Preferences Modal */}
+      <Modal
+        visible={showEditModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Training Days Per Week</Text>
+              <Text style={styles.modalSubtitle}>
+                How many days per week do you want to train?
+              </Text>
+
+              <View style={styles.daysOptions}>
+                {[3, 4, 5, 6].map((days) => (
+                  <TouchableOpacity
+                    key={days}
+                    style={[
+                      styles.dayOption,
+                      selectedDays === days && styles.dayOptionSelected,
+                    ]}
+                    onPress={() => setSelectedDays(days)}
+                  >
+                    <Text
+                      style={[
+                        styles.dayOptionText,
+                        selectedDays === days && styles.dayOptionTextSelected,
+                      ]}
+                    >
+                      {days}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.dayOptionLabel,
+                        selectedDays === days && styles.dayOptionLabelSelected,
+                      ]}
+                    >
+                      days
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowEditModal(false)}
+                >
+                  <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalSaveButton}
+                  onPress={handleSavePreference}
+                >
+                  <Text style={styles.modalSaveButtonText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -386,42 +486,69 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     color: colors.black,
   },
-  // Schedule Styles
-  scheduleContainer: {
+  // Preferences Styles
+  preferencesContainer: {
     backgroundColor: colors.darkGray,
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
   },
-  scheduleTitle: {
+  preferencesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  preferencesTitle: {
     ...typography.h5,
     color: colors.white,
-    marginBottom: 16,
   },
-  scheduleRow: {
+  editButton: {
     flexDirection: 'row',
-    gap: 20,
-    marginBottom: 16,
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(132, 204, 22, 0.1)',
+    borderRadius: 8,
   },
-  scheduleColumn: {
-    flex: 1,
-  },
-  scheduleLabel: {
+  editButtonText: {
     ...typography.bodySmall,
     color: colors.primary,
-    marginBottom: 4,
     fontWeight: '600',
   },
-  scheduleText: {
+  preferenceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  preferenceSeparator: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginVertical: 8,
+  },
+  preferenceIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(132, 204, 22, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  preferenceContent: {
+    flex: 1,
+  },
+  preferenceLabel: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    marginBottom: 4,
+  },
+  preferenceValue: {
     ...typography.body,
     color: colors.white,
-    lineHeight: 20,
-  },
-  scheduleNote: {
-    ...typography.bodySmall,
-    color: colors.lighterGray,
-    fontStyle: 'italic',
-    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
   },
   emptyState: {
     backgroundColor: colors.darkGray,
@@ -440,5 +567,96 @@ const styles = StyleSheet.create({
     color: colors.lighterGray,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalContent: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalTitle: {
+    ...typography.h3,
+    color: colors.white,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    ...typography.body,
+    color: colors.lightGray,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  daysOptions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  dayOption: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    paddingVertical: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  dayOptionSelected: {
+    backgroundColor: 'rgba(132, 204, 22, 0.15)',
+    borderColor: colors.primary,
+  },
+  dayOptionText: {
+    ...typography.h2,
+    color: colors.white,
+    marginBottom: 4,
+  },
+  dayOptionTextSelected: {
+    color: colors.primary,
+  },
+  dayOptionLabel: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+  },
+  dayOptionLabelSelected: {
+    color: colors.primary,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    ...typography.button,
+    color: colors.white,
+  },
+  modalSaveButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalSaveButtonText: {
+    ...typography.button,
+    color: colors.black,
+    fontWeight: 'bold',
   },
 });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { Exercise } from '@/types/workout';
 import { colors } from '@/constants/colors';
@@ -15,6 +15,7 @@ interface ExerciseCardProps {
   index: number;
   status?: 'pending' | 'in-progress' | 'completed';
   prPotential?: boolean; // Whether this exercise has potential for PRs
+  isUpdating?: boolean; // Whether status is currently being updated
 }
 
 export const ExerciseCard: React.FC<ExerciseCardProps> = ({
@@ -23,9 +24,10 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   index,
   status = 'pending',
   prPotential = false,
+  isUpdating = false,
 }) => {
   const [showDemoModal, setShowDemoModal] = useState(false);
-
+  
   const handleDemoPress = () => {
     setShowDemoModal(true);
   };
@@ -72,18 +74,23 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
               <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
             </View>
             <View style={styles.badgeContainer}>
-              {prPotential && status !== 'completed' && (
+              {prPotential && status !== 'completed' && !isUpdating && (
                 <View style={styles.prBadge}>
                   <Icon name="zap" size={12} color={colors.black} />
                   <Text style={styles.prText}>PR</Text>
                 </View>
               )}
-              {status === 'completed' && (
+              {isUpdating && (
+                <View style={[styles.statusBadge, styles.statusUpdating]}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              )}
+              {status === 'completed' && !isUpdating && (
                 <View style={[styles.statusBadge, styles.statusCompleted]}>
                   <Text style={[styles.statusText, styles.statusTextCompleted]}>
                     Completed
                   </Text>
-                </View>
+              </View>
               )}
             </View>
           </View>
@@ -226,6 +233,11 @@ const styles = StyleSheet.create({
   },
   statusCompleted: {
     backgroundColor: colors.success,
+  },
+  statusUpdating: {
+    backgroundColor: colors.darkGray,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   
   // PR Indicator styles

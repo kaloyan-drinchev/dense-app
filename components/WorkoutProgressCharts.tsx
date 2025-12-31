@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-import { AnimatedCircularProgress } from 'react-native-circular-progress';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { WorkoutCalendarHeatMap } from './WorkoutCalendarHeatMap';
 import { getWorkoutCompletionData, type WorkoutCompletionData } from '@/utils/workout-completion-tracker';
 import { useAuthStore } from '@/store/auth-store';
+import { userProgressService } from '@/db/services';
 
 interface WorkoutProgressChartsProps {
   currentWeek: number;
@@ -21,118 +22,173 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
   totalWeeks,
   daysPerWeek,
 }) => {
-  const [animatedValue] = useState(new Animated.Value(0));
   const [completionData, setCompletionData] = useState<WorkoutCompletionData>({
     completedDates: [],
     startDate: new Date().toISOString().split('T')[0],
     totalCompletedWorkouts: 0,
   });
+  const [volumeData, setVolumeData] = useState<{ labels: string[], values: number[] }>({ labels: [], values: [] });
+  const [workoutTypeData, setWorkoutTypeData] = useState<{ labels: string[], values: number[] }>({ labels: [], values: [] });
   const { user } = useAuthStore();
 
-  // Calculate percentages based on completed workouts (start from 0)
-  const completedDaysThisWeek = Math.max(0, currentDay - 1); // Subtract 1 to start from 0
-  const totalCompletedWorkouts = Math.max(0, (currentWeek - 1) * daysPerWeek + currentDay - 1); // Subtract 1 to start from 0
-  
-  const currentWeekProgress = Math.round((completedDaysThisWeek / daysPerWeek) * 100);
-  const overallProgress = Math.round((totalCompletedWorkouts / (totalWeeks * daysPerWeek)) * 100);
-
-  // Animation on component mount
-  useEffect(() => {
-    Animated.timing(animatedValue, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-
-  // Load completion data
-  const loadCompletionData = useCallback(async () => {
-    if (user?.id) {
-      try {
-        const data = await getWorkoutCompletionData(user.id);
-        setCompletionData(data);
-      } catch (error) {
-        console.error('❌ WorkoutProgressCharts: Error loading completion data:', error);
-        // Keep default completion data to prevent crash
+  // Load all chart data
+  const loadChartData = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      // Load completion data for calendar
+      const data = await getWorkoutCompletionData(user.id);
+      setCompletionData(data);
+      
+      // Load user progress for volume and workout type data
+      const progress = await userProgressService.getByUserId(user.id);
+      if (progress?.completedWorkouts) {
+        const completedData = Array.isArray(progress.completedWorkouts)
+          ? progress.completedWorkouts
+          : (typeof progress.completedWorkouts === 'string' 
+              ? JSON.parse(progress.completedWorkouts) 
+              : []);
+        
+        // Filter only detailed workout objects
+        const workouts = completedData.filter((item: any) => 
+          typeof item === 'object' && 
+          item.date && 
+          item.workoutName &&
+          item.totalVolume !== undefined
+        );
+        
+        // Sort by date
+        workouts.sort((a: any, b: any) => (a.date > b.date ? 1 : -1));
+        
+        // CHART 1: Volume Over Time (last 10 workouts)
+        const last10 = workouts.slice(-10);
+        const volumeLabels = last10.map((w: any, idx: number) => `W${idx + 1}`);
+        const volumeValues = last10.map((w: any) => Math.round(w.totalVolume || 0));
+        setVolumeData({ labels: volumeLabels, values: volumeValues });
+        
+        // CHART 2: Workout Type Distribution
+        const typeCount: Record<string, number> = {
+          'Push': 0,
+          'Pull': 0,
+          'Legs': 0,
+        };
+        
+        workouts.forEach((w: any) => {
+          const name = (w.workoutName || '').toLowerCase();
+          if (name.includes('push')) typeCount['Push']++;
+          else if (name.includes('pull')) typeCount['Pull']++;
+          else if (name.includes('leg')) typeCount['Legs']++;
+        });
+        
+        setWorkoutTypeData({
+          labels: ['Push', 'Pull', 'Legs'],
+          values: [typeCount['Push'], typeCount['Pull'], typeCount['Legs']],
+        });
       }
+    } catch (error) {
+      console.error('❌ WorkoutProgressCharts: Error loading chart data:', error);
     }
   }, [user?.id]);
 
   useEffect(() => {
-    loadCompletionData();
-  }, [loadCompletionData, currentWeek, currentDay]); // Reload when progress changes
+    loadChartData();
+  }, [loadChartData, currentWeek, currentDay]);
 
-  // Refresh completion data when screen gains focus (after completing workout)
+  // Refresh data when screen gains focus
   useFocusEffect(
     useCallback(() => {
-      loadCompletionData();
-    }, [loadCompletionData])
+      loadChartData();
+    }, [loadChartData])
   );
 
-  const animatedStyle = {
-    opacity: animatedValue,
-    transform: [
-      {
-        translateY: animatedValue.interpolate({
-          inputRange: [0, 1],
-          outputRange: [30, 0],
-        }),
-      },
-    ],
-  };
+  const screenWidth = Dimensions.get('window').width;
+  const chartWidth = screenWidth - 72; // Account for container padding
 
   return (
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>Progress Tracking</Text>
       
-      <View style={styles.chartsRow}>
-        {/* Current Week Progress */}
-        <View style={styles.chartContainer}>
-          <AnimatedCircularProgress
-            size={120}
-            width={12}
-            fill={currentWeekProgress}
-            tintColor={colors.primary}
-            backgroundColor={colors.darkGray}
-            rotation={0}
-            lineCap="round"
-            duration={1500}
-            delay={200}
-          >
-            {() => (
-              <View style={styles.chartContent}>
-                <Text style={styles.percentageText}>{currentWeekProgress}%</Text>
-                <Text style={styles.chartLabel}>Week {currentWeek}</Text>
-                <Text style={styles.chartSubLabel}>{completedDaysThisWeek}/{daysPerWeek} done</Text>
-              </View>
-            )}
-          </AnimatedCircularProgress>
-          <Text style={styles.chartTitle}>Current Week</Text>
-        </View>
+      {/* Volume Over Time Chart */}
+      <View style={styles.chartSection}>
+        <Text style={styles.chartTitle}>Volume Over Time</Text>
+        <Text style={styles.chartSubtitle}>Total kg lifted per workout</Text>
+        {volumeData.values.length > 0 ? (
+          <LineChart
+            data={{
+              labels: volumeData.labels,
+              datasets: [{ data: volumeData.values }],
+            }}
+            width={chartWidth}
+            height={200}
+            chartConfig={{
+              backgroundColor: colors.darkGray,
+              backgroundGradientFrom: colors.darkGray,
+              backgroundGradientTo: colors.darkGray,
+              decimalPlaces: 0,
+              color: (opacity = 1) => `rgba(132, 204, 22, ${opacity})`,
+              labelColor: (opacity = 1) => `rgba(156, 163, 175, ${opacity})`,
+              style: { borderRadius: 16 },
+              propsForDots: {
+                r: '4',
+                strokeWidth: '2',
+                stroke: colors.primary,
+              },
+              propsForBackgroundLines: {
+                strokeDasharray: '',
+                stroke: 'rgba(255, 255, 255, 0.1)',
+              },
+            }}
+            bezier
+            style={styles.chart}
+            withInnerLines={true}
+            withOuterLines={false}
+            withVerticalLines={false}
+            withHorizontalLines={true}
+          />
+        ) : (
+          <View style={styles.emptyChart}>
+            <Text style={styles.emptyChartText}>Complete workouts to see your volume progress</Text>
+          </View>
+        )}
+      </View>
 
-        {/* Overall Program Progress */}
-        <View style={styles.chartContainer}>
-          <AnimatedCircularProgress
-            size={120}
-            width={12}
-            fill={overallProgress}
-            tintColor={colors.secondary}
-            backgroundColor={colors.darkGray}
-            rotation={0}
-            lineCap="round"
-            duration={1500}
-            delay={400}
-          >
-            {() => (
-              <View style={styles.chartContent}>
-                <Text style={styles.percentageText}>{overallProgress}%</Text>
-                <Text style={styles.chartLabel}>{totalCompletedWorkouts}/{totalWeeks * daysPerWeek}</Text>
-                <Text style={styles.chartSubLabel}>workouts done</Text>
-              </View>
-            )}
-          </AnimatedCircularProgress>
-          <Text style={styles.chartTitle}>Overall Program</Text>
-        </View>
+      {/* Workout Type Distribution Chart */}
+      <View style={styles.chartSection}>
+        <Text style={styles.chartTitle}>Workout Type Balance</Text>
+        <Text style={styles.chartSubtitle}>Push / Pull / Legs distribution</Text>
+        {workoutTypeData.values.length > 0 && workoutTypeData.values.some(v => v > 0) ? (
+          <BarChart
+            data={{
+              labels: workoutTypeData.labels,
+              datasets: [{ data: workoutTypeData.values }],
+            }}
+            width={chartWidth}
+            height={200}
+            chartConfig={{
+              backgroundColor: colors.darkGray,
+              backgroundGradientFrom: colors.darkGray,
+              backgroundGradientTo: colors.darkGray,
+              decimalPlaces: 0,
+              color: (opacity = 1) => `rgba(132, 204, 22, ${opacity})`,
+              labelColor: (opacity = 1) => `rgba(156, 163, 175, ${opacity})`,
+              style: { borderRadius: 16 },
+              propsForBackgroundLines: {
+                strokeDasharray: '',
+                stroke: 'rgba(255, 255, 255, 0.1)',
+              },
+            }}
+            style={styles.chart}
+            withInnerLines={false}
+            withHorizontalLabels={true}
+            withVerticalLabels={true}
+            fromZero={true}
+            showValuesOnTopOfBars={true}
+          />
+        ) : (
+          <View style={styles.emptyChart}>
+            <Text style={styles.emptyChartText}>Complete workouts to see your balance</Text>
+          </View>
+        )}
       </View>
 
       {/* Calendar Heat Map */}
@@ -161,43 +217,35 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  chartsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  chartContainer: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  chartContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  percentageText: {
-    ...typography.h2,
-    color: colors.white,
-    fontFamily: 'Saira-Bold',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  chartLabel: {
-    ...typography.caption,
-    color: colors.lightGray,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  chartSubLabel: {
-    ...typography.caption,
-    color: colors.lightGray,
-    fontSize: 10,
+  chartSection: {
+    marginBottom: 32,
   },
   chartTitle: {
     ...typography.body,
     color: colors.white,
-    marginTop: 12,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  chartSubtitle: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    marginBottom: 16,
+  },
+  chart: {
+    borderRadius: 16,
+  },
+  emptyChart: {
+    height: 200,
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyChartText: {
+    ...typography.body,
+    color: colors.lightGray,
     textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

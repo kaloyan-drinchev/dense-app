@@ -432,6 +432,8 @@ export const userProgressService = {
     const data = await this.getWeeklyWeightsByUserId(userId);
     const sessions = data?.exerciseLogs?.[exerciseId] as any[] | undefined;
     if (!sessions || sessions.length === 0) return null;
+    
+    // Simple: Just find session for today's date
     const todaySession = sessions.find(session => session.date === today);
     return todaySession || null;
   },
@@ -447,8 +449,9 @@ export const userProgressService = {
       const created = await this.create({
         userId,
         programId: null, // No program assigned yet
-        currentWeek: 1,
-        currentWorkout: 1,
+        currentWorkout: 'push-a', // Start with Push Day A
+        lastCompletedWorkout: null,
+        lastWorkoutDate: null,
         startDate: new Date(),
         completedWorkouts: [],
         weeklyWeights: {},
@@ -491,6 +494,8 @@ export const userProgressService = {
     }
 
     const sessions: any[] = data.exerciseLogs[exerciseId];
+    
+    // Find if we already have a session for today
     const idx = sessions.findIndex((s) => s.date === today);
     const newSession = { date: today, unit: payload.unit, sets: payload.sets };
     
@@ -499,16 +504,6 @@ export const userProgressService = {
     } else {
       sessions.push(newSession);
     }
-
-    console.log(`💾 Saving exercise session for ${exerciseId}:`, {
-      progressId: progress.id,
-      userId: progress.userId,
-      date: today,
-      sets: payload.sets.map(s => ({ reps: s.reps, weightKg: s.weightKg, isCompleted: s.isCompleted })),
-      dataKeys: Object.keys(data),
-      exerciseLogsKeys: Object.keys(data.exerciseLogs || {}),
-      sessionsCount: data.exerciseLogs?.[exerciseId]?.length || 0
-    });
 
     const updateResult = await this.update(progress.id, { weeklyWeights: data });
     if (!updateResult) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,181 +10,75 @@ import {
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '@expo/vector-icons/MaterialIcons';
+import { Feather } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
-import { wizardResultsService } from '@/db/services';
+import { userProgressService } from '@/db/services';
 import { useAuthStore } from '@/store/auth-store';
-import { ensureMinimumDuration } from '@/utils/workout-duration';
-import { ProgramGenerator } from '@/utils/program-generator';
-
-// Helper function to format overview text as bullet points
-const formatOverviewAsBullets = (overview: string): string[] => {
-  // Split the overview into logical bullet points
-  const sentences = overview.split('. ');
-  const bullets = [];
-  
-  // First bullet: Main program description
-  if (sentences[0]) {
-    bullets.push(sentences[0] + (sentences[0].endsWith('.') ? '' : '.'));
-  }
-  
-  // Second bullet: Training frequency
-  if (sentences[1]) {
-    bullets.push(sentences[1] + (sentences[1].endsWith('.') ? '' : '.'));
-  }
-  
-  // Third bullet: Priority focus
-  if (sentences[2]) {
-    bullets.push(sentences[2] + (sentences[2].endsWith('.') ? '' : '.'));
-  }
-  
-  return bullets.filter(bullet => bullet.trim().length > 0);
-};
-
-// Helper function to render text with DENSE and random letters highlighted in green
-const renderTextWithHighlight = (text: string) => {
-  // First, handle DENSE highlighting
-  const parts = text.split(/(DENSE)/g);
-  
-  return parts.map((part, index) => {
-    if (part === 'DENSE') {
-      return (
-        <Text key={index} style={[styles.bulletText, styles.highlightedText]}>
-          {part}
-        </Text>
-      );
-    } else if (part.length > 0) {
-      // For non-DENSE parts, randomly highlight 2 letters
-      return renderRandomHighlights(part, index);
-    }
-    return (
-      <Text key={index} style={styles.bulletText}>
-        {part}
-      </Text>
-    );
-  }).flat(); // Flatten the array since renderRandomHighlights returns an array
-};
-
-// Helper function to randomly highlight 2 letters in a text part
-const renderRandomHighlights = (text: string, partIndex: number) => {
-  // Get only letters (exclude spaces and punctuation)
-  const letters = text.split('').map((char, index) => ({ char, index }))
-    .filter(item => /[a-zA-Z]/.test(item.char));
-  
-  if (letters.length < 2) {
-    return [<Text key={`${partIndex}-text`} style={styles.bulletText}>{text}</Text>]; // Not enough letters to highlight
-  }
-  
-  // Randomly select 2 different letter positions
-  const shuffled = [...letters].sort(() => Math.random() - 0.5);
-  const highlightIndices = new Set([shuffled[0].index, shuffled[1].index]);
-  
-  // Render text with highlighted letters
-  return text.split('').map((char, index) => {
-    if (highlightIndices.has(index)) {
-      return (
-        <Text key={`${partIndex}-${index}`} style={[styles.bulletText, styles.highlightedText]}>
-          {char}
-        </Text>
-      );
-    }
-    return (
-      <Text key={`${partIndex}-${index}`} style={styles.bulletText}>
-        {char}
-      </Text>
-    );
-  });
-};
-
-// Helper function to generate default schedules for old programs
-const generateDefaultSchedule = (trainingDays: number) => {
-  const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-  let trainDays: string[] = [];
-  
-  switch (trainingDays) {
-    case 3:
-      trainDays = ['monday', 'wednesday', 'friday'];
-      break;
-    case 4:
-      trainDays = ['monday', 'tuesday', 'thursday', 'friday'];
-      break;
-    case 5:
-      trainDays = ['monday', 'tuesday', 'thursday', 'friday', 'saturday'];
-      break;
-    case 6:
-      trainDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-      break;
-    case 7:
-      trainDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      break;
-    default:
-      trainDays = ['monday', 'tuesday', 'thursday', 'friday'];
-  }
-  
-  const restDays = allDays.filter(day => !trainDays.includes(day));
-  return { trainDays, restDays };
-};
+import { PUSH_DAY_A, PUSH_DAY_B, PULL_DAY_A, PULL_DAY_B, LEG_DAY_A, LEG_DAY_B, WorkoutTemplate } from '@/lib/workout-templates';
 
 const SingleProgramView = () => {
   const router = useRouter();
   const { user } = useAuthStore();
-  const [selectedRangeIndex, setSelectedRangeIndex] = useState(0);
-  const [generatedProgram, setGeneratedProgram] = useState<any>(null);
-  const [wizardResponses, setWizardResponses] = useState<any>(null);
+  const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
+  const [userProgressData, setUserProgressData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [showDescription, setShowDescription] = useState(false);
 
-  React.useEffect(() => {
-    loadGeneratedProgram();
+  // All workout templates
+  const workoutTemplates: WorkoutTemplate[] = [
+    PUSH_DAY_A,
+    PUSH_DAY_B,
+    PULL_DAY_A,
+    PULL_DAY_B,
+    LEG_DAY_A,
+    LEG_DAY_B,
+  ];
+
+  useEffect(() => {
+    loadUserProgress();
   }, []);
 
-  const loadGeneratedProgram = async () => {
-    console.log('🔍 Loading generated program for user:', user?.id);
-    if (!user) {
-      console.log('❌ No user found');
+  const loadUserProgress = async () => {
+    if (!user?.id) {
+      setLoading(false);
       return;
     }
     
     try {
-      const wizardResults = await wizardResultsService.getByUserId(user.id);
-      console.log('📊 Wizard results:', wizardResults);
-      
-      if (wizardResults && wizardResults.generatedSplit) {
-        const program = JSON.parse(wizardResults.generatedSplit as string);
-        
-        // Reconstruct wizard responses from the individual fields
-        const responses = {
-          squatKg: wizardResults.squatKg,
-          benchKg: wizardResults.benchKg,
-          deadliftKg: wizardResults.deadliftKg,
-          trainingExperience: wizardResults.trainingExperience,
-          bodyFatLevel: wizardResults.bodyFatLevel,
-          trainingDaysPerWeek: wizardResults.trainingDaysPerWeek,
-          preferredTrainingDays: wizardResults.preferredTrainingDays ? JSON.parse(wizardResults.preferredTrainingDays as string) : [],
-          musclePriorities: wizardResults.musclePriorities ? JSON.parse(wizardResults.musclePriorities as string) : [],
-          pumpWorkPreference: wizardResults.pumpWorkPreference,
-          recoveryProfile: wizardResults.recoveryProfile,
-          programDurationWeeks: wizardResults.programDurationWeeks,
-        };
-        
-        console.log('✅ Program loaded:', program.programName);
-        console.log('🗓️ Training schedule debug:', {
-          hasTrainingSchedule: !!program.trainingSchedule,
-          trainingSchedule: program.trainingSchedule,
-          hasRestDays: !!program.restDays,
-          restDays: program.restDays,
-          allKeys: Object.keys(program)
-        });
-        setGeneratedProgram(program);
-        setWizardResponses(responses);
-      } else {
-        console.log('⚠️ No generated program found');
-      }
+      const progress = await userProgressService.getByUserId(user.id);
+      setUserProgressData(progress);
     } catch (error) {
-      console.error('❌ Failed to load generated program:', error);
+      console.error('❌ Failed to load user progress:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (!generatedProgram) {
+  // Calculate how many times each workout type has been completed
+  const getWorkoutCompletionCount = (workoutType: string) => {
+    try {
+      if (!userProgressData?.completedWorkouts) return 0;
+      
+      const completedRaw = userProgressData.completedWorkouts;
+      let completed: any[] = [];
+      
+      if (Array.isArray(completedRaw)) {
+        completed = completedRaw;
+      } else if (typeof completedRaw === 'string') {
+        completed = JSON.parse(completedRaw);
+      }
+      
+      // Count workouts matching this type
+      return completed.filter((item: any) => 
+        item.workoutName && item.workoutName.toLowerCase().includes(workoutType.toLowerCase())
+      ).length;
+    } catch {
+      return 0;
+    }
+  };
+
+  if (loading) {
     return (
       <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
@@ -197,35 +91,22 @@ const SingleProgramView = () => {
     );
   }
 
-  // Get week ranges instead of individual weeks
-  const weekRanges = wizardResponses ? ProgramGenerator.getWeekRanges(generatedProgram.totalWeeks) : [];
-  
-  // Get the current week structure for the selected range
-  const getCurrentWeekStructure = () => {
-    if (!wizardResponses || !weekRanges[selectedRangeIndex]) return generatedProgram?.weeklyStructure || [];
-    const selectedRange = weekRanges[selectedRangeIndex];
-    return ProgramGenerator.generateWeekStructureForRange(wizardResponses, selectedRange.startWeek);
-  };
-
   return (
     <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => {
-            // Mark wizard as completed when user finishes viewing program
-            const { setWizardCompleted } = useAuthStore.getState();
-            setWizardCompleted();
-            router.back();
-          }} style={styles.backButton} activeOpacity={1}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={1}>
             <Icon name="arrow-back" size={24} color={colors.white} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Your Program</Text>
+          <Text style={styles.headerTitle}>Push Pull Legs Program</Text>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Program Overview */}
           <View style={styles.programOverview}>
-            <Text style={styles.programName}>{generatedProgram.programName}</Text>
+            <Text style={styles.programDescription}>
+              Rotate through these 6 workouts in order for balanced muscle development
+            </Text>
             
             {/* Info Button to toggle description */}
             <TouchableOpacity 
@@ -238,192 +119,93 @@ const SingleProgramView = () => {
               </Text>
             </TouchableOpacity>
 
-            {/* Collapsible Overview Bullets */}
+            {/* Collapsible Program Info */}
             {showDescription && (
-              <View style={styles.overviewBullets}>
-                {formatOverviewAsBullets(generatedProgram.overview).map((bullet, index) => (
-                  <View key={index} style={styles.bulletPoint}>
-                    <Text style={styles.bulletDot}>•</Text>
-                    <Text style={styles.bulletTextContainer}>
-                      {renderTextWithHighlight(bullet)}
-                    </Text>
-                  </View>
-                ))}
+              <View style={styles.infoBullets}>
+                <View style={styles.bulletPoint}>
+                  <Text style={styles.bulletDot}>•</Text>
+                  <Text style={styles.bulletText}>
+                    Push Day A & B focus on chest, shoulders, and triceps with different exercise variations
+                  </Text>
+                </View>
+                <View style={styles.bulletPoint}>
+                  <Text style={styles.bulletDot}>•</Text>
+                  <Text style={styles.bulletText}>
+                    Pull Day A & B target back and biceps with varied exercises for complete development
+                  </Text>
+                </View>
+                <View style={styles.bulletPoint}>
+                  <Text style={styles.bulletDot}>•</Text>
+                  <Text style={styles.bulletText}>
+                    Leg Day A & B work quads, hamstrings, and glutes with different intensities and movements
+                  </Text>
+                </View>
+                <View style={styles.bulletPoint}>
+                  <Text style={styles.bulletDot}>•</Text>
+                  <Text style={styles.bulletText}>
+                    Alternate between A and B versions to prevent adaptation and maximize muscle growth
+                  </Text>
+                </View>
               </View>
             )}
+          </View>
+
+          {/* Workout Templates */}
+          {workoutTemplates.map((workout) => {
+            const completionCount = getWorkoutCompletionCount(workout.name);
+            const isExpanded = expandedWorkout === workout.id;
             
-            <View style={styles.programStats}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{generatedProgram.totalWeeks}</Text>
-                <Text style={styles.statLabel}>Weeks</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{generatedProgram.weeklyStructure.length}</Text>
-                <Text style={styles.statLabel}>Days/Week</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{generatedProgram.weeklyStructure.reduce((total: number, day: any) => total + (day.exercises?.length || 0), 0)}</Text>
-                <Text style={styles.statLabel}>Exercises</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Training Schedule Tip */}
-          {generatedProgram && (
-            <View style={styles.scheduleContainer}>
-              <View style={styles.scheduleContent}>
-                <Icon name="schedule" size={20} color={colors.primary} style={styles.scheduleIcon} />
-                <View style={styles.scheduleTextContainer}>
-                  <Text style={styles.scheduleTitle}>Training Schedule</Text>
-                  {generatedProgram.trainingSchedule ? (
-                    <View style={styles.daysContainer}>
-                      <View style={styles.dayTypeSection}>
-                        <Text style={styles.dayTypeLabel}>TRAIN</Text>
-                        <View style={styles.daysRow}>
-                          {generatedProgram.trainingSchedule.map((day: string) => (
-                            <View key={day} style={styles.trainDay}>
-                              <Text style={styles.trainDayText}>
-                                {day.slice(0, 3).toUpperCase()}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                      {generatedProgram.restDays && generatedProgram.restDays.length > 0 && (
-                        <View style={styles.dayTypeSection}>
-                          <Text style={styles.dayTypeLabel}>REST</Text>
-                          <View style={styles.daysRow}>
-                            {generatedProgram.restDays.map((day: string) => (
-                              <View key={day} style={styles.restDay}>
-                                <Text style={styles.restDayText}>
-                                  {day.slice(0, 3).toUpperCase()}
-                                </Text>
-                              </View>
-                            ))}
-                          </View>
-                        </View>
-                      )}
-                    </View>
-                  ) : (
-                    <View style={styles.daysContainer}>
-                      <View style={styles.dayTypeSection}>
-                        <Text style={styles.dayTypeLabel}>TRAIN</Text>
-                        <View style={styles.daysRow}>
-                          {generateDefaultSchedule(generatedProgram.weeklyStructure?.length || 4).trainDays.map((day: string) => (
-                            <View key={day} style={styles.trainDay}>
-                              <Text style={styles.trainDayText}>
-                                {day.slice(0, 3).toUpperCase()}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                      <View style={styles.dayTypeSection}>
-                        <Text style={styles.dayTypeLabel}>REST</Text>
-                        <View style={styles.daysRow}>
-                          {generateDefaultSchedule(generatedProgram.weeklyStructure?.length || 4).restDays.map((day: string) => (
-                            <View key={day} style={styles.restDay}>
-                              <Text style={styles.restDayText}>
-                                {day.slice(0, 3).toUpperCase()}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                    </View>
-                  )}
+            return (
+              <TouchableOpacity
+                key={workout.id}
+                style={styles.workoutCard}
+                onPress={() => setExpandedWorkout(isExpanded ? null : workout.id)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.workoutCardHeader}>
+                  <View style={styles.workoutCardLeft}>
+                    <Text style={styles.workoutCardTitle}>{workout.name}</Text>
+                    <Text style={styles.workoutCardMeta}>
+                      {workout.exercises.length} exercises • {workout.estimatedDuration} mins
+                    </Text>
+                    <Text style={styles.workoutCardCompletion}>
+                      Completed {completionCount} times
+                    </Text>
+                  </View>
+                  <Feather 
+                    name={isExpanded ? 'chevron-up' : 'chevron-down'} 
+                    size={24} 
+                    color={colors.lightGray} 
+                  />
                 </View>
-              </View>
-            </View>
-          )}
 
-          {/* Week Range Selector */}
-          <View style={styles.weekSelector}>
-            <Text style={styles.sectionTitle}>Training Phases</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.weekScrollView}>
-              {weekRanges.map((range, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.weekButton,
-                    selectedRangeIndex === index && styles.selectedWeekButton,
-                  ]}
-                  onPress={() => setSelectedRangeIndex(index)}
-                  activeOpacity={1}
-                >
-                  <Text
-                    style={[
-                      styles.weekButtonText,
-                      selectedRangeIndex === index && styles.selectedWeekButtonText,
-                    ]}
-                  >
-                    {range.range}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Weekly Workouts */}
-          <View style={styles.weeklyWorkouts}>
-            <Text style={styles.sectionTitle}>
-              {weekRanges[selectedRangeIndex]?.range || 'Week 1'} Workouts
-            </Text>
-            {getCurrentWeekStructure().map((day: any, index: number) => (
-              <View key={index} style={styles.workoutCard}>
-                <View style={styles.workoutHeader}>
-                  <Text style={styles.workoutDay}>Day {index + 1}</Text>
-                  <Text style={styles.workoutName}>{day.name}</Text>
-                  <Text style={styles.workoutDuration}>{ensureMinimumDuration(day.estimatedDuration)} min</Text>
-                </View>
-                
-                <View style={styles.muscleGroupSection}>
-                  <Text style={styles.muscleGroupTitle}>{day.type.toUpperCase()}</Text>
-                  {day.exercises?.map((exercise: any, exerciseIndex: number) => (
-                    <View key={exerciseIndex} style={styles.exerciseItem}>
-                      <View style={styles.exerciseInfo}>
-                        <Text style={styles.exerciseName}>{exercise.name}</Text>
-                        <Text style={styles.exerciseDetails}>
-                          {exercise.sets} sets × {exercise.reps} reps
-                        </Text>
-                        {exercise.notes && (
-                          <Text style={styles.exerciseNotes}>{exercise.notes}</Text>
-                        )}
+                {/* Expanded Exercise List */}
+                {isExpanded && (
+                  <View style={styles.exerciseList}>
+                    {workout.exercises.map((exercise, idx) => (
+                      <View key={exercise.id} style={styles.exerciseItem}>
+                        <Text style={styles.exerciseNumber}>{idx + 1}</Text>
+                        <View style={styles.exerciseInfo}>
+                          <Text style={styles.exerciseName}>{exercise.name}</Text>
+                          <Text style={styles.exerciseDetails}>
+                            {exercise.sets} sets • {exercise.reps} reps
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                  )) || (
-                    <Text style={styles.exerciseNotes}>No exercises for this day</Text>
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
+                    ))}
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
 
-          {/* Program Tips */}
-          <View style={styles.programTips}>
-            <Text style={styles.sectionTitle}>Nutrition Tips</Text>
-            {generatedProgram.nutritionTips.map((tip: string, index: number) => (
-              <View key={index} style={styles.tipItem}>
-                <Icon name="lightbulb-outline" size={20} color={colors.primary} />
-                <Text style={styles.tipText}>{tip}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.programTips}>
-            <Text style={styles.sectionTitle}>Progression Notes</Text>
-            {generatedProgram.progressionNotes.map((note: string, index: number) => (
-              <View key={index} style={styles.tipItem}>
-                <Icon name="trending-up" size={20} color={colors.secondary} />
-                <Text style={styles.tipText}>{note}</Text>
-              </View>
-            ))}
-          </View>
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>
   );
 };
+
+export default SingleProgramView;
 
 const styles = StyleSheet.create({
   container: {
@@ -436,15 +218,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.mediumGray,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButton: {
     marginRight: 16,
   },
   headerTitle: {
-    ...typography.h4,
+    ...typography.h3,
     color: colors.white,
   },
   content: {
@@ -455,69 +238,58 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   loadingText: {
-    ...typography.body,
-    color: colors.lightGray,
+    ...typography.h3,
+    color: colors.white,
     marginBottom: 8,
   },
   loadingSubtext: {
-    ...typography.bodySmall,
+    ...typography.body,
     color: colors.lightGray,
-    opacity: 0.7,
   },
   programOverview: {
     paddingVertical: 24,
   },
-  programName: {
-    ...typography.h1,
-    color: colors.white,
+  programDescription: {
+    ...typography.body,
+    color: colors.lightGray,
+    lineHeight: 24,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
   },
   infoButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(132, 204, 22, 0.1)',
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    marginBottom: 16,
-    marginHorizontal: 60,
+    alignSelf: 'center',
   },
   infoButtonText: {
-    ...typography.body,
+    ...typography.bodySmall,
     color: colors.primary,
-    fontSize: 14,
     fontWeight: '600',
   },
-  programDescription: {
-    ...typography.body,
-    color: colors.lightGray,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 24,
-  },
-  overviewBullets: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
+  infoBullets: {
+    marginTop: 20,
+    gap: 12,
   },
   bulletPoint: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    gap: 12,
   },
   bulletDot: {
     ...typography.body,
     color: colors.primary,
-    marginRight: 12,
+    fontSize: 20,
+    lineHeight: 20,
     marginTop: 2,
-    fontSize: 24,
-    fontWeight: 'bold',
   },
   bulletText: {
     ...typography.body,
@@ -525,197 +297,57 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 22,
   },
-  bulletTextContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  highlightedText: {
-    color: colors.primary,
-    fontWeight: 'bold',
-  },
-  programStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: colors.darkGray,
-    borderRadius: 16,
-    paddingVertical: 20,
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statNumber: {
-    ...typography.timerMedium,
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  statLabel: {
-    ...typography.bodySmall,
-    color: colors.lightGray,
-  },
-  // Schedule styles
-  scheduleContainer: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
-  scheduleContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  scheduleIcon: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  scheduleTextContainer: {
-    flex: 1,
-  },
-  scheduleTitle: {
-    ...typography.h5,
-    color: colors.white,
-    marginBottom: 4,
-  },
-  scheduleSubtitle: {
-    ...typography.bodySmall,
-    color: colors.lightGray,
-    marginBottom: 2,
-  },
-  scheduleNote: {
-    ...typography.bodySmall,
-    color: colors.primary,
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
-  daysContainer: {
-    marginTop: 12,
-  },
-  dayTypeSection: {
-    marginBottom: 12,
-  },
-  dayTypeLabel: {
-    ...typography.bodySmall,
-    color: colors.white,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    fontSize: 12,
-    letterSpacing: 1,
-  },
-  daysRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  trainDay: {
-    backgroundColor: colors.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    minWidth: 45,
-    alignItems: 'center',
-  },
-  trainDayText: {
-    ...typography.bodySmall,
-    color: colors.black,
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  restDay: {
-    backgroundColor: colors.mediumGray,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    minWidth: 45,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.lightGray,
-  },
-  restDayText: {
-    ...typography.bodySmall,
-    color: colors.lightGray,
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  weekSelector: {
-    paddingVertical: 20,
-  },
-  sectionTitle: {
-    ...typography.h4,
-    color: colors.white,
-    marginBottom: 16,
-  },
-  weekScrollView: {
-    flexDirection: 'row',
-  },
-  weekButton: {
-    backgroundColor: colors.darkGray,
-    borderWidth: 2,
-    borderColor: colors.mediumGray,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginRight: 12,
-  },
-  selectedWeekButton: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  weekButtonText: {
-    ...typography.bodySmall,
-    color: colors.lightGray,
-  },
-  selectedWeekButtonText: {
-    color: colors.black,
-    fontWeight: '600',
-  },
-  weeklyWorkouts: {
-    paddingBottom: 20,
-  },
   workoutCard: {
     backgroundColor: colors.darkGray,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
   },
-  workoutHeader: {
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.mediumGray,
+  workoutCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  workoutDay: {
-    ...typography.bodySmall,
-    color: colors.primary,
-    marginBottom: 4,
+  workoutCardLeft: {
+    flex: 1,
+    marginRight: 16,
   },
-  workoutName: {
+  workoutCardTitle: {
     ...typography.h4,
     color: colors.white,
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  workoutDuration: {
+  workoutCardMeta: {
     ...typography.bodySmall,
     color: colors.lightGray,
+    marginBottom: 4,
   },
-  muscleGroupSection: {
-    marginBottom: 16,
+  workoutCardCompletion: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '600',
   },
-  muscleGroupTitle: {
-    ...typography.body,
-    color: colors.secondary,
-    marginBottom: 12,
+  exerciseList: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   exerciseItem: {
     flexDirection: 'row',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: colors.dark,
-    borderRadius: 8,
-    marginBottom: 8,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  exerciseNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(132, 204, 22, 0.1)',
+    color: colors.primary,
+    textAlign: 'center',
+    lineHeight: 32,
+    fontWeight: 'bold',
+    marginRight: 12,
   },
   exerciseInfo: {
     flex: 1,
@@ -727,29 +359,6 @@ const styles = StyleSheet.create({
   },
   exerciseDetails: {
     ...typography.bodySmall,
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  exerciseNotes: {
-    ...typography.caption,
     color: colors.lightGray,
-    fontStyle: 'italic',
-  },
-  programTips: {
-    paddingVertical: 16,
-  },
-  tipItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-    gap: 12,
-  },
-  tipText: {
-    flex: 1,
-    ...typography.bodySmall,
-    color: colors.lightGray,
-    lineHeight: 20,
   },
 });
-
-export default SingleProgramView;

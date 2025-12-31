@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -11,6 +11,7 @@ import {
   ScrollView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -18,6 +19,7 @@ import { Exercise, ExerciseSet } from '@/types/workout';
 import { colors } from '@/constants/colors';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
+import { useWorkoutCacheStore } from '@/store/workout-cache-store';
 import { userProgressService } from '@/db/services';
 import { generateId } from '@/utils/helpers';
 import { Feather as Icon } from '@expo/vector-icons';
@@ -41,6 +43,7 @@ interface ExerciseTrackerProps {
     unit: 'kg' | 'lb';
     sets: Array<{ setNumber: number; weightKg: number; reps: number; isCompleted: boolean }>;
   };
+  userProgressData?: any; // Pass cached progress to avoid expensive DB fetch
 }
 
 export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
@@ -49,6 +52,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   registerSave,
   readOnly = false,
   presetSession,
+  userProgressData: propUserProgressData,
 }) => {
   const router = useRouter();
   const MAX_SETS = 8;
@@ -104,8 +108,23 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const loadPRData = async () => {
     if (!user?.id) return;
     
+    const prStart = performance.now();
+    console.log(`⏱️ [ExerciseTracker] Loading PR data for: ${exerciseKey}`);
+    
     try {
-      const progress = await userProgressService.getByUserId(user.id);
+      // OPTIMIZATION: Try cache first to avoid database fetch
+      const cache = useWorkoutCacheStore.getState();
+      let progress = cache.userProgressData;
+      
+      // Only fetch from DB if cache is invalid or missing
+      if (!progress || !cache.isCacheValid()) {
+        const fetchStart = performance.now();
+        progress = await userProgressService.getByUserId(user.id);
+        console.log(`⏱️ [ExerciseTracker] PR data fetch: ${(performance.now() - fetchStart).toFixed(0)}ms`);
+      } else {
+        console.log(`⏱️ [ExerciseTracker] Using cached PR data`);
+      }
+      
       if (progress?.weeklyWeights) {
         // Handle both string (from JSON) and object (from JSONB) types
         const weeklyWeights = typeof progress.weeklyWeights === 'string'
@@ -115,15 +134,18 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         
         setExerciseLogs(logs);
         
-        // Analyze PRs for all exercises
-        const allPRs = analyzeExercisePRs(logs);
-        setExercisePRs(allPRs);
+        // OPTIMIZATION: Only analyze PRs for the current exercise, not all exercises
+        const currentExerciseLogs = logs[exerciseKey] || [];
+        const singleExerciseLog: ExerciseLogs = { [exerciseKey]: currentExerciseLogs };
+        const currentExercisePRs = analyzeExercisePRs(singleExerciseLog);
+        setExercisePRs(currentExercisePRs);
         
         // Generate beat last workout suggestions
-        const suggestions = getBeatLastWorkoutSuggestions(exerciseKey, allPRs);
+        const suggestions = getBeatLastWorkoutSuggestions(exerciseKey, currentExercisePRs);
         setBeatLastSuggestions(suggestions);
       }
       setIsPRDataLoaded(true);
+      console.log(`⏱️ [ExerciseTracker] Total loadPRData: ${(performance.now() - prStart).toFixed(0)}ms`);
     } catch (error) {
       console.error('Failed to load PR data:', error);
       setIsPRDataLoaded(true); // Set to true even on error to prevent infinite loading
@@ -132,6 +154,9 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
 
   // Load session data function (reusable)
   const loadSessionData = async () => {
+    const loadStart = performance.now();
+    console.log(`⏱️ [ExerciseTracker] Loading session for: ${exerciseKey}`);
+    
     if (presetSession) {
       const limitedSets = presetSession.sets.slice(0, MAX_SETS);
       const hydrated: ExerciseSet[] = (limitedSets.length > 0
@@ -141,6 +166,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       setUnit(presetSession.unit || 'kg');
       setSets(hydrated);
       setIsLoadingSets(false);
+      console.log(`⏱️ [ExerciseTracker] Preset session loaded: ${(performance.now() - loadStart).toFixed(0)}ms`);
       return;
     }
     
@@ -150,8 +176,23 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       return;
     }
     try {
-      // Load today's session data
-      const todaySession = await userProgressService.getTodayExerciseSession(user.id, exerciseKey);
+      // Use passed progress data instead of fetching from DB
+      let todaySession = null;
+      if (propUserProgressData) {
+        // Use passed progress data (from cache)
+        const weeklyWeights = typeof propUserProgressData.weeklyWeights === 'string'
+          ? JSON.parse(propUserProgressData.weeklyWeights)
+          : propUserProgressData.weeklyWeights;
+        
+        const today = new Date().toISOString().split('T')[0];
+        const sessions = weeklyWeights?.exerciseLogs?.[exerciseKey] || [];
+        
+        // Simple: Just check today's date
+        todaySession = sessions.find((session: any) => session.date === today);
+      } else {
+        // Fallback to DB fetch if no progress data passed
+        todaySession = await userProgressService.getTodayExerciseSession(user.id, exerciseKey);
+      }
       
       if (todaySession?.sets && todaySession.sets.length > 0) {
         setUnit(todaySession.unit || 'kg');
@@ -346,14 +387,15 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       // The data is already correct in memory
       // await loadSessionData();
       
-      // Only reload PR data to update records
-      await loadPRData();
+      // OPTIMIZATION: Don't reload PR data on auto-save - PRs only change on exercise completion
+      // This was causing performance issues as it refetched and reanalyzed data on every edit
+      // PR data is loaded on mount and after exercise completion, which is sufficient
     } catch (e) {
       console.error(`❌ Failed to save ${exerciseKey}:`, e);
       setSaveStatus('error');
       // On error, try to reload to see what was actually saved
       await loadSessionData().catch(() => {});
-      await loadPRData().catch(() => {});
+      // Skip PR reload on error - not necessary
     } finally {
       isSavingRef.current = false;
       if (pendingSaveRef.current) {
@@ -451,7 +493,10 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       
       // Update or add today's session with completed data
       const sessions = weeklyWeights.exerciseLogs[exerciseKey];
+      
+      // Simple: Find session by date only
       const todaySessionIndex = sessions.findIndex((s: any) => s.date === today);
+      
       const completedSession = {
         date: today,
         unit: payload.unit,
@@ -478,26 +523,25 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       // STEP 2: Save to database to ensure data consistency
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
       
-      // STEP 3: Sync cache with database (in background)
-      setTimeout(() => {
-        userProgressService.getByUserId(user.id)
-          .then((freshProgress) => {
-            if (freshProgress) {
-              useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
-            }
-          })
-          .catch((error) => {
-            console.error('❌ Failed to sync cache after exercise completion:', error);
-          });
-      }, 100);
+      // STEP 3: Sync cache with database IMMEDIATELY for instant status update
+      userProgressService.getByUserId(user.id)
+        .then((freshProgress) => {
+          if (freshProgress) {
+            console.log('✅ [ExerciseTracker] Cache updated with fresh data after completion');
+            useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
+          }
+        })
+        .catch((error) => {
+          console.error('❌ Failed to sync cache after exercise completion:', error);
+        });
       
       // Show success feedback - DISABLED
       // if (Platform.OS !== 'web') {
       //   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // }
       
-      // Reset completing flag - exercise is now completed and buttons will stay disabled due to allSetsCompleted
-      setIsCompletingExercise(false);
+      // Keep completing flag active to show loader during navigation
+      // It will be reset when component unmounts or on the next screen
       
       // Navigate back to workout session
       router.back();
@@ -589,13 +633,13 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
         </View>
         {!allSetsCompleted && (
-          <TouchableOpacity 
-            style={styles.historyButton}
-            onPress={() => router.push(`/exercise-history?exerciseId=${exerciseKey}&exerciseName=${encodeURIComponent(exercise.name)}`)}
-          >
-            <Icon name="bar-chart-2" size={20} color={colors.primary} />
-            <Text style={styles.historyButtonText}>History</Text>
-          </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.historyButton}
+          onPress={() => router.push(`/exercise-history?exerciseId=${exerciseKey}&exerciseName=${encodeURIComponent(exercise.name)}`)}
+        >
+          <Icon name="bar-chart-2" size={20} color={colors.primary} />
+          <Text style={styles.historyButtonText}>History</Text>
+        </TouchableOpacity>
         )}
       </View>
       
@@ -799,32 +843,32 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
                 style={styles.modalContent}
               >
                 <Text style={styles.modalTitle}>Complete Exercise?</Text>
-                <Text style={styles.modalDescription}>
+                    <Text style={styles.modalDescription}>
                   Mark this exercise as completed and move to the next one?
-                </Text>
-                
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
-                    onPress={() => {
-                      setShowConfirmModal(false);
-                      setAchievedPRs([]); // Clear PRs
-                      completeExercise();
-                    }}
-                  >
+                    </Text>
+                    
+                    <View style={styles.modalButtons}>
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.confirmButton, styles.dualButton]}
+                        onPress={() => {
+                          setShowConfirmModal(false);
+                          setAchievedPRs([]); // Clear PRs
+                          completeExercise();
+                        }}
+                      >
                     <Text style={styles.confirmButtonText}>Complete</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.cancelButton, styles.dualButton]}
-                    onPress={() => {
-                      setShowConfirmModal(false);
-                      setAchievedPRs([]); // Clear PRs
-                    }}
-                  >
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.cancelButton, styles.dualButton]}
+                        onPress={() => {
+                          setShowConfirmModal(false);
+                          setAchievedPRs([]); // Clear PRs
+                        }}
+                      >
                     <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
+                      </TouchableOpacity>
+                    </View>
               </LinearGradient>
             </View>
           </TouchableOpacity>
@@ -845,6 +889,16 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           // Could use expo-sharing here
         }}
       /> */}
+
+      {/* Completing Exercise Loader */}
+      {isCompletingExercise && (
+        <View style={styles.completingOverlay}>
+          <View style={styles.completingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.completingText}>Completing exercise...</Text>
+          </View>
+        </View>
+      )}
 
     </View>
   );
@@ -1269,5 +1323,31 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.white,
     fontSize: 12,
+  },
+  completingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  completingContainer: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  completingText: {
+    ...typography.body,
+    color: colors.primary,
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

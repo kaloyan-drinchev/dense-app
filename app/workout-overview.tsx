@@ -73,10 +73,22 @@ export default function WorkoutOverviewScreen() {
       // Get today's date
       const today = new Date().toISOString().split('T')[0];
       
-      // Check if any PRs were achieved today
+      // Build a Set of exercise IDs from the current workout
+      const workoutExerciseIds = new Set(
+        exercisesData.map((ex: ExerciseVolume) => 
+          ex.name.toLowerCase().replace(/\s+/g, '-')
+        )
+      );
+      
+      // Check if any PRs were achieved today for exercises in THIS workout only
       const todaysPRs: PRInfo[] = [];
       
       Object.entries(allPRs).forEach(([exerciseId, prs]: [string, any]) => {
+        // IMPORTANT: Skip exercises that weren't in the current workout
+        if (!workoutExerciseIds.has(exerciseId)) {
+          return;
+        }
+        
         // Format exercise name
         const exerciseName = exercisesData.find((ex: ExerciseVolume) => 
           ex.name.toLowerCase().replace(/\s+/g, '-') === exerciseId
@@ -92,30 +104,6 @@ export default function WorkoutOverviewScreen() {
             value: prs.maxWeight.value,
             improvement: prs.maxWeight.previousValue 
               ? prs.maxWeight.value - prs.maxWeight.previousValue 
-              : undefined,
-          });
-        }
-
-        // Check volume PR
-        if (prs.maxVolume && prs.maxVolume.date === today) {
-          todaysPRs.push({
-            exerciseName,
-            prType: 'Volume',
-            value: prs.maxVolume.value,
-            improvement: prs.maxVolume.previousValue 
-              ? prs.maxVolume.value - prs.maxVolume.previousValue 
-              : undefined,
-          });
-        }
-
-        // Check 1RM PR
-        if (prs.estimated1RM && prs.estimated1RM.date === today) {
-          todaysPRs.push({
-            exerciseName,
-            prType: '1RM',
-            value: prs.estimated1RM.value,
-            improvement: prs.estimated1RM.previousValue 
-              ? prs.estimated1RM.value - prs.estimated1RM.previousValue 
               : undefined,
           });
         }
@@ -182,11 +170,11 @@ export default function WorkoutOverviewScreen() {
                     </View>
                     <View style={styles.prItemStats}>
                       <Text style={styles.prValue}>
-                        {pr.prType === 'Volume' ? formatVolume(pr.value) : `${pr.value.toFixed(1)}kg`}
+                        {pr.value.toFixed(1)}kg
                       </Text>
                       {pr.improvement && (
                         <Text style={styles.prImprovement}>
-                          +{pr.prType === 'Volume' ? formatVolume(pr.improvement) : `${pr.improvement.toFixed(1)}kg`}
+                          +{pr.improvement.toFixed(1)}kg
                         </Text>
                       )}
                     </View>

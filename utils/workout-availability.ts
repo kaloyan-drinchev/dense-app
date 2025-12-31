@@ -31,12 +31,12 @@ export const checkWorkoutAvailability = async (
     const nextWorkout = getNextWorkout(generatedProgram, userProgressData);
     
     // Always allow starting workouts - users can do multiple workouts per day
-    return {
-      canStartWorkout: true,
+      return {
+        canStartWorkout: true,
       isCompletedToday: isCompletedToday,
-      nextAvailableDate: null,
-      currentWorkoutName: currentWorkout?.name || null,
-      nextWorkoutName: nextWorkout?.name || null,
+        nextAvailableDate: null,
+        currentWorkoutName: currentWorkout?.name || null,
+        nextWorkoutName: nextWorkout?.name || null,
       motivationalMessage: isCompletedToday 
         ? "Great work today! Ready for another session? 💪" 
         : "Ready to crush today's workout! 💪"

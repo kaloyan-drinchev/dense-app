@@ -15,8 +15,8 @@ import { typography } from '@/constants/typography';
 export default function FinishedWorkoutsDetailScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { date, workoutIndex } = useLocalSearchParams<{ date: string; workoutIndex: string }>();
-  const [program, setProgram] = useState<any>(null);
+  const { date, workoutName } = useLocalSearchParams<{ date: string; workoutName: string }>();
+  const [workout, setWorkout] = useState<any>(null);
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, any[]>>({});
   const [customExercises, setCustomExercises] = useState<any[]>([]);
   const [cardioEntries, setCardioEntries] = useState<any[]>([]);
@@ -32,16 +32,40 @@ export default function FinishedWorkoutsDetailScreen() {
     const load = async () => {
       if (!user?.id) { setLoading(false); return; }
       try {
-        const wiz = await wizardResultsService.getByUserId(user.id);
-        if (wiz?.generatedSplit) {
-          // Handle both string (JSON) and object (JSONB) types
-          try { 
-            setProgram(typeof wiz.generatedSplit === 'string' 
-              ? JSON.parse(wiz.generatedSplit) 
-              : wiz.generatedSplit); 
-          } catch {}
+        // NEW SYSTEM: Load workout template based on workoutName
+        if (workoutName && typeof workoutName === 'string') {
+          // Parse workout name to get workout type (e.g., "Push Day A" -> "push-a")
+          const lowerName = workoutName.toLowerCase();
+          let workoutType = '';
+          
+          // Check for specific patterns to avoid false matches (e.g., "day" contains "a")
+          if (lowerName.includes('push') && (lowerName.includes('day a') || lowerName.endsWith(' a'))) {
+            workoutType = 'push-a';
+          } else if (lowerName.includes('push') && (lowerName.includes('day b') || lowerName.endsWith(' b'))) {
+            workoutType = 'push-b';
+          } else if (lowerName.includes('pull') && (lowerName.includes('day a') || lowerName.endsWith(' a'))) {
+            workoutType = 'pull-a';
+          } else if (lowerName.includes('pull') && (lowerName.includes('day b') || lowerName.endsWith(' b'))) {
+            workoutType = 'pull-b';
+          } else if (lowerName.includes('leg') && (lowerName.includes('day a') || lowerName.endsWith(' a'))) {
+            workoutType = 'leg-a';
+          } else if (lowerName.includes('leg') && (lowerName.includes('day b') || lowerName.endsWith(' b'))) {
+            workoutType = 'leg-b';
+          }
+          
+          console.log('🔍 Parsing workout name:', workoutName, '-> Type:', workoutType);
+          
+          if (workoutType) {
+            const { getWorkoutTemplate } = await import('@/lib/workout-templates');
+            const workoutTemplate = getWorkoutTemplate(workoutType);
+            if (workoutTemplate) {
+              setWorkout(workoutTemplate);
+              console.log('✅ Loaded workout template:', workoutTemplate.name);
+            }
+          }
         }
-
+        
+        const wiz = await wizardResultsService.getByUserId(user.id);
         if (wiz?.weight) {
           setUserWeight(wiz.weight);
         }
@@ -75,12 +99,26 @@ export default function FinishedWorkoutsDetailScreen() {
               : (typeof progress.completedWorkouts === 'string'
                   ? JSON.parse(progress.completedWorkouts)
                   : []);
-            const workoutEntry = completedData.find((item: any) => 
-              typeof item === 'object' && 
-              item.date && 
-              new Date(item.date).toISOString().split('T')[0] === new Date(date).toISOString().split('T')[0] &&
-              item.workoutIndex === parseInt(workoutIndex || '0', 10)
-            );
+            
+            // Normalize workoutName for comparison (handle casing and spacing)
+            const normalizedWorkoutName = workoutName 
+              ? String(workoutName).toLowerCase().trim()
+              : '';
+            
+            const workoutEntry = completedData.find((item: any) => {
+              if (typeof item !== 'object' || !item.date) return false;
+              
+              // Check date match
+              const dateMatch = new Date(item.date).toISOString().split('T')[0] === new Date(date).toISOString().split('T')[0];
+              if (!dateMatch) return false;
+              
+              // Check workout name match (normalized)
+              const itemWorkoutName = item.workoutName 
+                ? String(item.workoutName).toLowerCase().trim()
+                : '';
+              
+              return itemWorkoutName === normalizedWorkoutName;
+            });
             
             if (workoutEntry) {
               if (workoutEntry.duration) {
@@ -112,9 +150,8 @@ export default function FinishedWorkoutsDetailScreen() {
       }
     };
     load();
-  }, [user?.id, date, workoutIndex]);
+  }, [user?.id, date, workoutName]);
 
-  const workout = program?.weeklyStructure?.[parseInt(workoutIndex || '0', 10)];
   const dateKey = String(date || '').slice(0, 10);
 
   useEffect(() => {
@@ -177,7 +214,7 @@ export default function FinishedWorkoutsDetailScreen() {
     
     const total = exerciseCalories + cardioCalories;
     setTotalCalories(total);
-  }, [workout, exerciseLogs, customExercises, cardioEntries, date, userWeight, workoutIndex, program]);
+  }, [workout, exerciseLogs, customExercises, cardioEntries, date, userWeight]);
 
   return (
     <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>

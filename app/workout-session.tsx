@@ -39,6 +39,10 @@ import {
 } from '@/utils/pr-tracking';
 import { calculateWorkoutCalories } from '@/utils/exercise-calories';
 
+// NEW: Import workout template system
+import { getWorkoutTemplate, type WorkoutTemplate } from '@/lib/workout-templates';
+import { updateWorkoutProgression } from '@/lib/workout-suggestion';
+
 export default function WorkoutSessionScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -92,6 +96,7 @@ export default function WorkoutSessionScreen() {
   const [showCardioModal, setShowCardioModal] = useState(false);
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLogs>({});
   const [exercisePRs, setExercisePRs] = useState<ExercisePRs>({});
+  const [updatingExerciseId, setUpdatingExerciseId] = useState<string | null>(null);
   const [userWeight, setUserWeight] = useState<number>(cachedWeight || 70);
   const { 
     formattedTime, 
@@ -104,30 +109,29 @@ export default function WorkoutSessionScreen() {
     completeWorkout 
   } = useWorkoutTimer();
   const workoutStartTime = useTimerStore((state) => state.workoutStartTime);
-
-  // Memoize getTodaysWorkout to prevent infinite loops - only recalculate when dependencies change
-  const todaysWorkout = useMemo(() => {
-    if (!generatedProgram || !userProgressData) {
-      return null;
-    }
-    
-    // Ensure currentWorkout is a valid number (default to 1 if undefined/null)
-    const currentWorkout = userProgressData.currentWorkout || 1;
-    const currentWorkoutIndex = currentWorkout - 1;
-    
-    // Check if index is valid
-    if (currentWorkoutIndex < 0 || !generatedProgram.weeklyStructure || 
-        currentWorkoutIndex >= generatedProgram.weeklyStructure.length) {
-      return null;
-    }
-    
-    const workout = generatedProgram.weeklyStructure[currentWorkoutIndex];
-    
-    return workout || null;
-  }, [generatedProgram, userProgressData]);
-
-  // Use ref to prevent multiple simultaneous calls
   const isLoadingRef = useRef(false);
+
+  // NEW: Get current workout from template system (no more week/day progression)
+  const todaysWorkout = useMemo(() => {
+    if (!userProgressData) {
+      return null;
+    }
+    
+    // Get the current workout type (e.g., 'push-a', 'pull-b')
+    const currentWorkoutType = userProgressData.currentWorkout || 'push-a';
+    
+    // Load workout template
+    const workoutTemplate = getWorkoutTemplate(currentWorkoutType);
+    
+    if (!workoutTemplate) {
+      console.error('❌ Failed to load workout template:', currentWorkoutType);
+      return null;
+    }
+    
+    console.log('✅ Loaded workout template:', workoutTemplate.name, `(${workoutTemplate.exercises.length} exercises)`);
+    
+    return workoutTemplate;
+  }, [userProgressData]);
 
   const loadWorkoutData = useCallback(async () => {
     if (!user?.id) {
@@ -225,22 +229,19 @@ export default function WorkoutSessionScreen() {
         progress = await userProgressService.create({
           userId: user.id,
           programId: null, // No program assigned yet
-          currentWeek: 1,
-          currentWorkout: 1,
+          currentWorkout: 'push-a', // Start with Push Day A
+          lastCompletedWorkout: null,
+          lastWorkoutDate: null,
           startDate: new Date(),
           completedWorkouts: [],
           weeklyWeights: {}
         });
       }
       
-      // Ensure currentWorkout and currentWeek have valid defaults (fix any null/undefined values)
-      const needsUpdate = (progress.currentWorkout === undefined || progress.currentWorkout === null) ||
-                         (progress.currentWeek === undefined || progress.currentWeek === null);
-      
-      if (needsUpdate) {
+      // Ensure currentWorkout has valid default (fix any null/undefined values)
+      if (!progress.currentWorkout) {
         progress = await userProgressService.update(progress.id, {
-          currentWorkout: progress.currentWorkout ?? 1,
-          currentWeek: progress.currentWeek ?? 1
+          currentWorkout: 'push-a'
         });
       }
       
@@ -248,16 +249,18 @@ export default function WorkoutSessionScreen() {
       
       if (progress?.weeklyWeights) {
         // Handle both string (from JSON) and object (from JSONB) types
-        const weeklyWeights = typeof progress.weeklyWeights === 'string'
+        let weeklyWeights = typeof progress.weeklyWeights === 'string'
           ? JSON.parse(progress.weeklyWeights)
           : progress.weeklyWeights;
+        
+        // NEW: No more cleanup needed! Sessions only tracked by date now
+        const today = new Date().toISOString().split('T')[0];
         const logs = weeklyWeights?.exerciseLogs || {};
         setExerciseLogs(logs);
         
         const allPRs = analyzeExercisePRs(logs);
         setExercisePRs(allPRs);
         
-        const today = new Date().toISOString().split('T')[0];
         const customExs = weeklyWeights?.customExercises?.[today] || [];
         setCustomExercises(customExs);
         
@@ -284,7 +287,9 @@ export default function WorkoutSessionScreen() {
   }, [user?.id]); // Only depend on user.id, not cache values
 
   useEffect(() => {
-    if (user?.id) {
+    // Only load if we don't have data already (prevent duplicate loads)
+    if (user?.id && !generatedProgram && !userProgressData) {
+      console.log('🔄 Initial load triggered');
       loadWorkoutData();
     }
   }, [user?.id]); // Only trigger when user.id changes, not when loadWorkoutData changes
@@ -309,8 +314,15 @@ export default function WorkoutSessionScreen() {
   // Subscribe to cache store changes and FORCE re-render
   useEffect(() => {
     const unsubscribe = useWorkoutCacheStore.subscribe((state, prevState) => {
-      if (state.userProgressData && state.isCacheValid()) {
+      // Check if userProgressData actually changed
+      const dataChanged = state.userProgressData !== prevState.userProgressData;
+      const cacheValid = state.isCacheValid();
+      
+      if (dataChanged && state.userProgressData && cacheValid) {
+        console.log('🔔 [Cache Subscription] Progress data updated, immediately showing completed status');
         setUserProgressData(state.userProgressData);
+        // IMMEDIATELY clear the updating exercise ID to show completed badge
+        setUpdatingExerciseId(null);
       }
     });
     
@@ -321,53 +333,83 @@ export default function WorkoutSessionScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      let updateTimeoutId: NodeJS.Timeout | null = null;
+      let refreshTimeoutId: NodeJS.Timeout | null = null;
+      
       if (user?.id && !isLoadingRef.current) {
         
-        // Get cache state
+        // Get cache state - always get fresh state
         const cache = useWorkoutCacheStore.getState();
         const cacheAge = cache.lastUpdated ? Date.now() - cache.lastUpdated : Infinity;
         
-        // If cache was updated VERY recently (within 2 seconds), it means we just completed an exercise
-        // Trust the cache completely and DON'T fetch from database (to avoid race conditions)
-        if (cache.userProgressData && cacheAge < 2000) {
+        console.log('🔄 [Workout Focus] Cache check:', {
+          cacheAge: cacheAge < 60000 ? `${(cacheAge / 1000).toFixed(1)}s` : 'stale',
+          hasCache: !!cache.userProgressData,
+          timestamp: cache.lastUpdated
+        });
+        
+        // If cache was updated VERY recently (within 3 seconds), it means we just completed an exercise
+        // or returned from video modal - Trust the cache completely
+        if (cache.userProgressData && cacheAge < 3000) {
+          console.log('✅ [Workout Focus] Using fresh cache, immediately showing completed status');
           setUserProgressData(cache.userProgressData);
+          
+          // IMMEDIATELY clear the updating exercise ID to show completed badge
+          // We reduced the delay from 800ms to 0ms for instant feedback
+          setUpdatingExerciseId(null);
+          
           // Don't fetch from database - the cache subscription will handle updates
           return;
         }
         
-        // If cache is slightly old (2-5 seconds), use it but refresh in background with delay
-        if (cache.userProgressData && cacheAge < 5000) {
+        // If cache is slightly old (3-10 seconds), use it immediately
+        if (cache.userProgressData && cacheAge < 10000) {
+          console.log('⏱️  [Workout Focus] Using recent cache, clearing loading state');
           setUserProgressData(cache.userProgressData);
+          // IMMEDIATELY clear to show completed status
+          setUpdatingExerciseId(null);
+          // Skip the background refresh - cache is recent enough
+          return;
+        }
+        
+        // Only fetch if cache is very stale (>5 seconds old)
+        if (cache.userProgressData && cacheAge < 30000) {
+          // Use cache but schedule a delayed refresh
+          setUserProgressData(cache.userProgressData);
+          setUpdatingExerciseId(null);
           
-          // Refresh from database in background with a small delay to let cache updates complete
-          setTimeout(() => {
+          refreshTimeoutId = setTimeout(() => {
             userProgressService.getByUserId(user.id).then(freshProgress => {
               if (freshProgress) {
-                // Check if data actually changed before updating state
-                const dataChanged = JSON.stringify(freshProgress.weeklyWeights) !== JSON.stringify(cache.userProgressData?.weeklyWeights);
-                if (dataChanged) {
-                  setUserProgressData(freshProgress);
-                  useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
-                } else {
-                }
+                setUserProgressData(freshProgress);
+                useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
               }
             }).catch(err => {
               console.error('❌ Background refresh failed:', err);
             });
-          }, 500); // 500ms delay to let cache updates complete
-        } else {
-          // Cache is stale or missing - fetch from database immediately
-          userProgressService.getByUserId(user.id).then(freshProgress => {
-            if (freshProgress) {
-              setUserProgressData(freshProgress);
-              // Update cache with fresh progress
-              useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
-            }
-          }).catch(err => {
-            console.error('❌ Failed to refresh progress:', err);
-          });
+          }, 1000); // 1 second delay
+          
+          return () => {
+            if (refreshTimeoutId) clearTimeout(refreshTimeoutId);
+          };
         }
+        
+        // Cache is very stale or missing - fetch immediately
+        setUpdatingExerciseId(null);
+        userProgressService.getByUserId(user.id).then(freshProgress => {
+          if (freshProgress) {
+            setUserProgressData(freshProgress);
+            useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
+          }
+        }).catch(err => {
+          console.error('❌ Failed to refresh progress:', err);
+        });
       }
+      
+      return () => {
+        if (updateTimeoutId) clearTimeout(updateTimeoutId);
+        if (refreshTimeoutId) clearTimeout(refreshTimeoutId);
+      };
     }, [user?.id]) // Only depend on user.id
   );
 
@@ -528,7 +570,8 @@ export default function WorkoutSessionScreen() {
 
 
 
-  const getWeeklyWeightsData = () => {
+  // Memoize weeklyWeights to avoid re-parsing JSON on every render
+  const weeklyWeightsData = useMemo(() => {
     try {
       if (!userProgressData?.weeklyWeights) return {};
       
@@ -543,14 +586,13 @@ export default function WorkoutSessionScreen() {
       console.error('❌ Failed to parse weeklyWeights:', e);
       return {} as any;
     }
-  };
+  }, [userProgressData?.weeklyWeights]);
 
-  const getExerciseStatus = (
+  const getExerciseStatus = useCallback((
     exerciseId: string,
     plannedSets: number
   ): 'pending' | 'in-progress' | 'completed' => {
     const today = new Date().toISOString().slice(0, 10);
-    const weeklyWeightsData = getWeeklyWeightsData();
     const sessions = weeklyWeightsData?.exerciseLogs?.[exerciseId] as
       | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
       | undefined;
@@ -559,7 +601,9 @@ export default function WorkoutSessionScreen() {
       return 'pending';
     }
     
+    // Simple: Just check today's date
     const todaySession = sessions.find((s) => s.date === today);
+    
     if (!todaySession || !todaySession.sets || todaySession.sets.length === 0) {
       return 'pending';
     }
@@ -579,7 +623,7 @@ export default function WorkoutSessionScreen() {
     }
     
     return 'pending';
-  };
+  }, [weeklyWeightsData]);
 
   const calculateWorkoutProgress = () => {
     if (!todaysWorkout?.exercises) return { percentage: 0, completed: 0, total: 0 };
@@ -604,10 +648,9 @@ export default function WorkoutSessionScreen() {
   const workoutProgress = calculateWorkoutProgress();
   const allExercisesCompleted = workoutProgress.percentage === 100;
 
-  // Memoize calorie calculations to prevent infinite loops
+  // Memoize calorie calculations
   const totalWorkoutCalories = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
-    const weeklyWeightsData = getWeeklyWeightsData();
     
     const completedExercises: Array<{ 
       name: string; 
@@ -622,6 +665,7 @@ export default function WorkoutSessionScreen() {
         | undefined;
       
       if (sessions) {
+        // Simple: Just check today's date
         const todaySession = sessions.find((s) => s.date === today);
         if (todaySession?.sets) {
           const completedSets = todaySession.sets.filter((s) => !!s.isCompleted).length;
@@ -646,12 +690,12 @@ export default function WorkoutSessionScreen() {
     }, 0);
     
     return estimatedCalories + cardioCalories;
-  }, [todaysWorkout, userProgressData, userWeight]);
+  }, [todaysWorkout, weeklyWeightsData, userWeight]);
 
-  const hasPRPotential = (exerciseId: string): boolean => {
+  const hasPRPotential = useCallback((exerciseId: string): boolean => {
     const suggestions = getBeatLastWorkoutSuggestions(exerciseId, exercisePRs);
     return suggestions.length > 0 && !suggestions[0].includes('First time');
-  };
+  }, [exercisePRs]);
 
   const handleStartWorkoutPress = () => {
     setShowOptionsModal(true);
@@ -746,6 +790,8 @@ export default function WorkoutSessionScreen() {
       setShowNotStartedModal(true);
       return;
     }
+    // Track which exercise we're navigating to (for loading state on return)
+    setUpdatingExerciseId(exerciseId);
     router.push(`/workout-exercise-tracker?exerciseId=${exerciseId}`);
   };
 
@@ -787,12 +833,9 @@ export default function WorkoutSessionScreen() {
       const exercisesWithSets = (todaysWorkout?.exercises || []).map((ex: any) => {
         const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
         const sessions = latestExerciseLogs[exId] as Array<{ date: string; unit: string; sets: Array<{ reps: number; weightKg: number; isCompleted: boolean }> }> || [];
-        const todaySession = sessions.find((s: any) => s.date === today);
         
-        console.log(`📊 Exercise: ${ex.name} (${exId})`);
-        console.log(`📊 Sessions found:`, sessions.length);
-        console.log(`📊 Today's session:`, todaySession);
-        console.log(`📊 Sets:`, todaySession?.sets);
+        // Simple: Just check today's date
+        const todaySession = sessions.find((s: any) => s.date === today);
         
         return {
           name: ex.name,
@@ -800,9 +843,7 @@ export default function WorkoutSessionScreen() {
         };
       });
       
-      console.log('📊 Exercises with sets:', exercisesWithSets);
       const volumeData = calculateWorkoutVolume(exercisesWithSets);
-      console.log('📊 Volume data:', volumeData);
       
       // Handle both array (from JSONB) and string (from JSON) types
       let completedArr: any[] = [];
@@ -831,12 +872,19 @@ export default function WorkoutSessionScreen() {
         exercises: volumeData.exerciseBreakdown, // Store exercise breakdown
       });
       
-      const nextWorkout = Math.min(
-        (userProgressData.currentWorkout || 1) + 1,
-        (generatedProgram?.weeklyStructure?.length || 1)
-      );
+      // NEW: Calculate next workout using PPL rotation (no more week/day system)
+      const currentWorkoutType = userProgressData.currentWorkout || 'push-a';
+      const nextWorkoutType = updateWorkoutProgression(currentWorkoutType);
+      
+      console.log('🔄 Workout Progression:', {
+        completedWorkout: currentWorkoutType,
+        nextWorkout: nextWorkoutType,
+      });
+      
       const updated = await userProgressService.update(userProgressData.id, {
-        currentWorkout: nextWorkout,
+        currentWorkout: nextWorkoutType,
+        lastCompletedWorkout: currentWorkoutType,
+        lastWorkoutDate: new Date(),
         completedWorkouts: JSON.stringify(completedArr),
       });
       
@@ -943,6 +991,7 @@ export default function WorkoutSessionScreen() {
 
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
           <View style={styles.workoutHeader}>
+            {/* Workout Name Only (No more week/day indicators) */}
             <Text style={styles.workoutName}>{todaysWorkout.name}</Text>
             
             {/* Workout Timer or Start Button */}
@@ -1007,7 +1056,6 @@ export default function WorkoutSessionScreen() {
               </View>
               {(() => {
                 const today = new Date().toISOString().slice(0, 10);
-                const weeklyWeightsData = getWeeklyWeightsData();
                 
                 // Handle both array (from JSONB) and string (from JSON) types
                 let completedWorkouts: any[] = [];
@@ -1051,9 +1099,10 @@ export default function WorkoutSessionScreen() {
                   (todaysWorkout.exercises || []).forEach((ex: any) => {
                     const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
                     const sessions = weeklyWeightsData?.exerciseLogs?.[exId] as
-                      | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
+                      | Array<{ date: string; weekNum?: number; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
                       | undefined;
                     
+                    // Simple: Just check today's date
                     const todaySession = sessions?.find((s) => s.date === today);
                     const sets = typeof ex.sets === 'number' ? ex.sets : 3;
                     
@@ -1075,9 +1124,10 @@ export default function WorkoutSessionScreen() {
                   
                   todayCustomExercises.forEach((ex: any) => {
                     const sessions = weeklyWeightsData?.exerciseLogs?.[ex.id] as
-                      | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
+                      | Array<{ date: string; weekNum?: number; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
                       | undefined;
                     
+                    // Simple: Just check today's date
                     const todaySession = sessions?.find((s) => s.date === today);
                     const sets = typeof ex.sets === 'number' ? ex.sets : 3;
                     
@@ -1098,10 +1148,11 @@ export default function WorkoutSessionScreen() {
                   (todaysWorkout.exercises || []).forEach((ex: any) => {
                     const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
                     const sessions = weeklyWeightsData?.exerciseLogs?.[exId] as
-                      | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
+                      | Array<{ date: string; weekNum?: number; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
                       | undefined;
                     
                     if (sessions) {
+                      // Simple: Just check today's date (no more week filtering)
                       const todaySession = sessions.find((s) => s.date === today);
                       if (todaySession?.sets) {
                         const completedSets = todaySession.sets.filter((s) => !!s.isCompleted).length;
@@ -1122,10 +1173,11 @@ export default function WorkoutSessionScreen() {
                   
                   allCustomExercises.forEach((ex: any) => {
                     const sessions = weeklyWeightsData?.exerciseLogs?.[ex.id] as
-                      | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
+                      | Array<{ date: string; weekNum?: number; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
                       | undefined;
                     
                     if (sessions) {
+                      // Simple: Just check today's date (no more week filtering)
                       const todaySession = sessions.find((s) => s.date === today);
                       if (todaySession?.sets && todaySession.sets.length > 0) {
                         const completedSets = todaySession.sets.filter((s) => !!s.isCompleted).length;
@@ -1149,12 +1201,6 @@ export default function WorkoutSessionScreen() {
                 );
               })()}
             </View>
-          </View>
-
-          <View style={styles.progressIndicator}>
-            <Text style={styles.progressText}>
-              Week {userProgressData?.currentWeek} • Workout {userProgressData?.currentWorkout}
-            </Text>
           </View>
 
           <View style={styles.exercisesSection}>
@@ -1214,6 +1260,7 @@ export default function WorkoutSessionScreen() {
                   onPress={() => handleExercisePress(exerciseWithId.id)}
                   status={getExerciseStatus(exerciseWithId.id, exerciseWithId.sets)}
                   prPotential={hasPRPotential(exerciseWithId.id)}
+                  isUpdating={updatingExerciseId === exerciseWithId.id}
                 />
               );
             }) || (
@@ -1240,6 +1287,7 @@ export default function WorkoutSessionScreen() {
                   onPress={() => handleExercisePress(exerciseWithId.id)}
                   status={getExerciseStatus(exerciseWithId.id, exerciseWithId.sets)}
                   prPotential={false}
+                  isUpdating={updatingExerciseId === exerciseWithId.id}
                 />
               );
             })}
@@ -1258,7 +1306,6 @@ export default function WorkoutSessionScreen() {
             {(() => {
               // Get cardio entries from both state and weeklyWeightsData to ensure we show all entries
               const today = new Date().toISOString().split('T')[0];
-              const weeklyWeightsData = getWeeklyWeightsData();
               const todayCardioEntries = weeklyWeightsData?.cardioEntries?.[today] || [];
               // Merge state and database entries, preferring state (most recent)
               const allCardioEntries = [...todayCardioEntries];
@@ -1487,6 +1534,15 @@ const styles = StyleSheet.create({
   },
   workoutHeader: {
     marginBottom: 16,
+  },
+  weekIndicator: {
+    ...typography.caption,
+    color: colors.lightGray,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   workoutName: {
     ...typography.h3,

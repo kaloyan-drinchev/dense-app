@@ -43,11 +43,12 @@ export const userProgress = pgTable('user_progress', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull(), // Will reference auth.users.id
   programId: uuid('program_id'), // Nullable - users might not have a program assigned yet
-  currentWeek: integer('current_week').default(1),
-  currentWorkout: integer('current_workout').default(1),
+  currentWorkout: text('current_workout'), // Stores workout type: 'push-a', 'push-b', 'pull-a', 'pull-b', 'leg-a', 'leg-b'
+  lastCompletedWorkout: text('last_completed_workout'), // Track what was done last for progression
+  lastWorkoutDate: timestamp('last_workout_date'), // When the last workout was completed
   startDate: timestamp('start_date'),
-  completedWorkouts: jsonb('completed_workouts'), // JSON array of workout IDs
-  weeklyWeights: jsonb('weekly_weights'), // JSON object
+  completedWorkouts: jsonb('completed_workouts'), // JSON array of completed workouts with dates
+  weeklyWeights: jsonb('weekly_weights'), // JSON object - exercise logs
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
   syncedAt: timestamp('synced_at'),
@@ -100,7 +101,7 @@ export const userWizardResults = pgTable('user_wizard_results', {
   // Step 5: Body Fat Estimate (legacy - now using TDEE calculation)
   bodyFatLevel: text('body_fat_level'), // 'lean_10_14', 'athletic_15_18', 'average_18_22', 'high_22_plus'
   
-  // Step 5: TDEE Calculation (new fields)
+  // Step 5: TDEE Calculation
   tdeeData: jsonb('tdee_data'), // JSON object with BMR, TDEE, calories, macros
   age: integer('age'),
   gender: text('gender'), // 'male', 'female'
@@ -109,39 +110,14 @@ export const userWizardResults = pgTable('user_wizard_results', {
   activityLevel: text('activity_level'), // 'sedentary', 'lightly_active', etc.
   goal: text('goal'), // 'lose_weight', 'maintain_weight', 'gain_weight'
   
-  // Step 6: Weekly Schedule
-  trainingDaysPerWeek: integer('training_days_per_week'), // 3, 4, 5, 6, or 7
-  preferredTrainingDays: jsonb('preferred_training_days'), // JSON array: ['monday', 'tuesday', 'wednesday', ...]
+  // Simplified: Only fitness goal matters for PPL program
+  fitnessGoal: text('fitness_goal'), // 'strength', 'hypertrophy', 'endurance', 'weight_loss'
   
-  // Step 7: Muscle Group Prioritization (max 3)
-  musclePriorities: jsonb('muscle_priorities'), // JSON array: ['chest', 'back', 'shoulders', 'arms', 'quads', 'hamstrings_glutes', 'calves', 'abs']
-  
-  // Step 8: Pump Work Preference
-  pumpWorkPreference: text('pump_work_preference'), // 'yes_love_burn', 'maybe_sometimes', 'no_minimal'
-  
-  // Step 9: Recovery Profile
-  recoveryProfile: text('recovery_profile'), // 'fast_recovery', 'need_more_rest', 'not_sure'
-  
-  // Step 10: Program Duration
-  programDurationWeeks: integer('program_duration_weeks'), // 4, 8, or 12
-  
-  // Legacy fields (keeping for backward compatibility)
-  primaryGoal: text('primary_goal'), // 'lose_weight', 'gain_muscle', 'get_stronger', 'improve_endurance'
-  targetWeight: real('target_weight'),
-  timeframe: text('timeframe'), // '3_months', '6_months', '1_year'
-  fitnessLevel: text('fitness_level'), // 'beginner', 'intermediate', 'advanced'
-  workoutFrequency: text('workout_frequency'), // '2_3_times', '4_5_times', '6_7_times'
-  preferredWorkoutLength: text('preferred_workout_length'), // '30_min', '45_min', '60_min', '90_min'
-  preferredWorkoutTypes: jsonb('preferred_workout_types'), // JSON array: ['strength', 'cardio', 'hiit', 'yoga']
-  availableEquipment: jsonb('available_equipment'), // JSON array: ['dumbbells', 'barbell', 'resistance_bands']
-  workoutLocation: text('workout_location'), // 'home', 'gym', 'both'
-  weaknesses: jsonb('weaknesses'), // JSON array: ['upper_body', 'lower_body', 'core', 'cardio']
-  injuries: jsonb('injuries'), // JSON array: ['knee', 'back', 'shoulder', 'none']
-  focusMuscle: text('focus_muscle'), // Primary muscle group focus: 'chest', 'back', 'shoulders'
-  
-  // AI Program Generation Output
-  suggestedPrograms: jsonb('suggested_programs'), // JSON array of program IDs
-  generatedSplit: jsonb('generated_split'), // JSON object: generated Push/Pull/Legs split based on responses
+  // Legacy fields (removed for new system)
+  // - No more training days per week
+  // - No more equipment selection  
+  // - No more program generation
+  // User simply follows PPL rotation based on their goal
   
   completedAt: timestamp('completed_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()

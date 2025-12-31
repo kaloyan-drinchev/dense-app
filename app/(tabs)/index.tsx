@@ -5,10 +5,10 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  Image,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWorkoutStore } from '@/store/workout-store';
@@ -28,15 +28,19 @@ import { WorkoutStartModal } from '@/components/WorkoutStartModal';
 import { WorkoutUnavailableModal } from '@/components/WorkoutUnavailableModal';
 import { StatGroup } from '@/components/StatGroup';
 import { WeeklySchedule } from '@/components/WeeklySchedule';
+import { getExerciseThumbnailUrl } from '@/services/video-service';
 import { HomepageVideoModal } from '@/components/HomepageVideoModal';
 import { Video, ResizeMode } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { useFocusEffect } from '@react-navigation/native';
 
-
+// NEW: Import workout template system
+import { getNextSuggestedWorkout, getAlternateWorkout, updateWorkoutProgression, type WorkoutType } from '@/lib/workout-suggestion';
+import { getWorkoutTemplate } from '@/lib/workout-templates';
 
 import { checkWorkoutAvailability, formatAvailabilityDate, type WorkoutAvailability } from '@/utils/workout-availability';
 import { ensureMinimumDuration } from '@/utils/workout-duration';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from '@react-navigation/native';
 
 
 export default function HomeScreen() {
@@ -45,7 +49,7 @@ export default function HomeScreen() {
   const { userProfile, userProgress, activeProgram, programs } =
     useWorkoutStore();
   const { generatedProgram: cachedProgram, userProgressData: cachedProgress, isCacheValid } = useWorkoutCacheStore();
-  const { isWorkoutActive, timeElapsed, isRunning, updateTimeElapsed } = useTimerStore();
+  const { isWorkoutActive, timeElapsed, isRunning, updateTimeElapsed, pauseTimer, resumeTimer } = useTimerStore();
   const { shouldBlockAccess } = useSubscriptionStore();
   const [currentTime, setCurrentTime] = useState(timeElapsed);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -88,33 +92,30 @@ export default function HomeScreen() {
         return;
       }
       
-      console.log('🔍 Home: Has generatedSplit:', !!wizardResults.generatedSplit);
+      // NEW: We no longer use wizard-generated programs, using templates instead
+      // Keeping this for backward compatibility with existing users
+      console.log('🔍 Home: Checking for legacy generatedSplit (for backward compatibility)');
       
-      if (!wizardResults.generatedSplit) {
-        console.log('⚠️ Home: Wizard results found but no generatedSplit - wizard may not be completed');
-        setLoadingProgram(false);
-        return;
+      // Try to load legacy program if it exists (for users who haven't migrated yet)
+      let generatedProgram = null;
+      if ((wizardResults as any).generatedSplit) {
+        try {
+          const generatedSplit = typeof (wizardResults as any).generatedSplit === 'string' 
+            ? JSON.parse((wizardResults as any).generatedSplit)
+            : (wizardResults as any).generatedSplit;
+          generatedProgram = generatedSplit;
+          console.log('✅ Loaded legacy program for backward compatibility');
+        } catch (e) {
+          console.warn('⚠️ Failed to parse legacy program, will use templates');
+        }
       }
       
-      // Handle both string (from JSON) and object (from JSONB) types
-      const generatedSplit = typeof wizardResults.generatedSplit === 'string' 
-        ? JSON.parse(wizardResults.generatedSplit)
-        : wizardResults.generatedSplit;
-      const generatedProgram = generatedSplit;
-      
-      // Create a better program title based on muscle priorities
-      if (wizardResults.musclePriorities) {
-        // Handle both string (from JSON) and object (from JSONB) types
-        const priorities = typeof wizardResults.musclePriorities === 'string'
-          ? JSON.parse(wizardResults.musclePriorities)
-          : wizardResults.musclePriorities;
-        const priorityText = priorities.slice(0, 2).join(' & ').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-        generatedProgram.displayTitle = `${priorityText} Focus`;
-      }
-      
+      // Set the program (even if null - templates don't need this)
       setGeneratedProgram(generatedProgram);
-      // Cache the program data for workout session screen
-      useWorkoutCacheStore.getState().setWorkoutData({ generatedProgram });
+      if (generatedProgram) {
+        // Cache for backward compatibility
+        useWorkoutCacheStore.getState().setWorkoutData({ generatedProgram });
+      }
     } catch (error) {
       console.error('❌ Failed to load generated program:', error);
     } finally {
@@ -136,12 +137,13 @@ export default function HomeScreen() {
         // Cache the progress data for workout session screen
         useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: progress });
       } else {
-        // Create default progress starting at week 1, day 1
+        // Create default progress starting with Push Day A
         const defaultProgress = await userProgressService.create({
           userId: user.id,
           programId: null, // No program assigned yet
-          currentWeek: 1,
-          currentWorkout: 1,
+          currentWorkout: 'push-a', // Start with Push Day A
+          lastCompletedWorkout: null,
+          lastWorkoutDate: null,
           startDate: new Date(),
           completedWorkouts: [],
           weeklyWeights: {}
@@ -256,28 +258,34 @@ export default function HomeScreen() {
     }
   };
 
-  // Get workout to display - Always show current workout (multiple workouts per day allowed)
-  const getTodaysWorkout = () => {
-    if (!generatedProgram || !userProgressData) return null;
+  // NEW: Get next suggested workout using PPL template system
+  const getNextWorkout = () => {
+    if (!userProgressData) return null;
     
-    const currentWorkout = userProgressData.currentWorkout;
-    const currentWorkoutIndex = currentWorkout - 1; // currentWorkout is 1-indexed
-    const workout = generatedProgram.weeklyStructure?.[currentWorkoutIndex] || null;
+    const currentWorkoutType = userProgressData.currentWorkout; // e.g., 'push-a', 'pull-b'
     
-    // Fix duration if too low
-    if (workout) {
-      return {
-        ...workout,
-        estimatedDuration: ensureMinimumDuration(workout.estimatedDuration)
-      };
+    // Get the suggested workout template
+    const workoutTemplate = getWorkoutTemplate(currentWorkoutType || 'push-a');
+    
+    if (!workoutTemplate) {
+      console.error('❌ Failed to load workout template');
+      return null;
     }
-    return null;
+    
+    console.log('🏠 Home Screen - Next Workout:', {
+      currentWorkoutType,
+      workoutName: workoutTemplate.name,
+      category: workoutTemplate.category,
+      exerciseCount: workoutTemplate.exercises.length,
+    });
+    
+    return workoutTemplate;
   };
 
-  // Memoized workout to display (depends on completion status)
-  const todaysWorkout = useMemo(() => {
-    return getTodaysWorkout();
-  }, [generatedProgram, userProgressData, workoutAvailability]);
+  // Memoized next workout to display
+  const nextWorkout = useMemo(() => {
+    return getNextWorkout();
+  }, [userProgressData]);
 
 
 
@@ -425,7 +433,52 @@ export default function HomeScreen() {
     setShowWorkoutModal(false);
   };
 
+  // NEW: Action button handlers for workout card
+  const handleSkipWorkout = async () => {
+    if (!user?.id || !userProgressData) return;
+    
+    try {
+      // Skip to next workout in rotation
+      const nextWorkoutType = updateWorkoutProgression(userProgressData.currentWorkout);
+      await userProgressService.update(userProgressData.id, {
+        currentWorkout: nextWorkoutType,
+      });
+      
+      // Refresh progress data
+      await loadUserProgress();
+      console.log('✅ Skipped to next workout:', nextWorkoutType);
+    } catch (error) {
+      console.error('❌ Failed to skip workout:', error);
+    }
+  };
 
+  const handleRegenerateWorkout = async () => {
+    if (!user?.id || !userProgressData) return;
+    
+    try {
+      // Switch to alternate variation (A ↔ B)
+      const alternateWorkout = getAlternateWorkout(userProgressData.currentWorkout);
+      await userProgressService.update(userProgressData.id, {
+        currentWorkout: alternateWorkout.type,
+      });
+      
+      // Refresh progress data
+      await loadUserProgress();
+      console.log('✅ Regenerated workout to:', alternateWorkout.name);
+    } catch (error) {
+      console.error('❌ Failed to regenerate workout:', error);
+    }
+  };
+
+  const handleAdjustDuration = () => {
+    // TODO: Implement duration adjustment (future feature)
+    console.log('⏱️ Adjust duration clicked');
+  };
+
+  const handleShareWorkout = () => {
+    // TODO: Implement workout sharing (future feature)
+    console.log('📤 Share workout clicked');
+  };
 
   const handleContinueWorkout = () => {
     if (activeProgram && userProgress) {
@@ -434,17 +487,62 @@ export default function HomeScreen() {
     }
   };
 
-  const getNextWorkout = () => {
-    if (!activeProgram || !userProgress) return null;
-
-    const currentWeek = activeProgram.weeks[userProgress.currentWeek - 1];
-    if (!currentWeek) return null;
-
-    // Find the first incomplete workout in the current week
-    return currentWeek.workouts.find((workout) => !workout.isCompleted);
-  };
-
-  const nextWorkout = getNextWorkout();
+  // Get first uncompleted exercise for bottom banner
+  const getFirstUncompletedExercise = useCallback(() => {
+    if (!nextWorkout || !userProgressData) return null;
+    
+    const today = new Date().toISOString().slice(0, 10);
+    const weeklyWeights = userProgressData.weeklyWeights;
+    
+    // Helper function to check if exercise is completed
+    const isExerciseCompleted = (exerciseId: string, plannedSets: number) => {
+      try {
+        const exerciseLogs = weeklyWeights?.exerciseLogs?.[exerciseId];
+        if (!exerciseLogs || !Array.isArray(exerciseLogs)) return false;
+        
+        const todaySession = exerciseLogs.find((log: any) => log.date === today);
+        if (!todaySession || !todaySession.sets || todaySession.sets.length === 0) return false;
+        
+        const completedSets = todaySession.sets.filter((set: any) => set.isCompleted);
+        return completedSets.length >= plannedSets;
+      } catch (e) {
+        return false;
+      }
+    };
+    
+    // Find first uncompleted exercise
+    for (const exercise of nextWorkout.exercises) {
+      const exerciseId = exercise.id || exercise.name.toLowerCase().replace(/\s+/g, '-');
+      if (!isExerciseCompleted(exerciseId, exercise.sets)) {
+        // Get the last completed set data for display
+        try {
+          const exerciseLogs = weeklyWeights?.exerciseLogs?.[exerciseId];
+          const todaySession = exerciseLogs?.find((log: any) => log.date === today);
+          const lastSet = todaySession?.sets?.[todaySession.sets.length - 1];
+          
+          return {
+            name: exercise.name,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            lastWeight: lastSet?.weightKg || 0,
+            lastReps: lastSet?.reps || 0,
+            completedSets: todaySession?.sets?.filter((s: any) => s.isCompleted).length || 0,
+          };
+        } catch (e) {
+          return {
+            name: exercise.name,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            lastWeight: 0,
+            lastReps: 0,
+            completedSets: 0,
+          };
+        }
+      }
+    }
+    
+    return null;
+  }, [nextWorkout, userProgressData]);
 
 
   return (
@@ -452,7 +550,10 @@ export default function HomeScreen() {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[
+          styles.contentContainer,
+          isWorkoutActive && { paddingBottom: 180 }
+        ]}
       >
 
 
@@ -515,91 +616,115 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View> */}
 
-        {/* Today's Workout Preview */}
-        {generatedProgram && userProgressData && (
+        {/* Next Workout Preview */}
+        {nextWorkout && (
           <View style={styles.todaysWorkout}>
-            <Text style={styles.sectionTitle}>
-              Today's Workout
-            </Text>
-            {todaysWorkout ? (
-              <View style={styles.workoutCard}>
+            {nextWorkout ? (
+              <TouchableOpacity 
+                style={styles.workoutCard}
+                onPress={handleStartWorkoutPress}
+                activeOpacity={0.9}
+              >
                 <LinearGradient
                   colors={gradients.card as [string, string, ...string[]]}
                   style={styles.workoutGradient}
                 >
+                  {/* Badge - Full Width at Top */}
+                  <View style={styles.nextWorkoutBadge}>
+                    <Text style={styles.nextWorkoutBadgeText}>
+                      {isWorkoutActive ? 'IN PROGRESS' : 'NEXT WORKOUT'}
+                    </Text>
+                  </View>
+                  
+                  {/* Workout Details */}
                   <View style={styles.workoutHeader}>
                     {isRefreshingWorkout ? (
                       <View style={styles.loadingWorkoutName} />
                     ) : (
-                      <Text style={styles.workoutName}>{todaysWorkout?.name}</Text>
+                      <>
+                        {/* Workout Name */}
+                        <Text style={styles.workoutName}>{nextWorkout.name}</Text>
+                        
+                        {/* Exercise Thumbnails Row */}
+                        <ScrollView 
+                          horizontal 
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.thumbnailsContainer}
+                          contentContainerStyle={styles.thumbnailsContent}
+                        >
+                          {nextWorkout.exercises.slice(0, 6).map((exercise: any, idx: number) => (
+                            <View key={exercise.id} style={styles.thumbnailWrapper}>
+                              <Image
+                                source={{ uri: getExerciseThumbnailUrl(exercise.name) }}
+                                style={styles.exerciseThumbnail}
+                                contentFit="cover"
+                              />
+                            </View>
+                          ))}
+                        </ScrollView>
+                        
+                        {/* Meta Info Below */}
+                        <Text style={styles.workoutMeta}>
+                          {nextWorkout.estimatedDuration} mins • {nextWorkout.exercises.length} exercises
+                        </Text>
+                      </>
                     )}
-                    <Text style={styles.workoutDuration}>{todaysWorkout?.estimatedDuration} min</Text>
                   </View>
                   
-                  {/* <View style={styles.exercisePreview}>
-                    <Text style={styles.exercisePreviewTitle}>Key Exercises:</Text>
-                    {todaysWorkout?.exercises?.slice(0, 3).map((exercise: any, index: number) => (
-                      <Text key={index} style={styles.exercisePreviewItem}>
-                        • {exercise.name} - {exercise.sets} sets × {exercise.reps} reps
-                      </Text>
-                    ))}
-                    {todaysWorkout?.exercises?.length > 3 && (
-                      <Text style={styles.exercisePreviewMore}>
-                        +{todaysWorkout?.exercises?.length - 3} more exercises
-                      </Text>
-                    )}
-                  </View> */}
-                  
-                  <TouchableOpacity 
-                    style={styles.startWorkoutButtonContainer}
-                    onPress={handleStartWorkoutPress}
-                  >
-                    <LinearGradient
-                      colors={(isWorkoutActive ? gradients.success : gradients.primaryButton) as [string, string, ...string[]]}
-                      style={[
-                        styles.startWorkoutButton,
-                        isWorkoutActive && styles.workoutInProgressButton
-                      ]}
+                  {/* Action Buttons Row */}
+                  <View style={styles.actionButtonsRow}>
+                    {/* Skip Button - Disabled when workout is active */}
+                    <TouchableOpacity 
+                      style={[styles.actionButton, isWorkoutActive && styles.actionButtonDisabled]} 
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleSkipWorkout();
+                      }}
+                      disabled={isWorkoutActive}
                     >
-                      {isWorkoutActive ? (
-                        <>
-                          <Text style={styles.startWorkoutText}>
-                            Workout in Progress • {formatTimerTime(currentTime)}
-                          </Text>
-                        </>
-                      ) : workoutAvailability && !workoutAvailability.canStartWorkout ? (
-                        <View style={styles.unavailableButtonContent}>
-                          <Text style={styles.startWorkoutText}>
-                            {workoutAvailability.nextWorkoutName || 'Next Workout'}
-                          </Text>
-                          <Text style={styles.availabilitySubtext}>
-                            Available {workoutAvailability.nextAvailableDate ? 
-                              formatAvailabilityDate(workoutAvailability.nextAvailableDate) : 
-                              'Tomorrow'
-                            }
-                          </Text>
-                        </View>
-                      ) : (
-                        <>
-                          <Text style={styles.startWorkoutText}>Start Workout</Text>
-                          <Icon name="play" size={18} color={colors.black} />
-                        </>
-                      )}
-                    </LinearGradient>
-                  </TouchableOpacity>
-
-                  {/* Rest Day Note */}
-                  {isRestDay() && (
-                    <View style={styles.restDayNote}>
-                      <Icon name="moon" size={16} color={colors.secondary} />
-                      <Text style={styles.restDayNoteText}>
-                        <Text style={styles.restDayNoteTitle}>Rest Day: </Text>
-                        <Text>Recovery time! But feel free to train if you're feeling strong 💪</Text>
-                      </Text>
-                    </View>
-                  )}
+                      <Icon name="skip-forward" size={20} color={colors.white} />
+                      <Text style={styles.actionButtonText}>Skip</Text>
+                    </TouchableOpacity>
+                    
+                    {/* Regenerate Button - Disabled when workout is active */}
+                    <TouchableOpacity 
+                      style={[styles.actionButton, isWorkoutActive && styles.actionButtonDisabled]} 
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleRegenerateWorkout();
+                      }}
+                      disabled={isWorkoutActive}
+                    >
+                      <Icon name="refresh-cw" size={20} color={colors.white} />
+                      <Text style={styles.actionButtonText}>Regenerate</Text>
+                    </TouchableOpacity>
+                    
+                    {/* Duration Button */}
+                    <TouchableOpacity 
+                      style={styles.actionButton} 
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleAdjustDuration();
+                      }}
+                    >
+                      <Icon name="clock" size={20} color={colors.white} />
+                      <Text style={styles.actionButtonText}>Duration</Text>
+                    </TouchableOpacity>
+                    
+                    {/* Share Button */}
+                    <TouchableOpacity 
+                      style={styles.actionButton} 
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleShareWorkout();
+                      }}
+                    >
+                      <Icon name="send" size={20} color={colors.white} />
+                      <Text style={styles.actionButtonText}>Share</Text>
+                    </TouchableOpacity>
+                  </View>
                 </LinearGradient>
-              </View>
+              </TouchableOpacity>
             ) : (
               <View style={styles.noWorkoutCard}>
                 <Icon name="check-circle" size={48} color={colors.primary} />
@@ -614,6 +739,69 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
             )}
+            
+            {/* Feeling like something different? Section */}
+            <View style={styles.alternativeWorkoutsSection}>
+              <Text style={styles.alternativeWorkoutsTitle}>Feeling like something different?</Text>
+              
+              <View style={styles.alternativeWorkoutsRow}>
+                {/* Custom Workout Card */}
+                <TouchableOpacity style={styles.alternativeCard} onPress={() => console.log('Custom workout')}>
+                  <View style={[styles.alternativeIconCircle, { backgroundColor: 'rgba(138, 43, 226, 0.2)' }]}>
+                    <Icon name="star" size={24} color="#8A2BE2" />
+                  </View>
+                  <Text style={styles.alternativeCardTitle}>Custom</Text>
+                  <Text style={styles.alternativeCardSubtitle}>Let our AI help you create a workout</Text>
+                </TouchableOpacity>
+                
+                {/* Cardio Card */}
+                <TouchableOpacity style={styles.alternativeCard} onPress={() => router.push('/cardio-workout')}>
+                  <View style={[styles.alternativeIconCircle, { backgroundColor: 'rgba(34, 197, 94, 0.2)' }]}>
+                    <Icon name="activity" size={24} color="#22C55E" />
+                  </View>
+                  <Text style={styles.alternativeCardTitle}>Cardio</Text>
+                  <Text style={styles.alternativeCardSubtitle}>Log a cardio session</Text>
+                </TouchableOpacity>
+                
+                {/* Manual Card */}
+                <TouchableOpacity style={styles.alternativeCard} onPress={() => router.push('/manual-workout')}>
+                  <View style={[styles.alternativeIconCircle, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
+                    <Icon name="edit" size={24} color="#3B82F6" />
+                  </View>
+                  <Text style={styles.alternativeCardTitle}>Manual</Text>
+                  <Text style={styles.alternativeCardSubtitle}>Full control over workout</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            {/* Workouts Navigation Section */}
+            <View style={styles.workoutsNavigationSection}>
+              <View style={styles.workoutsNavigationRow}>
+                {/* Finished Workouts Card */}
+                <TouchableOpacity 
+                  style={styles.workoutNavCard} 
+                  onPress={() => router.push('/finished-workouts')}
+                >
+                  <View style={[styles.workoutNavIconCircle, { backgroundColor: 'rgba(132, 204, 22, 0.2)' }]}>
+                    <Icon name="check-circle" size={28} color={colors.primary} />
+                  </View>
+                  <Text style={styles.workoutNavCardTitle}>Finished Workouts</Text>
+                  <Text style={styles.workoutNavCardSubtitle}>View your workout history</Text>
+                </TouchableOpacity>
+                
+                {/* Programs/Upcoming Workouts Card */}
+                <TouchableOpacity 
+                  style={styles.workoutNavCard} 
+                  onPress={() => router.push('/programs')}
+                >
+                  <View style={[styles.workoutNavIconCircle, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
+                    <MaterialIcon name="fitness-center" size={28} color="#3B82F6" />
+                  </View>
+                  <Text style={styles.workoutNavCardTitle}>Programs</Text>
+                  <Text style={styles.workoutNavCardSubtitle}>View your workout plan</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             
             {/* Progress Stats */}
             <StatGroup 
@@ -663,21 +851,6 @@ export default function HomeScreen() {
                 }
               ]}
             />
-            
-            {/* Finished Workouts Button - With Glow Effect for Comparison */}
-            <TouchableOpacity 
-              style={styles.finishedWorkoutsButtonContainer}
-              onPress={() => router.push('/finished-workouts')}
-            >
-              <LinearGradient
-                colors={gradients.primaryButton as [string, string, ...string[]]}
-                style={styles.finishedWorkoutsButton}
-              >
-                <Icon name="list" size={20} color={colors.black} />
-                <Text style={styles.finishedWorkoutsButtonText}>View Finished Workouts</Text>
-                <Icon name="arrow-right" size={16} color={colors.black} />
-              </LinearGradient>
-            </TouchableOpacity>
 
 
           </View>
@@ -691,7 +864,7 @@ export default function HomeScreen() {
         visible={showWorkoutModal}
         onConfirm={handleConfirmWorkout}
         onCancel={handleCancelWorkout}
-        workoutName={todaysWorkout?.name}
+        workoutName={nextWorkout?.name}
       />
 
       {/* Workout Unavailable Modal */}
@@ -709,6 +882,83 @@ export default function HomeScreen() {
         visible={showVideoModal}
         onClose={() => setShowVideoModal(false)}
       />
+
+      {/* Bottom Banner - Workout In Progress */}
+      {isWorkoutActive && (
+        <TouchableOpacity 
+          style={styles.bottomBanner}
+          onPress={() => router.push('/workout-session')}
+          activeOpacity={0.9}
+        >
+          <LinearGradient
+            colors={[
+              'rgba(132, 204, 22, 0.15)',
+              'rgba(34, 197, 94, 0.1)',
+              'rgba(20, 25, 35, 0.8)',
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.bannerGradient}
+          >
+            <BlurView 
+              intensity={40} 
+              tint="dark"
+              style={styles.blurContainer}
+            >
+              <View style={styles.bannerContent}>
+                <View style={styles.bannerLeft}>
+                  <Text style={styles.bannerTitle}>WORKOUT IN PROGRESS</Text>
+                  {(() => {
+                    const firstExercise = getFirstUncompletedExercise();
+                    if (firstExercise) {
+                      return (
+                        <>
+                          <Text style={styles.bannerExerciseName} numberOfLines={1}>
+                            {firstExercise.name}
+                          </Text>
+                          <Text style={styles.bannerExerciseMeta}>
+                            {firstExercise.completedSets}/{firstExercise.sets} sets
+                            {firstExercise.lastWeight > 0 && ` • ${firstExercise.lastWeight} kg`}
+                          </Text>
+                        </>
+                      );
+                    }
+                    return <Text style={styles.bannerExerciseName}>Tap to continue</Text>;
+                  })()}
+                </View>
+                
+                <View style={styles.bannerRight}>
+                  <TouchableOpacity 
+                    style={styles.circularTimerContainer}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      if (isRunning) {
+                        pauseTimer();
+                      } else {
+                        resumeTimer();
+                      }
+                    }}
+                  >
+                    <LinearGradient
+                      colors={['rgba(132, 204, 22, 0.3)', 'rgba(132, 204, 22, 0.1)']}
+                      style={styles.circularTimerGradient}
+                    >
+                      <Text style={styles.circularTimerText}>{formatTimerTime(currentTime)}</Text>
+                      <View style={styles.circularPlayButton}>
+                        <Icon 
+                          name={isRunning ? 'pause' : 'play'} 
+                          size={14} 
+                          color={colors.black} 
+                        />
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </BlurView>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
 
     </SafeAreaView>
   );
@@ -795,9 +1045,26 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
 
-  // Today's Workout Styles
+  // Next Workout Styles
   todaysWorkout: {
     marginBottom: 24,
+  },
+  nextWorkoutBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    alignSelf: 'stretch',
+    marginBottom: 16,
+  },
+  nextWorkoutBadgeText: {
+    ...typography.caption,
+    color: colors.black,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   sectionHeaderRow: {
     marginBottom: 12,
@@ -819,18 +1086,152 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   workoutGradient: {
-    padding: 20,
+    paddingHorizontal: 0,
+    paddingBottom: 20,
+    paddingTop: 0,
   },
   workoutHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: 20,
   },
   workoutName: {
     ...typography.h3,
     color: colors.white,
+    fontSize: 22,
+    fontWeight: 'bold',
     flex: 1,
+    marginBottom: 12,
+  },
+  thumbnailsContainer: {
+    marginBottom: 12,
+  },
+  thumbnailsContent: {
+    gap: 8,
+  },
+  thumbnailWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.darkGray,
+  },
+  exerciseThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  workoutMeta: {
+    ...typography.body,
+    color: colors.lightGray,
+    fontSize: 14,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 8,
+    paddingHorizontal: 20,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    gap: 4,
+  },
+  actionButtonText: {
+    ...typography.caption,
+    color: colors.white,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  actionButtonDisabled: {
+    backgroundColor: colors.darkGray,
+    opacity: 0.5,
+  },
+  alternativeWorkoutsSection: {
+    marginBottom: 24,
+  },
+  alternativeWorkoutsTitle: {
+    ...typography.h3,
+    color: colors.white,
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  alternativeWorkoutsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  alternativeCard: {
+    flex: 1,
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 140,
+  },
+  alternativeIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  alternativeCardTitle: {
+    ...typography.body,
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  alternativeCardSubtitle: {
+    ...typography.caption,
+    color: colors.lightGray,
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  workoutsNavigationSection: {
+    marginBottom: 24,
+  },
+  workoutsNavigationRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  workoutNavCard: {
+    flex: 1,
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    minHeight: 140,
+  },
+  workoutNavIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  workoutNavCardTitle: {
+    ...typography.body,
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  workoutNavCardSubtitle: {
+    ...typography.caption,
+    color: colors.lightGray,
+    fontSize: 11,
+    textAlign: 'center',
   },
   loadingWorkoutName: {
     height: 28,
@@ -869,6 +1270,7 @@ const styles = StyleSheet.create({
   startWorkoutButtonContainer: {
     borderRadius: 12,
     overflow: 'hidden',
+    marginHorizontal: 20,
   },
   startWorkoutButton: {
     borderRadius: 12,
@@ -1033,6 +1435,102 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Bottom Banner - Workout In Progress
+  bottomBanner: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 90 : 82,
+    left: 16,
+    right: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 20,
+    zIndex: 1000,
+  },
+  bannerGradient: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(132, 204, 22, 0.3)',
+    overflow: 'hidden',
+  },
+  blurContainer: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  bannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    backgroundColor: 'rgba(15, 20, 30, 0.85)',
+  },
+  bannerLeft: {
+    flex: 1,
+    marginRight: 16,
+  },
+  bannerTitle: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: 'bold',
+    fontSize: 11,
+    letterSpacing: 1,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  bannerExerciseName: {
+    ...typography.body,
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  bannerExerciseMeta: {
+    ...typography.bodySmall,
+    color: colors.lightGray,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  bannerRight: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circularTimerContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    overflow: 'hidden',
+  },
+  circularTimerGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(132, 204, 22, 0.5)',
+  },
+  circularTimerText: {
+    ...typography.body,
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+    fontVariant: ['tabular-nums'],
+    marginBottom: 4,
+  },
+  circularPlayButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
   },
 
 });

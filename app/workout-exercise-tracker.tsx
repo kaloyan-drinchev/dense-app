@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
+import { useWorkoutCacheStore } from '@/store/workout-cache-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
 import { ExerciseTracker } from '@/components/ExerciseTracker';
 import {
@@ -29,6 +30,7 @@ export default function WorkoutExerciseTrackerScreen() {
   const [loading, setLoading] = useState(true);
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
   const [isExerciseCompleted, setIsExerciseCompleted] = useState(false);
+  const [userProgressData, setUserProgressData] = useState<any>(null);
   const isCustomExercise = exerciseId?.startsWith('custom-');
 
   useEffect(() => {
@@ -55,11 +57,30 @@ export default function WorkoutExerciseTrackerScreen() {
       return;
     }
 
+    // Declare progress and program at function scope to avoid reference errors
+    let progress: any = null;
+    let program: any = null;
+    let foundExercise: any = null;
+
     try {
-      let foundExercise = null;
+      // Use cache first to avoid database fetch
+      const cache = useWorkoutCacheStore.getState();
+      progress = cache.userProgressData;
+      program = cache.generatedProgram;
       
-      // Check if exercise is completed today
-      const progress = await userProgressService.getByUserId(user.id);
+      // Only fetch from DB if cache is missing or invalid
+      const needsFetch = !progress || !cache.isCacheValid();
+      
+      if (needsFetch) {
+        progress = await userProgressService.getByUserId(user.id);
+      }
+      
+      // Safety: If progress is still undefined, try one more fetch
+      if (!progress) {
+        progress = await userProgressService.getByUserId(user.id);
+      }
+      
+      // Check if exercise is completed today (SIMPLIFIED - no more week filtering)
       let isCompleted = false;
       
       if (progress?.weeklyWeights) {
@@ -68,6 +89,8 @@ export default function WorkoutExerciseTrackerScreen() {
           : progress.weeklyWeights;
         const today = new Date().toISOString().split('T')[0];
         const exerciseLogs = weeklyWeights?.exerciseLogs || {};
+        
+        // Simple: Just check today's date
         const todaySession = exerciseLogs[exerciseId]?.find((session: any) => session.date === today);
         
         if (todaySession?.sets) {
@@ -98,36 +121,83 @@ export default function WorkoutExerciseTrackerScreen() {
           }
         }
       } else {
-        // Load from generated program data
-        const wizardResults = await wizardResultsService.getByUserId(user.id);
-        if (wizardResults?.generatedSplit) {
-          // Handle both string (from JSON) and object (from JSONB) types
-          const program = typeof wizardResults.generatedSplit === 'string'
-            ? JSON.parse(wizardResults.generatedSplit)
-            : wizardResults.generatedSplit;
+        // NEW SYSTEM: Load from workout templates
+        const currentWorkoutType = progress?.currentWorkout; // e.g., 'push-a', 'pull-b'
+        
+        console.log(`🔍 [ExerciseTracker] Loading exercise "${exerciseId}" from workout "${currentWorkoutType}"`);
+        
+        if (currentWorkoutType) {
+          // Import workout template dynamically
+          const { getWorkoutTemplate } = await import('@/lib/workout-templates');
+          const workoutTemplate = getWorkoutTemplate(currentWorkoutType);
           
-          // Find the exercise in the program structure
-          for (const workout of program.weeklyStructure || []) {
-            const found = workout.exercises?.find((ex: any) => {
-              const exerciseIdMatch = ex.id === exerciseId || 
-                                    ex.name.replace(/\s+/g, '-').toLowerCase() === exerciseId;
-              return exerciseIdMatch;
-            });
+          if (workoutTemplate) {
+            console.log(`✅ [ExerciseTracker] Found workout template with ${workoutTemplate.exercises.length} exercises`);
+            
+            // Find the exercise in the template
+            const found = workoutTemplate.exercises.find((ex) => ex.id === exerciseId);
             
             if (found) {
+              console.log(`✅ [ExerciseTracker] Found exercise: ${found.name}`);
               foundExercise = {
                 ...found,
-                id: found.id || found.name.replace(/\s+/g, '-').toLowerCase(),
-                targetMuscle: found.targetMuscle || 'General',
-                restTime: Math.min(found.restSeconds || 60, 120),
+                restTime: Math.min(found.restTime || 60, 120),
               };
-              break;
+            } else {
+              console.warn(`⚠️ [ExerciseTracker] Exercise "${exerciseId}" not found in workout template`);
+            }
+          } else {
+            console.warn(`⚠️ [ExerciseTracker] Workout template "${currentWorkoutType}" not found`);
+          }
+        } else {
+          console.warn(`⚠️ [ExerciseTracker] No currentWorkout set in progress`);
+        }
+        
+        // FALLBACK: Load legacy program if no workout template found (for backward compatibility)
+        if (!foundExercise) {
+          if (!program) {
+            const wizardResults = await wizardResultsService.getByUserId(user.id);
+            if ((wizardResults as any)?.generatedSplit) {
+              program = typeof (wizardResults as any).generatedSplit === 'string'
+                ? JSON.parse((wizardResults as any).generatedSplit)
+                : (wizardResults as any).generatedSplit;
+            }
+          }
+          
+          if (program) {
+            // Handle both string (from JSON) and object (from JSONB) types
+            const programData = typeof program === 'string'
+              ? JSON.parse(program)
+              : program;
+            
+            // Find the exercise in the program structure
+            for (const workout of programData.weeklyStructure || []) {
+              const found = workout.exercises?.find((ex: any) => {
+                const exerciseIdMatch = ex.id === exerciseId || 
+                                      ex.name.replace(/\s+/g, '-').toLowerCase() === exerciseId;
+                return exerciseIdMatch;
+              });
+              
+              if (found) {
+                foundExercise = {
+                  ...found,
+                  id: found.id || found.name.replace(/\s+/g, '-').toLowerCase(),
+                  targetMuscle: found.targetMuscle || 'General',
+                  restTime: Math.min(found.restSeconds || 60, 120),
+                };
+                break;
+              }
             }
           }
         }
       }
       
       setExercise(foundExercise);
+      
+      // Safety: Only set progress if it's defined to avoid reference errors
+      if (progress) {
+        setUserProgressData(progress);
+      }
     } catch (error) {
       console.error('❌ Failed to load exercise data:', error);
     } finally {
@@ -179,7 +249,8 @@ export default function WorkoutExerciseTrackerScreen() {
     );
   };
 
-  if (!exercise && !loading) {
+  // Show loading while data is being fetched
+  if (loading || !exercise) {
     return (
       <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
@@ -187,20 +258,28 @@ export default function WorkoutExerciseTrackerScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <Icon name="arrow-left" size={24} color={colors.white} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Exercise</Text>
+            <Text style={styles.headerTitle}>
+              {loading ? 'Loading...' : 'Exercise Not Found'}
+            </Text>
           </View>
           
-          <View style={styles.errorContainer}>
-            <Icon name="alert-circle" size={64} color={colors.lightGray} />
-            <Text style={styles.errorTitle}>Exercise Not Found</Text>
-            <Text style={styles.errorText}>The requested exercise could not be loaded</Text>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <Text style={styles.backButtonText}>Go Back</Text>
-            </TouchableOpacity>
-          </View>
+          {loading ? (
+            <View style={styles.errorContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : (
+            <View style={styles.errorContainer}>
+              <Icon name="alert-circle" size={64} color={colors.lightGray} />
+              <Text style={styles.errorTitle}>Exercise Not Found</Text>
+              <Text style={styles.errorText}>The requested exercise could not be loaded</Text>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => router.back()}
+              >
+                <Text style={styles.backButtonText}>Go Back</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </SafeAreaView>
       </LinearGradient>
     );
@@ -222,49 +301,50 @@ export default function WorkoutExerciseTrackerScreen() {
         </View>
 
         {exercise && (
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.contentContainer}
-            keyboardDismissMode="on-drag"
-            keyboardShouldPersistTaps="handled"
-            onScrollBeginDrag={() => Keyboard.dismiss()}
-          >
-            {/* Details header intentionally hidden */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={() => Keyboard.dismiss()}
+        >
+          {/* Details header intentionally hidden */}
 
-            <View style={styles.infoContainer}>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Sets</Text>
-                <Text style={styles.infoValue}>{exercise.sets}</Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Reps</Text>
-                <Text style={styles.infoValue}>{exercise.reps}</Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Rest</Text>
-                <Text style={styles.infoValue}>{exercise.restTime}s</Text>
-              </View>
+          <View style={styles.infoContainer}>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Sets</Text>
+              <Text style={styles.infoValue}>{exercise.sets}</Text>
             </View>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Reps</Text>
+              <Text style={styles.infoValue}>{exercise.reps}</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Rest</Text>
+              <Text style={styles.infoValue}>{exercise.restTime}s</Text>
+            </View>
+          </View>
             <ExerciseTracker
                 exercise={exercise}
                 exerciseKey={exercise.id}
+                userProgressData={userProgressData}
                 registerSave={(fn) => {
                   // hook for future if we add custom back handling
                 }}
               />
-            {exercise.notes && (
-              <View style={styles.notesContainer}>
-                <Text style={styles.notesTitle}>Technique Notes:</Text>
-                <Text style={styles.notesText}>{exercise.notes}</Text>
-              </View>
-            )}
-            <View style={styles.trackerContainer}>
-              <Text style={styles.trackerTitle}>Track Your Sets</Text>
-              <View style={styles.instructionContainer}>
-                <Text style={styles.instructionText}>💪 Do more reps than the previous workout</Text>
-              </View>
+          {exercise.notes && (
+            <View style={styles.notesContainer}>
+              <Text style={styles.notesTitle}>Technique Notes:</Text>
+              <Text style={styles.notesText}>{exercise.notes}</Text>
             </View>
-          </ScrollView>
+          )}
+          <View style={styles.trackerContainer}>
+            <Text style={styles.trackerTitle}>Track Your Sets</Text>
+            <View style={styles.instructionContainer}>
+              <Text style={styles.instructionText}>💪 Do more reps than the previous workout</Text>
+            </View>
+          </View>
+        </ScrollView>
         )}
         
         {/* Loading Overlay - Only shows for completed exercises */}

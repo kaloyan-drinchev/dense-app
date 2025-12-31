@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs, useRouter } from 'expo-router';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
@@ -50,15 +50,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="programs"
-        options={{
-          title: 'Programs',
-          tabBarIcon: ({ color }) => (
-            <MaterialIcon name="fitness-center" size={28} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="nutrition"
         options={{
           title: 'Nutrition',
@@ -85,25 +76,41 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/* Programs tab removed - now accessible via home screen card */}
+      <Tabs.Screen
+        name="programs"
+        options={{
+          href: null, // Hide from tab bar
+          headerShown: true,
+          headerTitle: '',
+          headerLeft: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 16, gap: 12 }}>
+              <TouchableOpacity onPress={() => router.back()}>
+                <Icon name="arrow-left" size={24} color={colors.white} />
+              </TouchableOpacity>
+              <Text style={{ ...typography.h3, color: colors.white }}>Programs</Text>
+            </View>
+          ),
+        }}
+      />
       </Tabs>
       
 
 
-      {/* Floating AI Assistant Button */}
-      <TouchableOpacity
+      {/* Floating AI Assistant Button - Temporarily Removed */}
+      {/* <TouchableOpacity
         style={styles.floatingButton}
         onPress={openChat}
         activeOpacity={0.8}
       >
         <Icon name="activity" size={24} color="white" />
         
-        {/* Notification Badge */}
         {hasNotifications && (
           <View style={styles.badge}>
             <View style={styles.badgeDot} />
           </View>
         )}
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
 
     </View>
