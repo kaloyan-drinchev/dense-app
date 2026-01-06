@@ -57,14 +57,50 @@ export default function WorkoutExerciseTrackerScreen() {
       return;
     }
 
-    // Declare progress and program at function scope to avoid reference errors
+    // Declare variables at function scope
     let progress: any = null;
     let program: any = null;
     let foundExercise: any = null;
 
     try {
-      // Use cache first to avoid database fetch
+      // Use cache first
       const cache = useWorkoutCacheStore.getState();
+      
+      // OPTIMIZATION: Check for manual exercises FIRST (skip database fetch)
+      if (exerciseId.startsWith('manual-')) {
+        console.log(`🚀 [ExerciseTracker] Fast path for manual exercise "${exerciseId}"`);
+        
+        const manualWorkout = cache.manualWorkout;
+        
+        if (manualWorkout?.exercises) {
+          const found = manualWorkout.exercises.find((ex: any) => ex.id === exerciseId);
+          
+          if (found) {
+            console.log(`✅ [ExerciseTracker] Found manual exercise: ${found.name}`);
+            foundExercise = {
+              ...found,
+              targetMuscle: found.targetMuscle || 'General',
+              restTime: Math.min(found.restTime || 60, 120),
+            };
+            
+            // Manual exercises are never pre-completed, skip completion check
+            setIsExerciseCompleted(false);
+            
+            // Skip to setting exercise data
+            if (foundExercise) {
+              setExercise(foundExercise);
+              setLoading(false);
+              return; // Exit early for manual exercises
+            }
+          } else {
+            console.warn(`⚠️ [ExerciseTracker] Manual exercise "${exerciseId}" not found in manual workout`);
+          }
+        }
+        
+        // If manual exercise not found, continue with normal flow
+      }
+      
+      // For non-manual exercises, fetch from database
       progress = cache.userProgressData;
       program = cache.generatedProgram;
       
@@ -80,7 +116,7 @@ export default function WorkoutExerciseTrackerScreen() {
         progress = await userProgressService.getByUserId(user.id);
       }
       
-      // Check if exercise is completed today (SIMPLIFIED - no more week filtering)
+      // Check if exercise is completed today
       let isCompleted = false;
       
       if (progress?.weeklyWeights) {
@@ -90,7 +126,6 @@ export default function WorkoutExerciseTrackerScreen() {
         const today = new Date().toISOString().split('T')[0];
         const exerciseLogs = weeklyWeights?.exerciseLogs || {};
         
-        // Simple: Just check today's date
         const todaySession = exerciseLogs[exerciseId]?.find((session: any) => session.date === today);
         
         if (todaySession?.sets) {

@@ -6,6 +6,7 @@ interface WorkoutCacheState {
   generatedProgram: any | null;
   userProgressData: any | null;
   userWeight: number | null;
+  manualWorkout: any | null; // For manual workout creation
   lastUpdated: number | null; // timestamp
   
   // Actions
@@ -14,6 +15,7 @@ interface WorkoutCacheState {
     userProgressData?: any | null;
     userWeight?: number | null;
   }) => void;
+  setManualWorkout: (workout: any | null) => void;
   clearCache: () => void;
   isCacheValid: () => boolean; // Check if cache is less than 5 minutes old
 }
@@ -24,6 +26,7 @@ export const useWorkoutCacheStore = create<WorkoutCacheState>()(
       generatedProgram: null,
       userProgressData: null,
       userWeight: null,
+      manualWorkout: null,
       lastUpdated: null,
 
       setWorkoutData: (data) => {
@@ -35,11 +38,19 @@ export const useWorkoutCacheStore = create<WorkoutCacheState>()(
         });
       },
 
+      setManualWorkout: (workout) => {
+        set({
+          manualWorkout: workout,
+          lastUpdated: Date.now(),
+        });
+      },
+
       clearCache: () => {
         set({
           generatedProgram: null,
           userProgressData: null,
           userWeight: null,
+          manualWorkout: null,
           lastUpdated: null,
         });
       },

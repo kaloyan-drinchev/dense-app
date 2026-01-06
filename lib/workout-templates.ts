@@ -27,7 +27,7 @@ export interface WorkoutTemplate {
 // PUSH DAY A - Chest Focus
 export const PUSH_DAY_A: WorkoutTemplate = {
   id: 'push-a',
-  name: 'Push Day A',
+  name: 'Push Day - Chest Focus',
   type: 'push-a',
   category: 'push',
   estimatedDuration: 60,
@@ -92,7 +92,7 @@ export const PUSH_DAY_A: WorkoutTemplate = {
 // PUSH DAY B - Shoulder Focus
 export const PUSH_DAY_B: WorkoutTemplate = {
   id: 'push-b',
-  name: 'Push Day B',
+  name: 'Push Day - Shoulder Focus',
   type: 'push-b',
   category: 'push',
   estimatedDuration: 60,
@@ -157,7 +157,7 @@ export const PUSH_DAY_B: WorkoutTemplate = {
 // PULL DAY A - Back Width Focus
 export const PULL_DAY_A: WorkoutTemplate = {
   id: 'pull-a',
-  name: 'Pull Day A',
+  name: 'Pull Day - Back Width Focus',
   type: 'pull-a',
   category: 'pull',
   estimatedDuration: 60,
@@ -222,7 +222,7 @@ export const PULL_DAY_A: WorkoutTemplate = {
 // PULL DAY B - Back Thickness Focus
 export const PULL_DAY_B: WorkoutTemplate = {
   id: 'pull-b',
-  name: 'Pull Day B',
+  name: 'Pull Day - Back Thickness Focus',
   type: 'pull-b',
   category: 'pull',
   estimatedDuration: 60,
@@ -287,7 +287,7 @@ export const PULL_DAY_B: WorkoutTemplate = {
 // LEG DAY A - Quad Focus
 export const LEG_DAY_A: WorkoutTemplate = {
   id: 'leg-a',
-  name: 'Leg Day A',
+  name: 'Leg Day - Quad Focus',
   type: 'leg-a',
   category: 'legs',
   estimatedDuration: 65,
@@ -352,7 +352,7 @@ export const LEG_DAY_A: WorkoutTemplate = {
 // LEG DAY B - Hamstring Focus
 export const LEG_DAY_B: WorkoutTemplate = {
   id: 'leg-b',
-  name: 'Leg Day B',
+  name: 'Leg Day - Hamstring Focus',
   type: 'leg-b',
   category: 'legs',
   estimatedDuration: 65,

@@ -18,14 +18,11 @@ import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
 import { userProgressService } from '@/db/services';
+import { useWorkoutCacheStore } from '@/store/workout-cache-store';
 
 interface ManualExercise {
   id: string;
   name: string;
-  sets: Array<{
-    reps: number;
-    weightKg: number;
-  }>;
 }
 
 export default function ManualWorkoutScreen() {
@@ -39,9 +36,6 @@ export default function ManualWorkoutScreen() {
   // Add exercise form
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [newExerciseName, setNewExerciseName] = useState<string>('');
-  const [newExerciseSets, setNewExerciseSets] = useState<string>('3');
-  const [newExerciseReps, setNewExerciseReps] = useState<string>('10');
-  const [newExerciseWeight, setNewExerciseWeight] = useState<string>('0');
 
   const handleAddExercise = () => {
     if (!newExerciseName.trim()) {
@@ -49,41 +43,15 @@ export default function ManualWorkoutScreen() {
       return;
     }
 
-    const sets = parseInt(newExerciseSets) || 3;
-    const reps = parseInt(newExerciseReps) || 10;
-    const weight = parseFloat(newExerciseWeight) || 0;
-
-    if (sets < 1 || sets > 10) {
-      Alert.alert('Invalid', 'Sets must be between 1 and 10');
-      return;
-    }
-
-    if (reps < 1 || reps > 50) {
-      Alert.alert('Invalid', 'Reps must be between 1 and 50');
-      return;
-    }
-
-    if (weight < 0 || weight > 1000) {
-      Alert.alert('Invalid', 'Weight must be between 0 and 1000 kg');
-      return;
-    }
-
     const newExercise: ManualExercise = {
       id: `manual-${Date.now()}`,
       name: newExerciseName.trim(),
-      sets: Array.from({ length: sets }, () => ({
-        reps: reps,
-        weightKg: weight,
-      })),
     };
 
     setExercises([...exercises, newExercise]);
     
     // Reset form
     setNewExerciseName('');
-    setNewExerciseSets('3');
-    setNewExerciseReps('10');
-    setNewExerciseWeight('0');
     setShowAddExercise(false);
   };
 
@@ -104,7 +72,7 @@ export default function ManualWorkoutScreen() {
     );
   };
 
-  const handleSaveWorkout = async () => {
+  const handleStartWorkout = async () => {
     if (!workoutName.trim()) {
       Alert.alert('Required', 'Please enter a workout name');
       return;
@@ -123,96 +91,34 @@ export default function ManualWorkoutScreen() {
     setSaving(true);
 
     try {
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Get current progress
-      const progress = await userProgressService.getByUserId(user.id);
-      if (!progress) {
-        Alert.alert('Error', 'Could not load user progress');
-        return;
-      }
-
-      // Parse completedWorkouts
-      const completedWorkouts = Array.isArray(progress.completedWorkouts)
-        ? progress.completedWorkouts
-        : (typeof progress.completedWorkouts === 'string'
-            ? JSON.parse(progress.completedWorkouts)
-            : []);
-
-      // Calculate total volume
-      const totalVolume = exercises.reduce((total, exercise) => {
-        const exerciseVolume = exercise.sets.reduce((sum, set) => {
-          return sum + (set.reps * set.weightKg);
-        }, 0);
-        return total + exerciseVolume;
-      }, 0);
-
-      // Add manual workout to completed workouts
-      const manualWorkoutEntry = {
-        date: today,
-        workoutName: `Manual: ${workoutName.trim()}`,
-        workoutIndex: -1, // -1 indicates manual workout
-        totalVolume: Math.round(totalVolume),
-        duration: 0, // User didn't track duration
-        percentageSuccess: 100, // Assume all completed
-        exercises: exercises.map(ex => ({
+      // Prepare workout structure compatible with workout-session
+      const manualWorkoutData = {
+        id: 'manual-workout',
+        name: `Manual: ${workoutName.trim()}`,
+        type: 'manual',
+        category: 'manual',
+        estimatedDuration: exercises.length * 10, // Rough estimate
+        exercises: exercises.map((ex, index) => ({
+          id: ex.id,
           name: ex.name,
-          sets: ex.sets.length,
-          completedSets: ex.sets.length,
+          targetMuscle: 'General',
+          sets: 3, // Default number of sets
+          reps: '10', // Default reps per set
+          restTime: 60, // Default rest time
+          notes: '',
         })),
-        timestamp: new Date().toISOString(),
       };
 
-      completedWorkouts.push(manualWorkoutEntry);
+      // Save workout data to cache store for workout-session to use
+      const { setManualWorkout } = useWorkoutCacheStore.getState();
+      setManualWorkout(manualWorkoutData);
 
-      // Parse weeklyWeights
-      const weeklyWeights = typeof progress.weeklyWeights === 'string'
-        ? JSON.parse(progress.weeklyWeights)
-        : progress.weeklyWeights || {};
-
-      // Save exercise logs
-      if (!weeklyWeights.exerciseLogs) {
-        weeklyWeights.exerciseLogs = {};
-      }
-
-      exercises.forEach(exercise => {
-        const exerciseId = exercise.name.toLowerCase().replace(/\s+/g, '-');
-        
-        if (!weeklyWeights.exerciseLogs[exerciseId]) {
-          weeklyWeights.exerciseLogs[exerciseId] = [];
-        }
-
-        weeklyWeights.exerciseLogs[exerciseId].push({
-          date: today,
-          unit: 'kg',
-          sets: exercise.sets.map(set => ({
-            reps: set.reps,
-            weightKg: set.weightKg,
-            isCompleted: true,
-          })),
-        });
-      });
-
-      // Update progress
-      await userProgressService.update(progress.id, {
-        completedWorkouts: completedWorkouts,
-        weeklyWeights: weeklyWeights,
-      });
-
-      Alert.alert(
-        'Success!',
-        `Manual workout "${workoutName}" logged with ${exercises.length} exercises`,
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      // Navigate to workout session - use replace so back button works correctly
+      // Note: Don't call setSaving(false) here as component will unmount after navigation
+      router.replace('/workout-session');
     } catch (error) {
-      console.error('❌ Error saving manual workout:', error);
-      Alert.alert('Error', 'Failed to save manual workout');
-    } finally {
+      console.error('❌ Error starting manual workout:', error);
+      Alert.alert('Error', 'Failed to start manual workout');
       setSaving(false);
     }
   };
@@ -280,12 +186,6 @@ export default function ManualWorkoutScreen() {
                     <Icon name="trash-2" size={18} color={colors.error} />
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.exerciseDetails}>
-                  {exercise.sets.length} sets × {exercise.sets[0].reps} reps @ {exercise.sets[0].weightKg} kg
-                </Text>
-                <Text style={styles.exerciseVolume}>
-                  Volume: {Math.round(exercise.sets.length * exercise.sets[0].reps * exercise.sets[0].weightKg)} kg
-                </Text>
               </View>
             ))}
 
@@ -300,50 +200,10 @@ export default function ManualWorkoutScreen() {
                     style={styles.input}
                     value={newExerciseName}
                     onChangeText={setNewExerciseName}
-                    placeholder="e.g., Bench Press"
+                    placeholder="e.g., Bench Press, Squats, Deadlifts"
                     placeholderTextColor={colors.lightGray}
+                    autoFocus
                   />
-                </View>
-
-                <View style={styles.formRow}>
-                  <View style={styles.formFieldSmall}>
-                    <Text style={styles.formLabel}>Sets</Text>
-                    <TextInput
-                      style={styles.inputSmall}
-                      value={newExerciseSets}
-                      onChangeText={setNewExerciseSets}
-                      placeholder="3"
-                      placeholderTextColor={colors.lightGray}
-                      keyboardType="numeric"
-                      maxLength={2}
-                    />
-                  </View>
-
-                  <View style={styles.formFieldSmall}>
-                    <Text style={styles.formLabel}>Reps</Text>
-                    <TextInput
-                      style={styles.inputSmall}
-                      value={newExerciseReps}
-                      onChangeText={setNewExerciseReps}
-                      placeholder="10"
-                      placeholderTextColor={colors.lightGray}
-                      keyboardType="numeric"
-                      maxLength={2}
-                    />
-                  </View>
-
-                  <View style={styles.formFieldSmall}>
-                    <Text style={styles.formLabel}>Weight (kg)</Text>
-                    <TextInput
-                      style={styles.inputSmall}
-                      value={newExerciseWeight}
-                      onChangeText={setNewExerciseWeight}
-                      placeholder="0"
-                      placeholderTextColor={colors.lightGray}
-                      keyboardType="numeric"
-                      maxLength={5}
-                    />
-                  </View>
                 </View>
 
                 <View style={styles.formButtons}>
@@ -352,9 +212,6 @@ export default function ManualWorkoutScreen() {
                     onPress={() => {
                       setShowAddExercise(false);
                       setNewExerciseName('');
-                      setNewExerciseSets('3');
-                      setNewExerciseReps('10');
-                      setNewExerciseWeight('0');
                     }}
                   >
                     <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -363,6 +220,7 @@ export default function ManualWorkoutScreen() {
                     style={[styles.formButton, styles.confirmButton]}
                     onPress={handleAddExercise}
                   >
+                    <Icon name="check" size={18} color={colors.black} />
                     <Text style={styles.confirmButtonText}>Add</Text>
                   </TouchableOpacity>
                 </View>
@@ -376,7 +234,7 @@ export default function ManualWorkoutScreen() {
           <View style={styles.footer}>
             <TouchableOpacity
               style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-              onPress={handleSaveWorkout}
+              onPress={handleStartWorkout}
               disabled={saving}
               activeOpacity={0.7}
             >
@@ -384,8 +242,8 @@ export default function ManualWorkoutScreen() {
                 <ActivityIndicator size="small" color={colors.black} />
               ) : (
                 <>
-                  <Icon name="check" size={20} color={colors.black} />
-                  <Text style={styles.saveButtonText}>Save Manual Workout</Text>
+                  <Icon name="play" size={20} color={colors.black} />
+                  <Text style={styles.saveButtonText}>Create Workout</Text>
                 </>
               )}
             </TouchableOpacity>

@@ -466,8 +466,29 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     
     const today = new Date().toISOString().slice(0, 10);
     
+    // OPTIMIZATION: For manual exercises, use simplified flow
+    const isManualExercise = exerciseKey.startsWith('manual-');
+    
+    if (isManualExercise) {
+      console.log('🚀 [ExerciseTracker] Fast completion path for manual exercise');
+      
+      try {
+        // Save to database (still needed for history tracking)
+        await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
+        console.log('✅ [ExerciseTracker] Manual exercise completed and saved');
+        
+        // Navigate back immediately (no cache sync needed for manual exercises)
+        router.back();
+        return; // Exit early
+      } catch (error) {
+        console.error('❌ [ExerciseTracker] Failed to save manual exercise:', error);
+        Alert.alert('Error', 'Failed to save exercise progress');
+        setIsCompletingExercise(false);
+        return;
+      }
+    }
+    
     // STEP 1: OPTIMISTIC UPDATE - Update cache IMMEDIATELY (before database)
-    const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
     const currentProgress = useWorkoutCacheStore.getState().userProgressData;
     let originalProgress: any = null; // Store original state for rollback
     

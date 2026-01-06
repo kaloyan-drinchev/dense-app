@@ -69,8 +69,13 @@ export default function CardioWorkoutScreen() {
     const hoursNum = hours ? parseFloat(hours) : 0;
     const minutesNum = minutes ? parseFloat(minutes) : 0;
     
-    if (hoursNum < 0 || minutesNum < 0 || minutesNum >= 60) {
-      Alert.alert('Invalid Duration', 'Please enter valid hours (0-23) and minutes (0-59)');
+    if (hoursNum < 0 || hoursNum > 10) {
+      Alert.alert('Invalid Duration', 'Hours must be between 0 and 10');
+      return;
+    }
+    
+    if (minutesNum < 0 || minutesNum >= 60) {
+      Alert.alert('Invalid Duration', 'Minutes must be between 0 and 59');
       return;
     }
     
@@ -81,8 +86,8 @@ export default function CardioWorkoutScreen() {
     
     const totalMinutes = hoursNum * 60 + minutesNum;
     
-    if (totalMinutes > 300) {
-      Alert.alert('Invalid Duration', 'Duration cannot exceed 300 minutes (5 hours)');
+    if (totalMinutes > 600) {
+      Alert.alert('Invalid Duration', 'Duration cannot exceed 10 hours');
       return;
     }
 
@@ -146,9 +151,36 @@ export default function CardioWorkoutScreen() {
         timestamp: new Date().toISOString(),
       });
 
+      // Parse completedWorkouts
+      const completedWorkouts = Array.isArray(progress.completedWorkouts)
+        ? progress.completedWorkouts
+        : (typeof progress.completedWorkouts === 'string'
+            ? JSON.parse(progress.completedWorkouts)
+            : []);
+
+      // Add cardio session to completed workouts
+      const cardioWorkoutEntry = {
+        date: today,
+        workoutName: `Cardio: ${cardioType?.name || 'Cardio'}`,
+        workoutIndex: -2, // -2 indicates cardio workout (vs -1 for manual)
+        totalVolume: 0, // Cardio doesn't have volume
+        duration: totalMinutes,
+        caloriesBurned: calories,
+        percentageSuccess: 100,
+        exercises: [{
+          name: cardioType?.name || 'Cardio',
+          duration: totalMinutes,
+          calories: calories,
+        }],
+        timestamp: new Date().toISOString(),
+      };
+
+      completedWorkouts.push(cardioWorkoutEntry);
+
       // Update progress
       await userProgressService.update(progress.id, {
         weeklyWeights: weeklyWeights,
+        completedWorkouts: completedWorkouts,
       });
 
       Alert.alert(

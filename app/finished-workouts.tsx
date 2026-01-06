@@ -180,6 +180,7 @@ export default function FinishedWorkoutsScreen() {
                       </Text>
                       <View style={styles.entryMeta}>
                         <View style={styles.metaBadges}>
+                          {/* Show volume for strength workouts */}
                           {item.totalVolume !== undefined && item.totalVolume !== null && item.totalVolume > 0 && (
                             <View style={styles.volumeBadge}>
                               <Icon name="trending-up" size={12} color={colors.secondary} />
@@ -190,7 +191,26 @@ export default function FinishedWorkoutsScreen() {
                               </Text>
                             </View>
                           )}
-                          {item.percentageSuccess !== undefined && item.percentageSuccess !== null && (
+                          {/* Show duration for cardio workouts */}
+                          {item.duration !== undefined && item.duration !== null && item.duration > 0 && (
+                            <View style={styles.volumeBadge}>
+                              <Icon name="clock" size={12} color={colors.primary} />
+                              <Text style={styles.volumeBadgeText}>
+                                {item.duration} min
+                              </Text>
+                            </View>
+                          )}
+                          {/* Show calories for cardio workouts */}
+                          {item.caloriesBurned !== undefined && item.caloriesBurned !== null && item.caloriesBurned > 0 && (
+                            <View style={styles.volumeBadge}>
+                              <Icon name="zap" size={12} color={colors.secondary} />
+                              <Text style={styles.volumeBadgeText}>
+                                {Math.round(item.caloriesBurned)} cal
+                              </Text>
+                            </View>
+                          )}
+                          {/* Show success percentage for strength workouts */}
+                          {item.percentageSuccess !== undefined && item.percentageSuccess !== null && item.workoutIndex !== -2 && (
                             <View style={styles.percentageBadge}>
                               <Text style={styles.percentageBadgeText}>
                                 {item.percentageSuccess}%

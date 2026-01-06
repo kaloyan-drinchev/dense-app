@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -48,7 +49,7 @@ export default function HomeScreen() {
   const { user } = useAuthStore();
   const { userProfile, userProgress, activeProgram, programs } =
     useWorkoutStore();
-  const { generatedProgram: cachedProgram, userProgressData: cachedProgress, isCacheValid } = useWorkoutCacheStore();
+  const { generatedProgram: cachedProgram, userProgressData: cachedProgress, manualWorkout: cachedManualWorkout, isCacheValid } = useWorkoutCacheStore();
   const { isWorkoutActive, timeElapsed, isRunning, updateTimeElapsed, pauseTimer, resumeTimer } = useTimerStore();
   const { shouldBlockAccess } = useSubscriptionStore();
   const [currentTime, setCurrentTime] = useState(timeElapsed);
@@ -62,6 +63,10 @@ export default function HomeScreen() {
   
   // State for user progress tracking - initialize from cache if available
   const [userProgressData, setUserProgressData] = useState<any>(cachedProgress);
+  
+  // Loading states for Skip and Regenerate buttons
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(!cachedProgress);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
@@ -260,6 +265,15 @@ export default function HomeScreen() {
 
   // NEW: Get next suggested workout using PPL template system
   const getNextWorkout = () => {
+    // Check for manual workout first (active manual workout takes priority)
+    if (cachedManualWorkout) {
+      console.log('🏠 Home Screen - Active Manual Workout:', {
+        workoutName: cachedManualWorkout.name,
+        exerciseCount: cachedManualWorkout.exercises.length,
+      });
+      return cachedManualWorkout;
+    }
+    
     if (!userProgressData) return null;
     
     const currentWorkoutType = userProgressData.currentWorkout; // e.g., 'push-a', 'pull-b'
@@ -285,7 +299,7 @@ export default function HomeScreen() {
   // Memoized next workout to display
   const nextWorkout = useMemo(() => {
     return getNextWorkout();
-  }, [userProgressData]);
+  }, [cachedManualWorkout, userProgressData]);
 
 
 
@@ -369,8 +383,18 @@ export default function HomeScreen() {
   };
 
   const handleStartWorkoutPress = () => {
+    // Check if we're clicking on a manual workout
+    const isClickingManualWorkout = cachedManualWorkout !== null;
+    
+    if (isClickingManualWorkout) {
+      // Don't clear manual workout - just navigate to continue it
+      console.log('📱 Continuing manual workout:', cachedManualWorkout.name);
+      router.push('/workout-session');
+      return;
+    }
+    
     if (isWorkoutActive) {
-      // Navigate directly to workout session if timer is active
+      // Navigate directly to workout session if timer is active (PPL workout)
       router.push('/workout-session');
       return;
     }
@@ -382,6 +406,7 @@ export default function HomeScreen() {
       return;
     }
 
+    // Starting a fresh PPL workout (no manual workout in cache)
     // Workout is available, navigate to workout session
     router.push('/workout-session');
   };
@@ -437,6 +462,7 @@ export default function HomeScreen() {
   const handleSkipWorkout = async () => {
     if (!user?.id || !userProgressData) return;
     
+    setIsSkipping(true);
     try {
       // Skip to next workout in rotation
       const nextWorkoutType = updateWorkoutProgression(userProgressData.currentWorkout);
@@ -449,12 +475,16 @@ export default function HomeScreen() {
       console.log('✅ Skipped to next workout:', nextWorkoutType);
     } catch (error) {
       console.error('❌ Failed to skip workout:', error);
+      Alert.alert('Error', 'Failed to skip workout. Please try again.');
+    } finally {
+      setIsSkipping(false);
     }
   };
 
   const handleRegenerateWorkout = async () => {
     if (!user?.id || !userProgressData) return;
     
+    setIsRegenerating(true);
     try {
       // Switch to alternate variation (A ↔ B)
       const alternateWorkout = getAlternateWorkout(userProgressData.currentWorkout);
@@ -467,6 +497,9 @@ export default function HomeScreen() {
       console.log('✅ Regenerated workout to:', alternateWorkout.name);
     } catch (error) {
       console.error('❌ Failed to regenerate workout:', error);
+      Alert.alert('Error', 'Failed to regenerate workout. Please try again.');
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
@@ -617,194 +650,207 @@ export default function HomeScreen() {
         </View> */}
 
         {/* Next Workout Preview */}
-        {nextWorkout && (
+        {nextWorkout ? (
           <View style={styles.todaysWorkout}>
-            {nextWorkout ? (
-              <TouchableOpacity 
-                style={styles.workoutCard}
-                onPress={handleStartWorkoutPress}
-                activeOpacity={0.9}
+            <TouchableOpacity 
+              style={styles.workoutCard}
+              onPress={handleStartWorkoutPress}
+              activeOpacity={0.9}
+            >
+              <LinearGradient
+                colors={gradients.card as [string, string, ...string[]]}
+                style={styles.workoutGradient}
               >
-                <LinearGradient
-                  colors={gradients.card as [string, string, ...string[]]}
-                  style={styles.workoutGradient}
-                >
-                  {/* Badge - Full Width at Top */}
-                  <View style={styles.nextWorkoutBadge}>
-                    <Text style={styles.nextWorkoutBadgeText}>
-                      {isWorkoutActive ? 'IN PROGRESS' : 'NEXT WORKOUT'}
-                    </Text>
-                  </View>
-                  
-                  {/* Workout Details */}
-                  <View style={styles.workoutHeader}>
-                    {isRefreshingWorkout ? (
-                      <View style={styles.loadingWorkoutName} />
+                {/* Badge - Full Width at Top */}
+                <View style={styles.nextWorkoutBadge}>
+                  <Text style={styles.nextWorkoutBadgeText}>
+                    {isWorkoutActive ? 'IN PROGRESS' : 'NEXT WORKOUT'}
+                  </Text>
+                </View>
+                
+                {/* Workout Details */}
+                <View style={styles.workoutHeader}>
+                  {isRefreshingWorkout ? (
+                    <View style={styles.loadingWorkoutName} />
+                  ) : (
+                    <>
+                      {/* Workout Name */}
+                      <Text style={styles.workoutName}>{nextWorkout.name}</Text>
+                      
+                      {/* Exercise Thumbnails Row */}
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.thumbnailsContainer}
+                        contentContainerStyle={styles.thumbnailsContent}
+                      >
+                        {nextWorkout.exercises.slice(0, 6).map((exercise: any, idx: number) => (
+                          <View key={exercise.id} style={styles.thumbnailWrapper}>
+                            <Image
+                              source={{ uri: getExerciseThumbnailUrl(exercise.name) }}
+                              style={styles.exerciseThumbnail}
+                              contentFit="cover"
+                            />
+                          </View>
+                        ))}
+                      </ScrollView>
+                      
+                      {/* Meta Info Below */}
+                      <Text style={styles.workoutMeta}>
+                        {nextWorkout.estimatedDuration} mins • {nextWorkout.exercises.length} exercises
+                      </Text>
+                    </>
+                  )}
+                </View>
+                
+                {/* Action Buttons Row */}
+                <View style={styles.actionButtonsRow}>
+                  {/* Skip Button - Disabled when workout is active or loading */}
+                  <TouchableOpacity 
+                    style={[
+                      styles.actionButton, 
+                      (isWorkoutActive || isSkipping || isRegenerating) && styles.actionButtonDisabled
+                    ]} 
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleSkipWorkout();
+                    }}
+                    disabled={isWorkoutActive || isSkipping || isRegenerating}
+                  >
+                    {isSkipping ? (
+                      <ActivityIndicator size="small" color={colors.white} />
                     ) : (
                       <>
-                        {/* Workout Name */}
-                        <Text style={styles.workoutName}>{nextWorkout.name}</Text>
-                        
-                        {/* Exercise Thumbnails Row */}
-                        <ScrollView 
-                          horizontal 
-                          showsHorizontalScrollIndicator={false}
-                          style={styles.thumbnailsContainer}
-                          contentContainerStyle={styles.thumbnailsContent}
-                        >
-                          {nextWorkout.exercises.slice(0, 6).map((exercise: any, idx: number) => (
-                            <View key={exercise.id} style={styles.thumbnailWrapper}>
-                              <Image
-                                source={{ uri: getExerciseThumbnailUrl(exercise.name) }}
-                                style={styles.exerciseThumbnail}
-                                contentFit="cover"
-                              />
-                            </View>
-                          ))}
-                        </ScrollView>
-                        
-                        {/* Meta Info Below */}
-                        <Text style={styles.workoutMeta}>
-                          {nextWorkout.estimatedDuration} mins • {nextWorkout.exercises.length} exercises
-                        </Text>
+                        <Icon name="skip-forward" size={20} color={colors.white} />
+                        <Text style={styles.actionButtonText}>Skip</Text>
                       </>
                     )}
-                  </View>
+                  </TouchableOpacity>
                   
-                  {/* Action Buttons Row */}
-                  <View style={styles.actionButtonsRow}>
-                    {/* Skip Button - Disabled when workout is active */}
-                    <TouchableOpacity 
-                      style={[styles.actionButton, isWorkoutActive && styles.actionButtonDisabled]} 
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleSkipWorkout();
-                      }}
-                      disabled={isWorkoutActive}
-                    >
-                      <Icon name="skip-forward" size={20} color={colors.white} />
-                      <Text style={styles.actionButtonText}>Skip</Text>
-                    </TouchableOpacity>
-                    
-                    {/* Regenerate Button - Disabled when workout is active */}
-                    <TouchableOpacity 
-                      style={[styles.actionButton, isWorkoutActive && styles.actionButtonDisabled]} 
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleRegenerateWorkout();
-                      }}
-                      disabled={isWorkoutActive}
-                    >
-                      <Icon name="refresh-cw" size={20} color={colors.white} />
-                      <Text style={styles.actionButtonText}>Regenerate</Text>
-                    </TouchableOpacity>
-                    
-                    {/* Duration Button */}
-                    <TouchableOpacity 
-                      style={styles.actionButton} 
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleAdjustDuration();
-                      }}
-                    >
-                      <Icon name="clock" size={20} color={colors.white} />
-                      <Text style={styles.actionButtonText}>Duration</Text>
-                    </TouchableOpacity>
-                    
-                    {/* Share Button */}
-                    <TouchableOpacity 
-                      style={styles.actionButton} 
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleShareWorkout();
-                      }}
-                    >
-                      <Icon name="send" size={20} color={colors.white} />
-                      <Text style={styles.actionButtonText}>Share</Text>
-                    </TouchableOpacity>
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.noWorkoutCard}>
-                <Icon name="check-circle" size={48} color={colors.primary} />
-                <Text style={styles.noWorkoutTitle}>Great job!</Text>
-                <Text style={styles.noWorkoutText}>You've completed all workouts in your program</Text>
-                <TouchableOpacity 
-                  style={[styles.bannerButton, { marginTop: 12 }]}
-                  onPress={() => router.push('/finished-workouts')}
-                >
-                  <Text style={styles.bannerButtonText}>View Finished Workouts</Text>
-                  <Icon name="arrow-right" size={16} color={colors.white} />
-                </TouchableOpacity>
-              </View>
-            )}
+                  {/* Regenerate Button - Disabled when workout is active or loading */}
+                  <TouchableOpacity 
+                    style={[
+                      styles.actionButton, 
+                      (isWorkoutActive || isSkipping || isRegenerating) && styles.actionButtonDisabled
+                    ]} 
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleRegenerateWorkout();
+                    }}
+                    disabled={isWorkoutActive || isSkipping || isRegenerating}
+                  >
+                    {isRegenerating ? (
+                      <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
+                      <>
+                        <Icon name="refresh-cw" size={20} color={colors.white} />
+                        <Text style={styles.actionButtonText}>Regenerate</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  
+                  {/* Duration Button */}
+                  <TouchableOpacity 
+                    style={styles.actionButton} 
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleAdjustDuration();
+                    }}
+                  >
+                    <Icon name="clock" size={20} color={colors.white} />
+                    <Text style={styles.actionButtonText}>Duration</Text>
+                  </TouchableOpacity>
+                  
+                  {/* Share Button */}
+                  <TouchableOpacity 
+                    style={styles.actionButton} 
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleShareWorkout();
+                    }}
+                  >
+                    <Icon name="send" size={20} color={colors.white} />
+                    <Text style={styles.actionButtonText}>Share</Text>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        ) : null}
             
-            {/* Feeling like something different? Section */}
-            <View style={styles.alternativeWorkoutsSection}>
-              <Text style={styles.alternativeWorkoutsTitle}>Feeling like something different?</Text>
-              
-              <View style={styles.alternativeWorkoutsRow}>
-                {/* Custom Workout Card */}
-                <TouchableOpacity style={styles.alternativeCard} onPress={() => console.log('Custom workout')}>
-                  <View style={[styles.alternativeIconCircle, { backgroundColor: 'rgba(138, 43, 226, 0.2)' }]}>
-                    <Icon name="star" size={24} color="#8A2BE2" />
-                  </View>
-                  <Text style={styles.alternativeCardTitle}>Custom</Text>
-                  <Text style={styles.alternativeCardSubtitle}>Let our AI help you create a workout</Text>
-                </TouchableOpacity>
-                
-                {/* Cardio Card */}
-                <TouchableOpacity style={styles.alternativeCard} onPress={() => router.push('/cardio-workout')}>
-                  <View style={[styles.alternativeIconCircle, { backgroundColor: 'rgba(34, 197, 94, 0.2)' }]}>
-                    <Icon name="activity" size={24} color="#22C55E" />
-                  </View>
-                  <Text style={styles.alternativeCardTitle}>Cardio</Text>
-                  <Text style={styles.alternativeCardSubtitle}>Log a cardio session</Text>
-                </TouchableOpacity>
-                
-                {/* Manual Card */}
-                <TouchableOpacity style={styles.alternativeCard} onPress={() => router.push('/manual-workout')}>
-                  <View style={[styles.alternativeIconCircle, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
-                    <Icon name="edit" size={24} color="#3B82F6" />
-                  </View>
-                  <Text style={styles.alternativeCardTitle}>Manual</Text>
-                  <Text style={styles.alternativeCardSubtitle}>Full control over workout</Text>
-                </TouchableOpacity>
+        {/* Feeling like something different? Section */}
+        <View style={styles.alternativeWorkoutsSection}>
+          <Text style={styles.alternativeWorkoutsTitle}>Feeling like something different?</Text>
+          
+          <View style={styles.alternativeWorkoutsRow}>
+            {/* Custom Workout Card */}
+            <TouchableOpacity style={styles.alternativeCard} onPress={() => console.log('Custom workout')}>
+              <View style={[styles.alternativeIconCircle, { backgroundColor: 'rgba(138, 43, 226, 0.2)' }]}>
+                <Icon name="star" size={24} color="#8A2BE2" />
               </View>
-            </View>
+              <Text style={styles.alternativeCardTitle}>Custom</Text>
+              <Text style={styles.alternativeCardSubtitle}>Let our AI help you create a workout</Text>
+            </TouchableOpacity>
             
-            {/* Workouts Navigation Section */}
-            <View style={styles.workoutsNavigationSection}>
-              <View style={styles.workoutsNavigationRow}>
-                {/* Finished Workouts Card */}
-                <TouchableOpacity 
-                  style={styles.workoutNavCard} 
-                  onPress={() => router.push('/finished-workouts')}
-                >
-                  <View style={[styles.workoutNavIconCircle, { backgroundColor: 'rgba(132, 204, 22, 0.2)' }]}>
-                    <Icon name="check-circle" size={28} color={colors.primary} />
-                  </View>
-                  <Text style={styles.workoutNavCardTitle}>Finished Workouts</Text>
-                  <Text style={styles.workoutNavCardSubtitle}>View your workout history</Text>
-                </TouchableOpacity>
-                
-                {/* Programs/Upcoming Workouts Card */}
-                <TouchableOpacity 
-                  style={styles.workoutNavCard} 
-                  onPress={() => router.push('/programs')}
-                >
-                  <View style={[styles.workoutNavIconCircle, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
-                    <MaterialIcon name="fitness-center" size={28} color="#3B82F6" />
-                  </View>
-                  <Text style={styles.workoutNavCardTitle}>Programs</Text>
-                  <Text style={styles.workoutNavCardSubtitle}>View your workout plan</Text>
-                </TouchableOpacity>
+            {/* Cardio Card */}
+            <TouchableOpacity 
+              style={[styles.alternativeCard, isWorkoutActive && styles.alternativeCardDisabled]} 
+              onPress={() => !isWorkoutActive && router.push('/cardio-workout')}
+              disabled={isWorkoutActive}
+            >
+              <View style={[styles.alternativeIconCircle, { backgroundColor: 'rgba(34, 197, 94, 0.2)' }]}>
+                <Icon name="activity" size={24} color="#22C55E" />
               </View>
-            </View>
+              <Text style={styles.alternativeCardTitle}>Cardio</Text>
+              <Text style={styles.alternativeCardSubtitle}>Log a cardio session</Text>
+            </TouchableOpacity>
             
-            {/* Progress Stats */}
-            <StatGroup 
+            {/* Manual Card */}
+            <TouchableOpacity 
+              style={[styles.alternativeCard, isWorkoutActive && styles.alternativeCardDisabled]} 
+              onPress={() => !isWorkoutActive && router.push('/manual-workout')}
+              disabled={isWorkoutActive}
+            >
+              <View style={[styles.alternativeIconCircle, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
+                <Icon name="edit" size={24} color="#3B82F6" />
+              </View>
+              <Text style={styles.alternativeCardTitle}>Manual</Text>
+              <Text style={styles.alternativeCardSubtitle}>Full control over workout</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {/* Workouts Navigation Section */}
+        <View style={styles.workoutsNavigationSection}>
+          <View style={styles.workoutsNavigationRow}>
+            {/* Finished Workouts Card */}
+            <TouchableOpacity 
+              style={styles.workoutNavCard} 
+              onPress={() => router.push('/finished-workouts')}
+            >
+              <View style={[styles.workoutNavIconCircle, { backgroundColor: 'rgba(132, 204, 22, 0.2)' }]}>
+                <Icon name="check-circle" size={28} color={colors.primary} />
+              </View>
+              <Text style={styles.workoutNavCardTitle}>Finished Workouts</Text>
+              <Text style={styles.workoutNavCardSubtitle}>View your workout history</Text>
+            </TouchableOpacity>
+            
+            {/* Programs/Upcoming Workouts Card */}
+            <TouchableOpacity 
+              style={styles.workoutNavCard} 
+              onPress={() => router.push('/programs')}
+            >
+              <View style={[styles.workoutNavIconCircle, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
+                <MaterialIcon name="fitness-center" size={28} color="#3B82F6" />
+              </View>
+              <Text style={styles.workoutNavCardTitle}>Programs</Text>
+              <Text style={styles.workoutNavCardSubtitle}>View your workout plan</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {/* Progress Stats */}
+        <StatGroup 
               stats={[
                 {
                   value: userProgressData ? Math.ceil((Date.now() - new Date(userProgressData.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0,
@@ -851,11 +897,6 @@ export default function HomeScreen() {
                 }
               ]}
             />
-
-
-          </View>
-        )}
-
 
       </ScrollView>
 
@@ -1174,6 +1215,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 140,
+  },
+  alternativeCardDisabled: {
+    opacity: 0.4,
   },
   alternativeIconCircle: {
     width: 56,

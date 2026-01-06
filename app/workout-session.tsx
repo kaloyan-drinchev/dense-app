@@ -46,7 +46,7 @@ import { updateWorkoutProgression } from '@/lib/workout-suggestion';
 export default function WorkoutSessionScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { generatedProgram: cachedProgram, userProgressData: cachedProgress, userWeight: cachedWeight, isCacheValid } = useWorkoutCacheStore();
+  const { generatedProgram: cachedProgram, userProgressData: cachedProgress, userWeight: cachedWeight, manualWorkout, isCacheValid } = useWorkoutCacheStore();
   const [generatedProgram, setGeneratedProgram] = useState<any>(cachedProgram);
   const [userProgressData, setUserProgressData] = useState<any>(cachedProgress);
   const [loading, setLoading] = useState(!cachedProgram || !cachedProgress); // Only load if cache is empty
@@ -113,6 +113,12 @@ export default function WorkoutSessionScreen() {
 
   // NEW: Get current workout from template system (no more week/day progression)
   const todaysWorkout = useMemo(() => {
+    // Check for manual workout first
+    if (manualWorkout) {
+      console.log('✅ Loaded manual workout:', manualWorkout.name, `(${manualWorkout.exercises.length} exercises)`);
+      return manualWorkout;
+    }
+    
     if (!userProgressData) {
       return null;
     }
@@ -131,7 +137,7 @@ export default function WorkoutSessionScreen() {
     console.log('✅ Loaded workout template:', workoutTemplate.name, `(${workoutTemplate.exercises.length} exercises)`);
     
     return workoutTemplate;
-  }, [userProgressData]);
+  }, [manualWorkout, userProgressData]);
 
   const loadWorkoutData = useCallback(async () => {
     if (!user?.id) {
@@ -309,6 +315,9 @@ export default function WorkoutSessionScreen() {
   useEffect(() => {
     setWorkoutStarted(isWorkoutActive);
   }, [isWorkoutActive]);
+
+  // Note: We don't clear manual workout on unmount anymore
+  // This allows users to navigate back to home and return to the active manual workout
 
   // Sync userProgressData with cache updates (for instant tag updates after completing exercises)
   // Subscribe to cache store changes and FORCE re-render
@@ -547,6 +556,8 @@ export default function WorkoutSessionScreen() {
   };
 
   const handleBackPress = () => {
+    // Don't clear manual workout - keep it in cache so user can return to it
+    // Only clear it when workout is completed or explicitly canceled
     router.back();
   };
 
@@ -860,9 +871,13 @@ export default function WorkoutSessionScreen() {
         }
       }
       const finishTime = new Date().toISOString();
+      
+      // Check if this is a manual workout
+      const isManualWorkout = manualWorkout !== null;
+      
       completedArr.push({
         date: finishTime,
-        workoutIndex: currentWorkoutIndex,
+        workoutIndex: isManualWorkout ? -1 : currentWorkoutIndex, // -1 for manual workouts
         workoutName: todaysWorkout?.name,
         duration: duration,
         percentageSuccess: workoutProgress.percentage,
@@ -872,21 +887,34 @@ export default function WorkoutSessionScreen() {
         exercises: volumeData.exerciseBreakdown, // Store exercise breakdown
       });
       
-      // NEW: Calculate next workout using PPL rotation (no more week/day system)
-      const currentWorkoutType = userProgressData.currentWorkout || 'push-a';
-      const nextWorkoutType = updateWorkoutProgression(currentWorkoutType);
+      let updated;
       
-      console.log('🔄 Workout Progression:', {
-        completedWorkout: currentWorkoutType,
-        nextWorkout: nextWorkoutType,
-      });
-      
-      const updated = await userProgressService.update(userProgressData.id, {
-        currentWorkout: nextWorkoutType,
-        lastCompletedWorkout: currentWorkoutType,
-        lastWorkoutDate: new Date(),
-        completedWorkouts: JSON.stringify(completedArr),
-      });
+      if (isManualWorkout) {
+        // For manual workouts: don't progress to next workout, just save completion
+        updated = await userProgressService.update(userProgressData.id, {
+          completedWorkouts: JSON.stringify(completedArr),
+        });
+        
+        // Clear manual workout from cache
+        const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
+        useWorkoutCacheStore.getState().setManualWorkout(null);
+      } else {
+        // For PPL workouts: calculate next workout using PPL rotation
+        const currentWorkoutType = userProgressData.currentWorkout || 'push-a';
+        const nextWorkoutType = updateWorkoutProgression(currentWorkoutType);
+        
+        console.log('🔄 Workout Progression:', {
+          completedWorkout: currentWorkoutType,
+          nextWorkout: nextWorkoutType,
+        });
+        
+        updated = await userProgressService.update(userProgressData.id, {
+          currentWorkout: nextWorkoutType,
+          lastCompletedWorkout: currentWorkoutType,
+          lastWorkoutDate: new Date(),
+          completedWorkouts: JSON.stringify(completedArr),
+        });
+      }
       
       // Mark today's workout as completed - REMOVED: Allow multiple workouts per day
       // await markTodayWorkoutCompleted(user.id);

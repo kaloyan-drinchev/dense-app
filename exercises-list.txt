@@ -1,0 +1,241 @@
+================================
+DENSE FITNESS APP - ALL EXERCISES
+================================
+
+Total: 46 exercises (36 strength + 10 cardio)
+
+================================
+STRENGTH TRAINING EXERCISES (36)
+================================
+
+PUSH DAY - Chest Focus (6 exercises)
+-------------------------------------
+1. Barbell Bench Press
+2. Incline Dumbbell Press
+3. Dumbbell Flyes
+4. Overhead Press
+5. Lateral Raises
+6. Tricep Pushdowns
+
+PUSH DAY - Shoulder Focus (6 exercises)
+----------------------------------------
+1. Incline Barbell Bench Press
+2. Dumbbell Shoulder Press
+3. Cable Flyes
+4. Arnold Press
+5. Front Raises
+6. Overhead Tricep Extension
+
+PULL DAY - Back Width Focus (6 exercises)
+------------------------------------------
+1. Deadlift
+2. Pull-Ups
+3. Barbell Rows
+4. Lat Pulldowns
+5. Face Pulls
+6. Barbell Curls
+
+PULL DAY - Back Thickness Focus (6 exercises)
+----------------------------------------------
+1. Rack Pulls
+2. Weighted Chin-Ups
+3. Dumbbell Rows
+4. Seated Cable Rows
+5. Rear Delt Flyes
+6. Hammer Curls
+
+LEG DAY - Quad Focus (6 exercises)
+-----------------------------------
+1. Barbell Squats
+2. Leg Press
+3. Walking Lunges
+4. Romanian Deadlift
+5. Leg Curls
+6. Calf Raises
+
+LEG DAY - Hamstring Focus (6 exercises)
+----------------------------------------
+1. Front Squats
+2. Bulgarian Split Squats
+3. Hack Squats
+4. Stiff-Leg Deadlift
+5. Seated Leg Curls
+6. Seated Calf Raises
+
+================================
+CARDIO EXERCISES (10)
+================================
+
+1. Treadmill
+2. Bicycle
+3. Stair Master
+4. Rowing Machine
+5. Elliptical
+6. Jumping Rope
+7. Running (Outdoor)
+8. Walking
+9. Swimming
+10. Other
+
+================================
+ALPHABETICAL LIST - ALL EXERCISES
+================================
+
+A
+- Arnold Press
+
+B
+- Barbell Bench Press
+- Barbell Curls
+- Barbell Rows
+- Barbell Squats
+- Bicycle
+- Bulgarian Split Squats
+
+C
+- Cable Flyes
+- Calf Raises
+
+D
+- Deadlift
+- Dumbbell Flyes
+- Dumbbell Rows
+- Dumbbell Shoulder Press
+
+E
+- Elliptical
+
+F
+- Face Pulls
+- Front Raises
+- Front Squats
+
+H
+- Hack Squats
+- Hammer Curls
+
+I
+- Incline Barbell Bench Press
+- Incline Dumbbell Press
+
+J
+- Jumping Rope
+
+L
+- Lat Pulldowns
+- Lateral Raises
+- Leg Curls
+- Leg Press
+
+O
+- Other
+- Overhead Press
+- Overhead Tricep Extension
+
+P
+- Pull-Ups
+
+R
+- Rack Pulls
+- Rear Delt Flyes
+- Romanian Deadlift
+- Rowing Machine
+- Running (Outdoor)
+
+S
+- Seated Cable Rows
+- Seated Calf Raises
+- Seated Leg Curls
+- Stair Master
+- Stiff-Leg Deadlift
+- Swimming
+
+T
+- Treadmill
+- Tricep Pushdowns
+
+W
+- Walking
+- Walking Lunges
+- Weighted Chin-Ups
+
+================================
+EXERCISE COUNT BY MUSCLE GROUP
+================================
+
+Chest: 6 exercises
+- Barbell Bench Press
+- Incline Dumbbell Press
+- Dumbbell Flyes
+- Incline Barbell Bench Press
+- Dumbbell Shoulder Press
+- Cable Flyes
+
+Shoulders: 7 exercises
+- Overhead Press
+- Lateral Raises
+- Dumbbell Shoulder Press
+- Arnold Press
+- Front Raises
+- Face Pulls
+- Rear Delt Flyes
+
+Triceps: 2 exercises
+- Tricep Pushdowns
+- Overhead Tricep Extension
+
+Back: 11 exercises
+- Deadlift
+- Pull-Ups
+- Barbell Rows
+- Lat Pulldowns
+- Rack Pulls
+- Weighted Chin-Ups
+- Dumbbell Rows
+- Seated Cable Rows
+- Face Pulls
+- Rear Delt Flyes
+- Romanian Deadlift
+
+Biceps: 2 exercises
+- Barbell Curls
+- Hammer Curls
+
+Quads: 7 exercises
+- Barbell Squats
+- Leg Press
+- Walking Lunges
+- Front Squats
+- Bulgarian Split Squats
+- Hack Squats
+
+Hamstrings: 5 exercises
+- Romanian Deadlift
+- Leg Curls
+- Stiff-Leg Deadlift
+- Seated Leg Curls
+
+Calves: 2 exercises
+- Calf Raises
+- Seated Calf Raises
+
+Cardio: 10 exercises
+- Treadmill
+- Bicycle
+- Stair Master
+- Rowing Machine
+- Elliptical
+- Jumping Rope
+- Running (Outdoor)
+- Walking
+- Swimming
+- Other
+
+================================
+SOURCE FILES
+================================
+
+Strength Exercises: lib/workout-templates.ts
+Cardio Exercises: utils/cardio-calories.ts
+
+Generated: December 17, 2025

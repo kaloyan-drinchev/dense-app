@@ -27,40 +27,105 @@ export default function FinishedWorkoutsDetailScreen() {
   const [userWeight, setUserWeight] = useState<number>(70);
   const [totalCalories, setTotalCalories] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [completedWorkoutEntry, setCompletedWorkoutEntry] = useState<any>(null);
 
   useEffect(() => {
     const load = async () => {
       if (!user?.id) { setLoading(false); return; }
       try {
+        // First, load the completed workout entry to get exercise data
+        const progress = await userProgressService.getByUserId(user.id);
+        let workoutEntry = null;
+        
+        if (progress?.completedWorkouts && date) {
+          try {
+            const completedData = Array.isArray(progress.completedWorkouts)
+              ? progress.completedWorkouts
+              : (typeof progress.completedWorkouts === 'string'
+                  ? JSON.parse(progress.completedWorkouts)
+                  : []);
+            
+            const normalizedWorkoutName = workoutName 
+              ? String(workoutName).toLowerCase().trim()
+              : '';
+            
+            workoutEntry = completedData.find((item: any) => {
+              if (typeof item !== 'object' || !item.date) return false;
+              const dateMatch = new Date(item.date).toISOString().split('T')[0] === new Date(date).toISOString().split('T')[0];
+              if (!dateMatch) return false;
+              const itemWorkoutName = item.workoutName 
+                ? String(item.workoutName).toLowerCase().trim()
+                : '';
+              return itemWorkoutName === normalizedWorkoutName;
+            });
+            
+            if (workoutEntry) {
+              setCompletedWorkoutEntry(workoutEntry);
+            }
+          } catch (err) {
+            console.error('Error parsing completed workouts:', err);
+          }
+        }
+        
         // NEW SYSTEM: Load workout template based on workoutName
         if (workoutName && typeof workoutName === 'string') {
-          // Parse workout name to get workout type (e.g., "Push Day A" -> "push-a")
+          // Parse workout name to get workout type (e.g., "Push Day - Chest Focus" -> "push-a")
           const lowerName = workoutName.toLowerCase();
           let workoutType = '';
           
-          // Check for specific patterns to avoid false matches (e.g., "day" contains "a")
-          if (lowerName.includes('push') && (lowerName.includes('day a') || lowerName.endsWith(' a'))) {
-            workoutType = 'push-a';
-          } else if (lowerName.includes('push') && (lowerName.includes('day b') || lowerName.endsWith(' b'))) {
-            workoutType = 'push-b';
-          } else if (lowerName.includes('pull') && (lowerName.includes('day a') || lowerName.endsWith(' a'))) {
-            workoutType = 'pull-a';
-          } else if (lowerName.includes('pull') && (lowerName.includes('day b') || lowerName.endsWith(' b'))) {
-            workoutType = 'pull-b';
-          } else if (lowerName.includes('leg') && (lowerName.includes('day a') || lowerName.endsWith(' a'))) {
-            workoutType = 'leg-a';
-          } else if (lowerName.includes('leg') && (lowerName.includes('day b') || lowerName.endsWith(' b'))) {
-            workoutType = 'leg-b';
-          }
-          
-          console.log('🔍 Parsing workout name:', workoutName, '-> Type:', workoutType);
-          
-          if (workoutType) {
-            const { getWorkoutTemplate } = await import('@/lib/workout-templates');
-            const workoutTemplate = getWorkoutTemplate(workoutType);
-            if (workoutTemplate) {
-              setWorkout(workoutTemplate);
-              console.log('✅ Loaded workout template:', workoutTemplate.name);
+          // Check if it's a cardio or manual workout
+          if (lowerName.startsWith('cardio:') || lowerName.startsWith('manual:')) {
+            // For cardio/manual workouts, use exercises from completed workout entry
+            const exercisesFromEntry = workoutEntry?.exercises || [];
+            
+            setWorkout({
+              id: 'cardio-manual',
+              name: workoutName,
+              type: lowerName.startsWith('manual:') ? 'manual' : 'cardio',
+              category: lowerName.startsWith('manual:') ? 'manual' : 'cardio',
+              estimatedDuration: 0,
+              exercises: exercisesFromEntry,
+            } as any);
+            console.log('✅ Loaded cardio/manual workout:', workoutName, 'with', exercisesFromEntry.length, 'exercises');
+          } else {
+            // Match by focus keywords (updated for new naming)
+            if (lowerName.includes('push') && lowerName.includes('chest')) {
+              workoutType = 'push-a';
+            } else if (lowerName.includes('push') && lowerName.includes('shoulder')) {
+              workoutType = 'push-b';
+            } else if (lowerName.includes('pull') && lowerName.includes('width')) {
+              workoutType = 'pull-a';
+            } else if (lowerName.includes('pull') && lowerName.includes('thickness')) {
+              workoutType = 'pull-b';
+            } else if (lowerName.includes('leg') && lowerName.includes('quad')) {
+              workoutType = 'leg-a';
+            } else if (lowerName.includes('leg') && lowerName.includes('hamstring')) {
+              workoutType = 'leg-b';
+            }
+            // Fallback: Check for old naming format (day a/b) for backward compatibility
+            else if (lowerName.includes('push') && (lowerName.includes('day a') || lowerName.endsWith(' a'))) {
+              workoutType = 'push-a';
+            } else if (lowerName.includes('push') && (lowerName.includes('day b') || lowerName.endsWith(' b'))) {
+              workoutType = 'push-b';
+            } else if (lowerName.includes('pull') && (lowerName.includes('day a') || lowerName.endsWith(' a'))) {
+              workoutType = 'pull-a';
+            } else if (lowerName.includes('pull') && (lowerName.includes('day b') || lowerName.endsWith(' b'))) {
+              workoutType = 'pull-b';
+            } else if (lowerName.includes('leg') && (lowerName.includes('day a') || lowerName.endsWith(' a'))) {
+              workoutType = 'leg-a';
+            } else if (lowerName.includes('leg') && (lowerName.includes('day b') || lowerName.endsWith(' b'))) {
+              workoutType = 'leg-b';
+            }
+            
+            console.log('🔍 Parsing workout name:', workoutName, '-> Type:', workoutType);
+            
+            if (workoutType) {
+              const { getWorkoutTemplate } = await import('@/lib/workout-templates');
+              const workoutTemplate = getWorkoutTemplate(workoutType);
+              if (workoutTemplate) {
+                setWorkout(workoutTemplate);
+                console.log('✅ Loaded workout template:', workoutTemplate.name);
+              }
             }
           }
         }
@@ -70,7 +135,7 @@ export default function FinishedWorkoutsDetailScreen() {
           setUserWeight(wiz.weight);
         }
         
-        const progress = await userProgressService.getByUserId(user.id);
+        // Use the progress we already loaded above
         if (progress?.weeklyWeights) {
           try {
             // Handle both string (JSON) and object (JSONB) types
@@ -91,58 +156,27 @@ export default function FinishedWorkoutsDetailScreen() {
           } catch {}
         }
         
-        if (progress?.completedWorkouts && date) {
-          try {
-            // Handle both string (JSON) and array (JSONB) types
-            const completedData = Array.isArray(progress.completedWorkouts)
-              ? progress.completedWorkouts
-              : (typeof progress.completedWorkouts === 'string'
-                  ? JSON.parse(progress.completedWorkouts)
-                  : []);
-            
-            // Normalize workoutName for comparison (handle casing and spacing)
-            const normalizedWorkoutName = workoutName 
-              ? String(workoutName).toLowerCase().trim()
-              : '';
-            
-            const workoutEntry = completedData.find((item: any) => {
-              if (typeof item !== 'object' || !item.date) return false;
-              
-              // Check date match
-              const dateMatch = new Date(item.date).toISOString().split('T')[0] === new Date(date).toISOString().split('T')[0];
-              if (!dateMatch) return false;
-              
-              // Check workout name match (normalized)
-              const itemWorkoutName = item.workoutName 
-                ? String(item.workoutName).toLowerCase().trim()
-                : '';
-              
-              return itemWorkoutName === normalizedWorkoutName;
-            });
-            
-            if (workoutEntry) {
-              if (workoutEntry.duration) {
-                setWorkoutDuration(workoutEntry.duration);
-              }
-              if (workoutEntry.percentageSuccess !== undefined) {
-                setWorkoutPercentage(workoutEntry.percentageSuccess);
-              }
-              
-              const finishTime = workoutEntry.finishTime || workoutEntry.date;
-              if (finishTime) {
-                setWorkoutFinishTime(finishTime);
-              }
-              
-              if (workoutEntry.startTime) {
-                setWorkoutStartTime(workoutEntry.startTime);
-              } else if (finishTime && workoutEntry.duration) {
-                const finishDate = new Date(finishTime);
-                const startDate = new Date(finishDate.getTime() - (workoutEntry.duration * 1000));
-                setWorkoutStartTime(startDate.toISOString());
-              }
-            }
-          } catch (error) {
-            console.error('Error parsing completed workouts:', error);
+        // Use the workoutEntry we already found above
+        if (workoutEntry) {
+          if (workoutEntry.duration) {
+            setWorkoutDuration(workoutEntry.duration);
+          }
+          if (workoutEntry.percentageSuccess !== undefined) {
+            setWorkoutPercentage(workoutEntry.percentageSuccess);
+          }
+          
+          const finishTime = workoutEntry.finishTime || workoutEntry.date;
+          if (finishTime) {
+            setWorkoutFinishTime(finishTime);
+          }
+          
+          if (workoutEntry.startTime) {
+            setWorkoutStartTime(workoutEntry.startTime);
+          } else if (finishTime && workoutEntry.duration) {
+            const finishDate = new Date(finishTime);
+            // duration is in minutes, convert to milliseconds: minutes * 60 * 1000
+            const startDate = new Date(finishDate.getTime() - (workoutEntry.duration * 60000));
+            setWorkoutStartTime(startDate.toISOString());
           }
         }
       } finally {
@@ -260,32 +294,6 @@ export default function FinishedWorkoutsDetailScreen() {
             </View>
           )}
           
-          {(workoutStartTime || workoutFinishTime || workoutDuration) && (
-            <View style={styles.workoutTimesRow}>
-              {workoutStartTime && (
-                <View style={styles.timeItem}>
-                  <Text style={styles.timeLabel}>Started:</Text>
-                  <Text style={styles.timeValue}>
-                    {new Date(workoutStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                </View>
-              )}
-              {workoutFinishTime && (
-                <View style={styles.timeItem}>
-                  <Text style={styles.timeLabel}>Finished:</Text>
-                  <Text style={styles.timeValue}>
-                    {new Date(workoutFinishTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                </View>
-              )}
-              {workoutDuration && (
-                <View style={styles.timeItem}>
-                  <Text style={styles.timeLabel}>Duration:</Text>
-                  <Text style={styles.timeValue}>{formatDuration(workoutDuration)}</Text>
-                </View>
-              )}
-            </View>
-          )}
           {workout?.exercises?.map((ex: any, i: number) => {
             const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
             const sessions = exerciseLogs[exId] || [];
