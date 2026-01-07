@@ -55,7 +55,7 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
 
   const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
   const dayAbbreviations = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
+  
   // Update "today" at midnight to keep calendar accurate
   useEffect(() => {
     const checkDateChange = () => {
@@ -124,52 +124,52 @@ export const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({
     const firstDate = item.dates[0];
     const lastDate = item.dates[6];
     const monthYear = firstDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    
-    return (
+
+  return (
       <View style={styles.weekContainer}>
         {/* Month/Year Label */}
         <Text style={styles.monthLabel}>{monthYear}</Text>
         
         {/* Week Row */}
-        <View style={styles.weekRow}>
+      <View style={styles.weekRow}>
           {item.dates.map((date, index) => {
-            const isTraining = isTrainingDay(index);
-            const todayFlag = isToday(date);
-            const pastDay = isPastDay(date);
-            
-            return (
-              <View 
-                key={index} 
-                style={[
-                  styles.dayContainer,
+          const isTraining = isTrainingDay(index);
+          const todayFlag = isToday(date);
+          const pastDay = isPastDay(date);
+          
+          return (
+            <View 
+              key={index} 
+              style={[
+                styles.dayContainer,
                   pastDay ? styles.pastDay : styles.neutralDay,
-                  todayFlag && styles.todayBorder
+                todayFlag && styles.todayBorder
+              ]}
+            >
+              <Text 
+                style={[
+                  styles.dayAbbr,
+                    styles.neutralText
                 ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
               >
-                <Text 
-                  style={[
-                    styles.dayAbbr,
+                {dayAbbreviations[index]}
+              </Text>
+              <Text 
+                style={[
+                  styles.dayNumber,
                     styles.neutralText
-                  ]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                >
-                  {dayAbbreviations[index]}
-                </Text>
-                <Text 
-                  style={[
-                    styles.dayNumber,
-                    styles.neutralText
-                  ]}
-                  numberOfLines={1}
-                >
-                  {date.getDate()}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+                ]}
+                numberOfLines={1}
+              >
+                {date.getDate()}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
       </View>
     );
   };

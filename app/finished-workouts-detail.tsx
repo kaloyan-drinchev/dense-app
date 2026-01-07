@@ -126,7 +126,7 @@ export default function FinishedWorkoutsDetailScreen() {
                 setWorkout(workoutTemplate);
                 console.log('✅ Loaded workout template:', workoutTemplate.name);
               }
-            }
+        }
           }
         }
         
@@ -157,26 +157,26 @@ export default function FinishedWorkoutsDetailScreen() {
         }
         
         // Use the workoutEntry we already found above
-        if (workoutEntry) {
-          if (workoutEntry.duration) {
-            setWorkoutDuration(workoutEntry.duration);
-          }
-          if (workoutEntry.percentageSuccess !== undefined) {
-            setWorkoutPercentage(workoutEntry.percentageSuccess);
-          }
-          
-          const finishTime = workoutEntry.finishTime || workoutEntry.date;
-          if (finishTime) {
-            setWorkoutFinishTime(finishTime);
-          }
-          
-          if (workoutEntry.startTime) {
-            setWorkoutStartTime(workoutEntry.startTime);
-          } else if (finishTime && workoutEntry.duration) {
-            const finishDate = new Date(finishTime);
+            if (workoutEntry) {
+              if (workoutEntry.duration) {
+                setWorkoutDuration(workoutEntry.duration);
+              }
+              if (workoutEntry.percentageSuccess !== undefined) {
+                setWorkoutPercentage(workoutEntry.percentageSuccess);
+              }
+              
+              const finishTime = workoutEntry.finishTime || workoutEntry.date;
+              if (finishTime) {
+                setWorkoutFinishTime(finishTime);
+              }
+              
+              if (workoutEntry.startTime) {
+                setWorkoutStartTime(workoutEntry.startTime);
+              } else if (finishTime && workoutEntry.duration) {
+                const finishDate = new Date(finishTime);
             // duration is in minutes, convert to milliseconds: minutes * 60 * 1000
             const startDate = new Date(finishDate.getTime() - (workoutEntry.duration * 60000));
-            setWorkoutStartTime(startDate.toISOString());
+                setWorkoutStartTime(startDate.toISOString());
           }
         }
       } finally {

@@ -168,17 +168,17 @@ export default function FinishedWorkoutsScreen() {
                 });
                 const workoutName = item.workoutName || 'Workout';
                 
-                return (
-                  <TouchableOpacity
-                    key={`${item.date}-${idx}`}
-                    style={styles.entryCard}
+              return (
+                <TouchableOpacity
+                  key={`${item.date}-${idx}`}
+                  style={styles.entryCard}
                     onPress={() => router.push(`/finished-workouts-detail?date=${encodeURIComponent(item.date)}&workoutName=${encodeURIComponent(item.workoutName || 'workout')}` as any)}
-                  >
-                    <View style={styles.entryLeft}>
-                      <Text style={styles.entryTitle}>
+                >
+                  <View style={styles.entryLeft}>
+                    <Text style={styles.entryTitle}>
                         {formattedDate} - {workoutName}
-                      </Text>
-                      <View style={styles.entryMeta}>
+                    </Text>
+                    <View style={styles.entryMeta}>
                         <View style={styles.metaBadges}>
                           {/* Show volume for strength workouts */}
                           {item.totalVolume !== undefined && item.totalVolume !== null && item.totalVolume > 0 && (
@@ -211,20 +211,20 @@ export default function FinishedWorkoutsScreen() {
                           )}
                           {/* Show success percentage for strength workouts */}
                           {item.percentageSuccess !== undefined && item.percentageSuccess !== null && item.workoutIndex !== -2 && (
-                            <View style={styles.percentageBadge}>
+                      <View style={styles.percentageBadge}>
                               <Text style={styles.percentageBadgeText}>
                                 {item.percentageSuccess}%
                               </Text>
                             </View>
                           )}
-                        </View>
                       </View>
                     </View>
-                    <View style={styles.entryRight}>
-                      <Icon name="arrow-right" size={18} color={colors.black} />
-                    </View>
-                  </TouchableOpacity>
-                );
+                  </View>
+                  <View style={styles.entryRight}>
+                    <Icon name="arrow-right" size={18} color={colors.black} />
+                  </View>
+                </TouchableOpacity>
+              );
               })}
             </>
           )}

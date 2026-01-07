@@ -132,22 +132,22 @@ const SingleProgramView = () => {
                   <Text style={styles.bulletDot}>•</Text>
                   <Text style={styles.bulletText}>
                     Pull Day A & B target back and biceps with varied exercises for complete development
-                  </Text>
-                </View>
+                              </Text>
+                            </View>
                 <View style={styles.bulletPoint}>
                   <Text style={styles.bulletDot}>•</Text>
                   <Text style={styles.bulletText}>
                     Leg Day A & B work quads, hamstrings, and glutes with different intensities and movements
-                  </Text>
-                </View>
+                                </Text>
+                              </View>
                 <View style={styles.bulletPoint}>
                   <Text style={styles.bulletDot}>•</Text>
                   <Text style={styles.bulletText}>
                     Alternate between A and B versions to prevent adaptation and maximize muscle growth
-                  </Text>
+                              </Text>
                 </View>
-              </View>
-            )}
+            </View>
+          )}
           </View>
 
           {/* Workout Templates */}
@@ -170,7 +170,7 @@ const SingleProgramView = () => {
                     </Text>
                     <Text style={styles.workoutCardCompletion}>
                       Completed {completionCount} times
-                    </Text>
+            </Text>
                   </View>
                   <Feather 
                     name={isExpanded ? 'chevron-up' : 'chevron-down'} 
@@ -178,22 +178,22 @@ const SingleProgramView = () => {
                     color={colors.lightGray} 
                   />
                 </View>
-
+                
                 {/* Expanded Exercise List */}
                 {isExpanded && (
                   <View style={styles.exerciseList}>
                     {workout.exercises.map((exercise, idx) => (
                       <View key={exercise.id} style={styles.exerciseItem}>
                         <Text style={styles.exerciseNumber}>{idx + 1}</Text>
-                        <View style={styles.exerciseInfo}>
-                          <Text style={styles.exerciseName}>{exercise.name}</Text>
-                          <Text style={styles.exerciseDetails}>
+                      <View style={styles.exerciseInfo}>
+                        <Text style={styles.exerciseName}>{exercise.name}</Text>
+                        <Text style={styles.exerciseDetails}>
                             {exercise.sets} sets • {exercise.reps} reps
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
+                        </Text>
+                </View>
+              </View>
+            ))}
+          </View>
                 )}
               </TouchableOpacity>
             );

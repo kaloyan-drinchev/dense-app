@@ -545,16 +545,16 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
       
       // STEP 3: Sync cache with database IMMEDIATELY for instant status update
-      userProgressService.getByUserId(user.id)
-        .then((freshProgress) => {
-          if (freshProgress) {
+        userProgressService.getByUserId(user.id)
+          .then((freshProgress) => {
+            if (freshProgress) {
             console.log('✅ [ExerciseTracker] Cache updated with fresh data after completion');
-            useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
-          }
-        })
-        .catch((error) => {
-          console.error('❌ Failed to sync cache after exercise completion:', error);
-        });
+              useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
+            }
+          })
+          .catch((error) => {
+            console.error('❌ Failed to sync cache after exercise completion:', error);
+          });
       
       // Show success feedback - DISABLED
       // if (Platform.OS !== 'web') {

@@ -191,7 +191,7 @@ export default function WorkoutExerciseTrackerScreen() {
         // FALLBACK: Load legacy program if no workout template found (for backward compatibility)
         if (!foundExercise) {
           if (!program) {
-            const wizardResults = await wizardResultsService.getByUserId(user.id);
+        const wizardResults = await wizardResultsService.getByUserId(user.id);
             if ((wizardResults as any)?.generatedSplit) {
               program = typeof (wizardResults as any).generatedSplit === 'string'
                 ? JSON.parse((wizardResults as any).generatedSplit)
@@ -200,27 +200,27 @@ export default function WorkoutExerciseTrackerScreen() {
           }
           
           if (program) {
-            // Handle both string (from JSON) and object (from JSONB) types
+          // Handle both string (from JSON) and object (from JSONB) types
             const programData = typeof program === 'string'
               ? JSON.parse(program)
               : program;
-            
-            // Find the exercise in the program structure
+          
+          // Find the exercise in the program structure
             for (const workout of programData.weeklyStructure || []) {
-              const found = workout.exercises?.find((ex: any) => {
-                const exerciseIdMatch = ex.id === exerciseId || 
-                                      ex.name.replace(/\s+/g, '-').toLowerCase() === exerciseId;
-                return exerciseIdMatch;
-              });
-              
-              if (found) {
-                foundExercise = {
-                  ...found,
-                  id: found.id || found.name.replace(/\s+/g, '-').toLowerCase(),
-                  targetMuscle: found.targetMuscle || 'General',
+            const found = workout.exercises?.find((ex: any) => {
+              const exerciseIdMatch = ex.id === exerciseId || 
+                                    ex.name.replace(/\s+/g, '-').toLowerCase() === exerciseId;
+              return exerciseIdMatch;
+            });
+            
+            if (found) {
+              foundExercise = {
+                ...found,
+                id: found.id || found.name.replace(/\s+/g, '-').toLowerCase(),
+                targetMuscle: found.targetMuscle || 'General',
                   restTime: Math.min(found.restSeconds || 60, 120),
-                };
-                break;
+              };
+              break;
               }
             }
           }
@@ -303,17 +303,17 @@ export default function WorkoutExerciseTrackerScreen() {
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
-            <View style={styles.errorContainer}>
-              <Icon name="alert-circle" size={64} color={colors.lightGray} />
-              <Text style={styles.errorTitle}>Exercise Not Found</Text>
-              <Text style={styles.errorText}>The requested exercise could not be loaded</Text>
-              <TouchableOpacity 
-                style={styles.backButton}
-                onPress={() => router.back()}
-              >
-                <Text style={styles.backButtonText}>Go Back</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.errorContainer}>
+            <Icon name="alert-circle" size={64} color={colors.lightGray} />
+            <Text style={styles.errorTitle}>Exercise Not Found</Text>
+            <Text style={styles.errorText}>The requested exercise could not be loaded</Text>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.backButtonText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
           )}
         </SafeAreaView>
       </LinearGradient>

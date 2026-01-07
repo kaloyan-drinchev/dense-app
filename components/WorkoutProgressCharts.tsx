@@ -37,8 +37,8 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
     
     try {
       // Load completion data for calendar
-      const data = await getWorkoutCompletionData(user.id);
-      setCompletionData(data);
+        const data = await getWorkoutCompletionData(user.id);
+        setCompletionData(data);
       
       // Load user progress for volume and workout type data
       const progress = await userProgressService.getByUserId(user.id);
@@ -85,7 +85,7 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
           values: [typeCount['Push'], typeCount['Pull'], typeCount['Legs']],
         });
       }
-    } catch (error) {
+      } catch (error) {
       console.error('❌ WorkoutProgressCharts: Error loading chart data:', error);
     }
   }, [user?.id]);
@@ -148,9 +148,9 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
         ) : (
           <View style={styles.emptyChart}>
             <Text style={styles.emptyChartText}>Complete workouts to see your volume progress</Text>
-          </View>
-        )}
-      </View>
+              </View>
+            )}
+        </View>
 
       {/* Workout Type Distribution Chart */}
       <View style={styles.chartSection}>
@@ -187,8 +187,8 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
         ) : (
           <View style={styles.emptyChart}>
             <Text style={styles.emptyChartText}>Complete workouts to see your balance</Text>
-          </View>
-        )}
+              </View>
+            )}
       </View>
 
       {/* Calendar Heat Map */}

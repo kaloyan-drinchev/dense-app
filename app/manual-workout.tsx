@@ -94,7 +94,7 @@ export default function ManualWorkoutScreen() {
       // Prepare workout structure compatible with workout-session
       const manualWorkoutData = {
         id: 'manual-workout',
-        name: `Manual: ${workoutName.trim()}`,
+        name: workoutName.trim(),
         type: 'manual',
         category: 'manual',
         estimatedDuration: exercises.length * 10, // Rough estimate

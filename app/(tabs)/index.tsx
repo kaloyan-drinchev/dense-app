@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -70,6 +71,7 @@ export default function HomeScreen() {
   const [loadingProgress, setLoadingProgress] = useState(!cachedProgress);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
+  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
   
   // Loading state for workout info update (for instant feedback after completing workout)
   const [isRefreshingWorkout, setIsRefreshingWorkout] = useState(false);
@@ -436,11 +438,32 @@ export default function HomeScreen() {
     setCurrentTime(timeElapsed);
   }, [timeElapsed]);
 
-  // Format timer for display
+  // Check if active workout is cardio
+  const isCardioWorkout = nextWorkout?.type === 'cardio' || nextWorkout?.category === 'cardio';
+  
+  // Format timer for display (countdown for cardio, elapsed for regular workouts)
   const formatTimerTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
+    let displaySeconds = seconds;
+    
+    // For cardio workouts, show countdown
+    if (isCardioWorkout && nextWorkout?.targetDuration) {
+      const targetSeconds = nextWorkout.targetDuration * 60;
+      const remainingSeconds = Math.max(0, targetSeconds - seconds);
+      
+      // If target reached, show overtime with + prefix
+      if (remainingSeconds === 0) {
+        const overtimeSeconds = seconds - targetSeconds;
+        const overtimeMinutes = Math.floor(overtimeSeconds / 60);
+        const overtimeSecs = overtimeSeconds % 60;
+        return `+${overtimeMinutes.toString().padStart(2, '0')}:${overtimeSecs.toString().padStart(2, '0')}`;
+      }
+      
+      displaySeconds = remainingSeconds;
+    }
+    
+    const hours = Math.floor(displaySeconds / 3600);
+    const minutes = Math.floor((displaySeconds % 3600) / 60);
+    const secs = displaySeconds % 60;
 
     if (hours > 0) {
       return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -464,14 +487,24 @@ export default function HomeScreen() {
     
     setIsSkipping(true);
     try {
+      // Clear any active manual/cardio workout from cache FIRST
+      useWorkoutCacheStore.getState().setManualWorkout(null);
+      
+      // Also clear the timer if a manual/cardio workout was active
+      useTimerStore.getState().completeWorkout();
+      
       // Skip to next workout in rotation
       const nextWorkoutType = updateWorkoutProgression(userProgressData.currentWorkout);
-      await userProgressService.update(userProgressData.id, {
+      const updated = await userProgressService.update(userProgressData.id, {
         currentWorkout: nextWorkoutType,
       });
       
-      // Refresh progress data
-      await loadUserProgress();
+      // Update local state AND cache with fresh data
+      if (updated) {
+        setUserProgressData(updated);
+        useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
+      }
+      
       console.log('✅ Skipped to next workout:', nextWorkoutType);
     } catch (error) {
       console.error('❌ Failed to skip workout:', error);
@@ -486,14 +519,24 @@ export default function HomeScreen() {
     
     setIsRegenerating(true);
     try {
+      // Clear any active manual/cardio workout from cache FIRST
+      useWorkoutCacheStore.getState().setManualWorkout(null);
+      
+      // Also clear the timer if a manual/cardio workout was active
+      useTimerStore.getState().completeWorkout();
+      
       // Switch to alternate variation (A ↔ B)
       const alternateWorkout = getAlternateWorkout(userProgressData.currentWorkout);
-      await userProgressService.update(userProgressData.id, {
+      const updated = await userProgressService.update(userProgressData.id, {
         currentWorkout: alternateWorkout.type,
       });
       
-      // Refresh progress data
-      await loadUserProgress();
+      // Update local state AND cache with fresh data
+      if (updated) {
+        setUserProgressData(updated);
+        useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
+      }
+      
       console.log('✅ Regenerated workout to:', alternateWorkout.name);
     } catch (error) {
       console.error('❌ Failed to regenerate workout:', error);
@@ -589,7 +632,7 @@ export default function HomeScreen() {
         ]}
       >
 
-
+{/* 
         <View style={styles.header}>
           <Text style={styles.greeting}>
             Hey, {user?.name || 'there'}!
@@ -597,7 +640,7 @@ export default function HomeScreen() {
           <Text style={styles.date}>
             {formatDate(new Date().toISOString())}
           </Text>
-        </View>
+        </View> */}
 
         {/* Loading State */}
         {(loadingProgram || loadingProgress) && (
@@ -784,7 +827,7 @@ export default function HomeScreen() {
           
           <View style={styles.alternativeWorkoutsRow}>
             {/* Custom Workout Card */}
-            <TouchableOpacity style={styles.alternativeCard} onPress={() => console.log('Custom workout')}>
+            <TouchableOpacity style={styles.alternativeCard} onPress={() => setShowComingSoonModal(true)}>
               <View style={[styles.alternativeIconCircle, { backgroundColor: 'rgba(138, 43, 226, 0.2)' }]}>
                 <Icon name="star" size={24} color="#8A2BE2" />
               </View>
@@ -923,6 +966,38 @@ export default function HomeScreen() {
         visible={showVideoModal}
         onClose={() => setShowVideoModal(false)}
       />
+
+      {/* Coming Soon Modal */}
+      <Modal
+        visible={showComingSoonModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowComingSoonModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <LinearGradient
+              colors={['#1A1A1A', '#0A0A0A']}
+              style={styles.comingSoonModalContent}
+            >
+              <View style={styles.comingSoonIconContainer}>
+                <Icon name="star" size={48} color={colors.primary} />
+              </View>
+              <Text style={styles.comingSoonTitle}>Coming Soon!</Text>
+              <Text style={styles.comingSoonDescription}>
+                Our AI-powered custom workout builder is on its way. Stay tuned for personalized workouts tailored to your goals!
+              </Text>
+              <TouchableOpacity
+                style={styles.comingSoonButton}
+                onPress={() => setShowComingSoonModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.comingSoonButtonText}>Got it!</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
 
       {/* Bottom Banner - Workout In Progress */}
       {isWorkoutActive && (
@@ -1381,6 +1456,52 @@ const styles = StyleSheet.create({
     ...typography.button,
     color: colors.black,
     fontWeight: 'bold',
+  },
+  comingSoonModalContent: {
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  comingSoonIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(138, 43, 226, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  comingSoonTitle: {
+    ...typography.h2,
+    color: colors.white,
+    marginBottom: 12,
+    textAlign: 'center',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  comingSoonDescription: {
+    ...typography.body,
+    color: colors.lightGray,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+    fontSize: 16,
+  },
+  comingSoonButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 40,
+    paddingVertical: 14,
+    borderRadius: 12,
+    width: '100%',
+  },
+  comingSoonButtonText: {
+    ...typography.button,
+    color: colors.black,
+    fontWeight: '700',
+    textAlign: 'center',
+    fontSize: 16,
   },
   restDayNote: {
     flexDirection: 'row',

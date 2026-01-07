@@ -5,7 +5,6 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
   Platform,
   ActivityIndicator,
@@ -14,11 +13,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, Stack } from 'expo-router';
 import { Feather as Icon } from '@expo/vector-icons';
+import Slider from 'react-native-sliders';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
-import { userProgressService, wizardResultsService } from '@/db/services';
-import { CARDIO_TYPES, calculateCardioCalories } from '@/utils/cardio-calories';
+import { useWorkoutCacheStore } from '@/store/workout-cache-store';
+import { CARDIO_TYPES } from '@/utils/cardio-calories';
+
+// Helper function to get icon for each cardio type
+const getCardioIcon = (cardioId: string): string => {
+  const iconMap: { [key: string]: string } = {
+    'treadmill': 'activity',
+    'bicycle': 'disc',
+    'stair-master': 'trending-up',
+    'rowing-machine': 'minus',
+    'elliptical': 'refresh-cw',
+    'jumping-rope': 'zap',
+    'running-outdoor': 'wind',
+    'walking': 'user',
+    'swimming': 'droplet',
+    'other': 'grid',
+  };
+  return iconMap[cardioId] || 'circle';
+};
 
 export default function CardioWorkoutScreen() {
   const router = useRouter();
@@ -26,85 +43,19 @@ export default function CardioWorkoutScreen() {
   
   // Form state
   const [selectedType, setSelectedType] = useState<string>('');
-  const [hours, setHours] = useState<string>('');
-  const [minutes, setMinutes] = useState<string>('');
-  const [customCalories, setCustomCalories] = useState<string>('');
-  const [useCustomCalories, setUseCustomCalories] = useState(false);
-  const [notes, setNotes] = useState<string>('');
-  
-  // User data
-  const [userWeight, setUserWeight] = useState<number>(70);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [targetMinutes, setTargetMinutes] = useState<number>(30);
+  const [starting, setStarting] = useState(false);
 
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (!user?.id) {
-        setLoading(false);
-        return;
-      }
-      
-      try {
-        const wizardResults = await wizardResultsService.getByUserId(user.id);
-        if (wizardResults?.weight) {
-          setUserWeight(wizardResults.weight);
-        }
-      } catch (error) {
-        console.error('❌ Error loading user data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadUserData();
-  }, [user?.id]);
-
-  const handleSave = async () => {
+  const handleStartSession = async () => {
     // Validation
     if (!selectedType) {
       Alert.alert('Required', 'Please select a cardio type');
       return;
     }
 
-    const hoursNum = hours ? parseFloat(hours) : 0;
-    const minutesNum = minutes ? parseFloat(minutes) : 0;
-    
-    if (hoursNum < 0 || hoursNum > 10) {
-      Alert.alert('Invalid Duration', 'Hours must be between 0 and 10');
+    if (targetMinutes <= 0 || targetMinutes > 180) {
+      Alert.alert('Invalid Duration', 'Please select a target duration between 1 and 180 minutes');
       return;
-    }
-    
-    if (minutesNum < 0 || minutesNum >= 60) {
-      Alert.alert('Invalid Duration', 'Minutes must be between 0 and 59');
-      return;
-    }
-    
-    if (hoursNum === 0 && minutesNum === 0) {
-      Alert.alert('Required', 'Please enter a duration (hours and/or minutes)');
-      return;
-    }
-    
-    const totalMinutes = hoursNum * 60 + minutesNum;
-    
-    if (totalMinutes > 600) {
-      Alert.alert('Invalid Duration', 'Duration cannot exceed 10 hours');
-      return;
-    }
-
-    let calories: number;
-    if (useCustomCalories && customCalories) {
-      const customCal = parseFloat(customCalories);
-      if (isNaN(customCal) || customCal < 0) {
-        Alert.alert('Invalid Calories', 'Please enter a valid number of calories');
-        return;
-      }
-      if (customCal > 5000) {
-        Alert.alert('Invalid Calories', 'Calories cannot exceed 5000');
-        return;
-      }
-      calories = Math.round(customCal);
-    } else {
-      calories = calculateCardioCalories(selectedType, totalMinutes, userWeight);
     }
 
     if (!user?.id) {
@@ -112,113 +63,48 @@ export default function CardioWorkoutScreen() {
       return;
     }
 
-    setSaving(true);
-    
+    setStarting(true);
+
     try {
       const cardioType = CARDIO_TYPES.find(c => c.id === selectedType);
-      const today = new Date().toISOString().split('T')[0];
       
-      // Get current progress
-      const progress = await userProgressService.getByUserId(user.id);
-      if (!progress) {
-        Alert.alert('Error', 'Could not load user progress');
-        return;
-      }
-
-      // Parse weeklyWeights
-      const weeklyWeights = typeof progress.weeklyWeights === 'string'
-        ? JSON.parse(progress.weeklyWeights)
-        : progress.weeklyWeights || {};
-      
-      // Add cardio entry to today's date
-      if (!weeklyWeights.cardioEntries) {
-        weeklyWeights.cardioEntries = {};
-      }
-      
-      if (!weeklyWeights.cardioEntries[today]) {
-        weeklyWeights.cardioEntries[today] = [];
-      }
-      
-      weeklyWeights.cardioEntries[today].push({
-        id: `cardio-${Date.now()}`,
-        type: selectedType,
-        typeName: cardioType?.name || 'Cardio',
-        durationMinutes: totalMinutes,
-        hours: hoursNum,
-        minutes: minutesNum,
-        calories: calories,
-        notes: notes.trim() || undefined,
-        timestamp: new Date().toISOString(),
-      });
-
-      // Parse completedWorkouts
-      const completedWorkouts = Array.isArray(progress.completedWorkouts)
-        ? progress.completedWorkouts
-        : (typeof progress.completedWorkouts === 'string'
-            ? JSON.parse(progress.completedWorkouts)
-            : []);
-
-      // Add cardio session to completed workouts
-      const cardioWorkoutEntry = {
-        date: today,
-        workoutName: `Cardio: ${cardioType?.name || 'Cardio'}`,
-        workoutIndex: -2, // -2 indicates cardio workout (vs -1 for manual)
-        totalVolume: 0, // Cardio doesn't have volume
-        duration: totalMinutes,
-        caloriesBurned: calories,
-        percentageSuccess: 100,
-        exercises: [{
-          name: cardioType?.name || 'Cardio',
-          duration: totalMinutes,
-          calories: calories,
-        }],
-        timestamp: new Date().toISOString(),
+      // Create cardio workout structure compatible with workout-session
+      // We'll create it as a single "exercise" that's just cardio
+      const cardioWorkoutData = {
+        id: 'cardio-workout',
+        name: cardioType?.name || 'Cardio',
+        type: 'cardio',
+        category: 'cardio',
+        estimatedDuration: targetMinutes, // User's target duration
+        targetDuration: targetMinutes, // Store target for countdown
+        cardioType: selectedType, // Store cardio type for later use
+        exercises: [
+          {
+            id: `cardio-${selectedType}`,
+            name: cardioType?.name || 'Cardio',
+            targetMuscle: 'Cardio',
+            sets: 1, // Single "set" representing the cardio session
+            reps: '1', // Not used for cardio
+            restTime: 0, // No rest for cardio
+            notes: '',
+            isCardio: true, // Flag to identify cardio exercises
+          }
+        ],
       };
 
-      completedWorkouts.push(cardioWorkoutEntry);
+      // Save workout data to cache store for workout-session to use
+      const { setManualWorkout } = useWorkoutCacheStore.getState();
+      setManualWorkout(cardioWorkoutData);
 
-      // Update progress
-      await userProgressService.update(progress.id, {
-        weeklyWeights: weeklyWeights,
-        completedWorkouts: completedWorkouts,
-      });
-
-      Alert.alert(
-        'Success!',
-        `Cardio session logged: ${cardioType?.name} for ${totalMinutes} minutes (${calories} calories)`,
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      // Navigate to workout session - use replace so back button works correctly
+      // Note: Don't call setStarting(false) here as component will unmount after navigation
+      router.replace('/workout-session');
     } catch (error) {
-      console.error('❌ Error saving cardio:', error);
-      Alert.alert('Error', 'Failed to save cardio session');
-    } finally {
-      setSaving(false);
+      console.error('❌ Error starting cardio session:', error);
+      Alert.alert('Error', 'Failed to start cardio session');
+      setStarting(false);
     }
   };
-
-  const hoursNum = hours ? parseFloat(hours) : 0;
-  const minutesNum = minutes ? parseFloat(minutes) : 0;
-  const totalMinutes = hoursNum * 60 + minutesNum;
-  const calculatedCalories = selectedType && totalMinutes > 0
-    ? calculateCardioCalories(selectedType, totalMinutes, userWeight)
-    : 0;
-
-  if (loading) {
-    return (
-      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
-    );
-  }
 
   return (
     <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
@@ -234,147 +120,111 @@ export default function CardioWorkoutScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <Icon name="arrow-left" size={24} color={colors.white} />
             </TouchableOpacity>
-            <Text style={styles.pageTitle}>Log Cardio Session</Text>
+            <Text style={styles.pageTitle}>Start Cardio Session</Text>
           </View>
           
           {/* Cardio Type Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Cardio Type *</Text>
             <View style={styles.cardioTypesGrid}>
-              {CARDIO_TYPES.map((cardio) => (
-                <TouchableOpacity
-                  key={cardio.id}
-                  style={[
-                    styles.cardioTypeButton,
-                    selectedType === cardio.id && styles.cardioTypeButtonSelected,
-                  ]}
-                  onPress={() => setSelectedType(cardio.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text
+              {CARDIO_TYPES.map((cardio) => {
+                const isSelected = selectedType === cardio.id;
+                const iconName = getCardioIcon(cardio.id);
+                
+                return (
+                  <TouchableOpacity
+                    key={cardio.id}
                     style={[
-                      styles.cardioTypeText,
-                      selectedType === cardio.id && styles.cardioTypeTextSelected,
+                      styles.cardioTypeCard,
+                      isSelected && styles.cardioTypeCardSelected,
                     ]}
+                    onPress={() => setSelectedType(cardio.id)}
+                    activeOpacity={0.7}
                   >
-                    {cardio.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <View style={[
+                      styles.cardioIconContainer,
+                      isSelected && styles.cardioIconContainerSelected,
+                    ]}>
+                      <Icon 
+                        name={iconName as any} 
+                        size={20} 
+                        color={isSelected ? colors.black : colors.primary} 
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.cardioTypeText,
+                        isSelected && styles.cardioTypeTextSelected,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {cardio.name}
+                    </Text>
+                    {isSelected && (
+                      <View style={styles.selectedBadge}>
+                        <Icon name="check" size={12} color={colors.black} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
-          {/* Duration Input */}
+          {/* Target Duration */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Duration *</Text>
-            <View style={styles.durationContainer}>
-              <View style={styles.durationInputContainer}>
-                <TextInput
-                  style={styles.durationInput}
-                  value={hours}
-                  onChangeText={setHours}
-                  placeholder="0"
-                  placeholderTextColor={colors.lightGray}
-                  keyboardType="numeric"
-                  maxLength={2}
-                />
-                <Text style={styles.durationLabel}>hours</Text>
-              </View>
-              <View style={styles.durationInputContainer}>
-                <TextInput
-                  style={styles.durationInput}
-                  value={minutes}
-                  onChangeText={setMinutes}
-                  placeholder="0"
-                  placeholderTextColor={colors.lightGray}
-                  keyboardType="numeric"
-                  maxLength={2}
-                />
-                <Text style={styles.durationLabel}>minutes</Text>
-              </View>
+            <View style={styles.durationHeader}>
+              <Text style={styles.sectionLabel}>Target Duration</Text>
+              <Text style={styles.durationValue}>{targetMinutes} min</Text>
             </View>
-            {(hours || minutes) && totalMinutes > 0 && (
-              <Text style={styles.hintText}>
-                Total: {totalMinutes} minutes ({Math.round(totalMinutes / 60 * 10) / 10} hours)
-              </Text>
-            )}
-          </View>
-
-          {/* Calories Toggle */}
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={styles.toggleRow}
-              onPress={() => setUseCustomCalories(!useCustomCalories)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.checkboxContainer}>
-                <View style={[styles.checkbox, useCustomCalories && styles.checkboxChecked]}>
-                  {useCustomCalories && (
-                    <Icon name="check" size={16} color={colors.black} />
-                  )}
-                </View>
-                <Text style={styles.toggleLabel}>Enter calories manually</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Custom Calories Input */}
-          {useCustomCalories && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Calories Burned</Text>
-              <TextInput
-                style={styles.input}
-                value={customCalories}
-                onChangeText={setCustomCalories}
-                placeholder="e.g., 300"
-                placeholderTextColor={colors.lightGray}
-                keyboardType="numeric"
-                maxLength={5}
+            <Text style={styles.sectionSubtitle}>Slide to set your goal</Text>
+            
+            {/* Duration Slider */}
+            <View style={styles.sliderContainer}>
+              <Slider
+                value={targetMinutes}
+                onValueChange={(value) => setTargetMinutes(Math.round(value))}
+                minimumValue={5}
+                maximumValue={180}
+                step={5}
+                minimumTrackTintColor={colors.primary}
+                maximumTrackTintColor={colors.mediumGray}
+                thumbTintColor={colors.primary}
+                trackStyle={styles.sliderTrack}
+                thumbStyle={styles.sliderThumb}
               />
-            </View>
-          )}
-
-          {/* Estimated Calories Display */}
-          {!useCustomCalories && selectedType && totalMinutes > 0 && calculatedCalories > 0 && (
-            <View style={styles.estimatedCaloriesBox}>
-              <Icon name="zap" size={20} color={colors.primary} />
-              <View style={styles.estimatedCaloriesContent}>
-                <Text style={styles.estimatedCaloriesLabel}>Estimated Calories</Text>
-                <Text style={styles.estimatedCaloriesValue}>~{calculatedCalories} cal</Text>
+              <View style={styles.sliderLabels}>
+                <Text style={styles.sliderLabelText}>5 min</Text>
+                <Text style={styles.sliderLabelText}>180 min</Text>
               </View>
             </View>
-          )}
-
-          {/* Notes */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Notes (Optional)</Text>
-            <TextInput
-              style={[styles.input, styles.notesInput]}
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Add any notes about your cardio session..."
-              placeholderTextColor={colors.lightGray}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
+            
+            {/* Info Message */}
+            <View style={styles.infoBox}>
+              <Icon name="clock" size={20} color={colors.primary} />
+              <Text style={styles.infoText}>
+                A countdown timer will show your progress. You can finish early or continue past your goal!
+              </Text>
+            </View>
           </View>
         </ScrollView>
 
-        {/* Save Button */}
+        {/* Start Session Button */}
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-            onPress={handleSave}
-            disabled={saving}
+            style={[
+              styles.saveButton, 
+              (starting || !selectedType) && styles.saveButtonDisabled
+            ]}
+            onPress={handleStartSession}
+            disabled={starting || !selectedType}
             activeOpacity={0.7}
           >
-            {saving ? (
+            {starting ? (
               <ActivityIndicator size="small" color={colors.black} />
             ) : (
               <>
-                <Icon name="check" size={20} color={colors.black} />
-                <Text style={styles.saveButtonText}>Save Cardio Session</Text>
+                <Icon name="play" size={20} color={colors.black} />
+                <Text style={styles.saveButtonText}>Start Cardio Session</Text>
               </>
             )}
           </TouchableOpacity>
@@ -422,93 +272,133 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionLabel: {
-    ...typography.body,
+    ...typography.h3,
     color: colors.white,
-    fontWeight: '600',
-    marginBottom: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
+    ...typography.body,
+    color: colors.lightGray,
+    fontSize: 14,
+    marginBottom: 20,
   },
   cardioTypesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    justifyContent: 'space-between',
   },
-  cardioTypeButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: colors.mediumGray,
+  cardioTypeCard: {
+    width: '23.5%',
+    aspectRatio: 1,
+    backgroundColor: colors.darkGray,
+    borderRadius: 12,
+    padding: 10,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: colors.mediumGray,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    marginBottom: 10,
   },
-  cardioTypeButtonSelected: {
+  cardioTypeCardSelected: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  cardioIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardioIconContainerSelected: {
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   cardioTypeText: {
     ...typography.body,
     color: colors.white,
-    fontSize: 14,
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   cardioTypeTextSelected: {
     color: colors.black,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  input: {
-    ...typography.body,
-    backgroundColor: colors.mediumGray,
-    borderRadius: 8,
-    padding: 14,
-    color: colors.white,
-    fontSize: 16,
-  },
-  notesInput: {
-    minHeight: 100,
-    paddingTop: 14,
-  },
-  durationContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  durationInputContainer: {
-    flex: 1,
-  },
-  durationInput: {
-    ...typography.body,
-    backgroundColor: colors.mediumGray,
-    borderRadius: 8,
-    padding: 14,
-    color: colors.white,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  durationLabel: {
-    ...typography.caption,
-    color: colors.lightGray,
-    textAlign: 'center',
-    marginTop: 6,
-  },
-  hintText: {
-    ...typography.caption,
-    color: colors.lightGray,
-    marginTop: 6,
-  },
-  toggleRow: {
-    marginTop: 8,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    backgroundColor: colors.darkGray,
+  selectedBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  durationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  durationValue: {
+    ...typography.h2,
+    color: colors.primary,
+    fontSize: 32,
+    fontWeight: '700',
+  },
+  sliderContainer: {
+    marginVertical: 20,
+  },
+  sliderTrack: {
+    height: 4,
+    borderRadius: 2,
+  },
+  sliderThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  sliderLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  sliderLabelText: {
+    ...typography.caption,
+    color: colors.lightGray,
+    fontSize: 12,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 175, 80, 0.3)',
+  },
+  infoText: {
+    ...typography.body,
+    color: colors.lightGray,
+    flex: 1,
+    fontSize: 14,
   },
   checkboxChecked: {
     backgroundColor: colors.primary,

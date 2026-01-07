@@ -27,7 +27,7 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   isUpdating = false,
 }) => {
   const [showDemoModal, setShowDemoModal] = useState(false);
-  
+
   const handleDemoPress = () => {
     setShowDemoModal(true);
   };
