@@ -86,6 +86,7 @@ export default function WorkoutSessionScreen() {
   const [showWorkoutConfirmModal, setShowWorkoutConfirmModal] = useState(false);
   const [workoutCompletionData, setWorkoutCompletionData] = useState<{percentage: number, completed: number, total: number} | null>(null);
   const [workoutStarted, setWorkoutStarted] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
   
   const [customExercises, setCustomExercises] = useState<any[]>([]);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
@@ -738,7 +739,7 @@ export default function WorkoutSessionScreen() {
     setShowPreviewModal(false);
     setWorkoutStarted(true);
     startWorkout(
-      todaysWorkout?.id || 'today-workout', 
+      todaysWorkout?.id || 'today-workout',
       todaysWorkout?.name || "Today's Workout"
     );
   };
@@ -841,7 +842,16 @@ export default function WorkoutSessionScreen() {
   };
 
   const completeWorkoutWithPercentage = async () => {
-    if (!user?.id || !userProgressData) return;
+    if (!user?.id || !userProgressData) {
+      console.warn('⚠️ Cannot complete workout: missing user or progress data');
+      return;
+    }
+    
+    console.log('🎯 Starting workout completion...');
+    
+    // Show loading spinner
+    setIsFinishing(true);
+    
     try {
       const startTimeToSave = workoutStartTime || new Date().toISOString();
       const { duration } = completeWorkout();
@@ -903,21 +913,33 @@ export default function WorkoutSessionScreen() {
           setUserProgressData(updated);
           useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
           
-          // Navigate to workout overview page
-          router.push({
-            pathname: '/workout-overview',
-            params: {
-              workoutName: todaysWorkout.name,
-              duration: duration.toString(),
-              totalVolume: '0',
-              caloriesBurned: calories.toString(),
-              exercises: JSON.stringify([{
-                name: todaysWorkout.exercises[0]?.name || 'Cardio',
-                duration: duration,
-                calories: calories,
-              }]),
-            },
-          });
+          console.log('✅ Cardio workout saved, navigating to overview...');
+          
+          // Hide spinner before navigation
+          setIsFinishing(false);
+          
+          // Small delay to ensure UI updates before navigation
+          setTimeout(() => {
+            // Navigate to workout overview page
+            router.push({
+              pathname: '/workout-overview',
+              params: {
+                workoutName: todaysWorkout.name,
+                duration: duration.toString(),
+                totalVolume: '0',
+                caloriesBurned: calories.toString(),
+                exercises: JSON.stringify([{
+                  name: todaysWorkout.exercises[0]?.name || 'Cardio',
+                  duration: duration,
+                  calories: calories,
+                }]),
+              },
+            });
+          }, 100);
+        } else {
+          // If update failed, reset loading state
+          setIsFinishing(false);
+          Alert.alert('Error', 'Failed to save cardio workout');
         }
         return;
       }
@@ -1020,19 +1042,36 @@ export default function WorkoutSessionScreen() {
         const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
         useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
         
-        // Navigate to workout overview page with workout data
-        router.push({
-          pathname: '/workout-overview',
-          params: {
-            workoutName: todaysWorkout?.name || 'Workout',
-            duration: duration.toString(),
-            totalVolume: volumeData.totalVolume.toString(),
-            exercises: JSON.stringify(volumeData.exerciseBreakdown),
-          },
-        });
+        console.log('✅ Workout saved, navigating to overview...');
+        
+        // Hide spinner before navigation
+        setIsFinishing(false);
+        
+        // Small delay to ensure UI updates before navigation
+        setTimeout(() => {
+          // Navigate to workout overview page with workout data
+          router.push({
+            pathname: '/workout-overview',
+            params: {
+              workoutName: todaysWorkout?.name || 'Workout',
+              duration: duration.toString(),
+              totalVolume: volumeData.totalVolume.toString(),
+              exercises: JSON.stringify(volumeData.exerciseBreakdown),
+            },
+          });
+        }, 100);
+      } else {
+        // If update failed, reset loading state
+        setIsFinishing(false);
+        Alert.alert('Error', 'Failed to save workout completion');
       }
     } catch (e) {
       console.error('❌ Failed to finish workout:', e);
+      console.error('Error details:', JSON.stringify(e, null, 2));
+      setIsFinishing(false);
+      Alert.alert('Error', 'An error occurred while finishing the workout. Please try again.');
+    } finally {
+      console.log('🏁 Workout completion flow ended');
     }
   };
 
@@ -1638,6 +1677,22 @@ export default function WorkoutSessionScreen() {
           </TouchableOpacity>
         </Modal>
       )}
+
+      {/* Finishing Workout Loading Overlay */}
+      {isFinishing && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+        >
+          <View style={styles.finishingOverlay}>
+            <View style={styles.finishingContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.finishingText}>Finishing workout...</Text>
+            </View>
+          </View>
+        </Modal>
+      )}
     </LinearGradient>
   );
 }
@@ -1664,7 +1719,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.darkGray,
   },
@@ -1698,7 +1753,6 @@ const styles = StyleSheet.create({
   workoutName: {
     ...typography.h3,
     color: colors.white,
-    marginBottom: 16,
   },
   timerContainer: {
     flexDirection: 'row',
@@ -2147,5 +2201,24 @@ const styles = StyleSheet.create({
     flex: 0,
     minWidth: 120,
     maxWidth: 140,
+  },
+  finishingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  finishingContainer: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    gap: 16,
+  },
+  finishingText: {
+    ...typography.body,
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: '600',
   },
 });

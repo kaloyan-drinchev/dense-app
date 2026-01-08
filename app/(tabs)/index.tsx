@@ -506,10 +506,14 @@ export default function HomeScreen() {
       }
       
       console.log('✅ Skipped to next workout:', nextWorkoutType);
+      
+      // Small delay to ensure UI fully updates before clearing loading state
+      setTimeout(() => {
+        setIsSkipping(false);
+      }, 150);
     } catch (error) {
       console.error('❌ Failed to skip workout:', error);
       Alert.alert('Error', 'Failed to skip workout. Please try again.');
-    } finally {
       setIsSkipping(false);
     }
   };
@@ -538,10 +542,14 @@ export default function HomeScreen() {
       }
       
       console.log('✅ Regenerated workout to:', alternateWorkout.name);
+      
+      // Small delay to ensure UI fully updates before clearing loading state
+      setTimeout(() => {
+        setIsRegenerating(false);
+      }, 150);
     } catch (error) {
       console.error('❌ Failed to regenerate workout:', error);
       Alert.alert('Error', 'Failed to regenerate workout. Please try again.');
-    } finally {
       setIsRegenerating(false);
     }
   };

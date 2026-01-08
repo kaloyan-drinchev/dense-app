@@ -225,6 +225,29 @@ export default function WorkoutExerciseTrackerScreen() {
             }
           }
         }
+        
+        // FINAL FALLBACK: Load from exercise database (for manual workouts)
+        if (!foundExercise) {
+          try {
+            const { exerciseDatabase } = await import('@/constants/exercise-database');
+            const dbExercise = exerciseDatabase.find(ex => ex.id === exerciseId);
+            
+            if (dbExercise) {
+              console.log(`✅ [ExerciseTracker] Found exercise in database: ${dbExercise.name}`);
+              foundExercise = {
+                id: dbExercise.id,
+                name: dbExercise.name,
+                targetMuscle: dbExercise.targetMuscle,
+                sets: 3,
+                reps: '10',
+                restTime: 60,
+                notes: '',
+              };
+            }
+          } catch (error) {
+            console.error('❌ [ExerciseTracker] Error loading from exercise database:', error);
+          }
+        }
       }
       
       setExercise(foundExercise);

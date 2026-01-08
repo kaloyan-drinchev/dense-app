@@ -108,6 +108,16 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   const loadPRData = async () => {
     if (!user?.id) return;
     
+    // OPTIMIZATION: Skip PR data for manual workout exercises (they have unique session IDs)
+    if (exerciseKey.startsWith('manual-')) {
+      console.log(`⏩ [ExerciseTracker] Skipping PR data for manual exercise`);
+      setExerciseLogs({});
+      setExercisePRs({});
+      setBeatLastSuggestions([]);
+      setIsPRDataLoaded(true);
+      return;
+    }
+    
     const prStart = performance.now();
     console.log(`⏱️ [ExerciseTracker] Loading PR data for: ${exerciseKey}`);
     
@@ -167,6 +177,13 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       setSets(hydrated);
       setIsLoadingSets(false);
       console.log(`⏱️ [ExerciseTracker] Preset session loaded: ${(performance.now() - loadStart).toFixed(0)}ms`);
+      return;
+    }
+    
+    // OPTIMIZATION: Skip session loading for manual exercises (they always start fresh)
+    if (exerciseKey.startsWith('manual-')) {
+      console.log(`⏩ [ExerciseTracker] Skipping session load for manual exercise (starting fresh)`);
+      setIsLoadingSets(false);
       return;
     }
     
@@ -477,7 +494,14 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
         console.log('✅ [ExerciseTracker] Manual exercise completed and saved');
         
-        // Navigate back immediately (no cache sync needed for manual exercises)
+        // Update cache so workout-session shows completed badge
+        const freshProgress = await userProgressService.getByUserId(user.id);
+        if (freshProgress) {
+          useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
+          console.log('✅ [ExerciseTracker] Cache updated for manual exercise');
+        }
+        
+        // Navigate back
         router.back();
         return; // Exit early
       } catch (error) {
@@ -545,16 +569,11 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
       
       // STEP 3: Sync cache with database IMMEDIATELY for instant status update
-        userProgressService.getByUserId(user.id)
-          .then((freshProgress) => {
-            if (freshProgress) {
-            console.log('✅ [ExerciseTracker] Cache updated with fresh data after completion');
-              useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
-            }
-          })
-          .catch((error) => {
-            console.error('❌ Failed to sync cache after exercise completion:', error);
-          });
+      const freshProgress = await userProgressService.getByUserId(user.id);
+      if (freshProgress) {
+        console.log('✅ [ExerciseTracker] Cache updated with fresh data after completion');
+        useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
+      }
       
       // Show success feedback - DISABLED
       // if (Platform.OS !== 'web') {
