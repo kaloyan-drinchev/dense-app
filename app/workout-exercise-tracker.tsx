@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/constants/colors';
@@ -310,15 +311,12 @@ export default function WorkoutExerciseTrackerScreen() {
   // Show loading while data is being fetched
   if (loading || !exercise) {
     return (
-      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+      <View style={styles.container}>
+        <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.fullScreen}>
+          <View style={styles.floatingHeaderBar}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.floatingBackButton}>
               <Icon name="arrow-left" size={24} color={colors.white} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>
-              {loading ? 'Loading...' : 'Exercise Not Found'}
-            </Text>
           </View>
           
           {loading ? (
@@ -338,21 +336,21 @@ export default function WorkoutExerciseTrackerScreen() {
             </TouchableOpacity>
           </View>
           )}
-        </SafeAreaView>
-      </LinearGradient>
+        </LinearGradient>
+      </View>
     );
   }
 
   return (
-    <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+    <View style={styles.container}>
+      <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.fullScreen}>
+        {/* Floating Back Button */}
+        <View style={styles.floatingHeaderBar}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.floatingBackButton}>
             <Icon name="arrow-left" size={24} color={colors.white} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{exercise?.name || 'Exercise'}</Text>
           {isCustomExercise && exercise && (
-            <TouchableOpacity onPress={handleDeleteCustomExercise} style={styles.deleteButton}>
+            <TouchableOpacity onPress={handleDeleteCustomExercise} style={styles.floatingDeleteButton}>
               <Icon name="trash-2" size={20} color={colors.error} />
             </TouchableOpacity>
           )}
@@ -366,22 +364,26 @@ export default function WorkoutExerciseTrackerScreen() {
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={() => Keyboard.dismiss()}
         >
-          {/* Details header intentionally hidden */}
-
-          <View style={styles.infoContainer}>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Sets</Text>
-              <Text style={styles.infoValue}>{exercise.sets}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Reps</Text>
-              <Text style={styles.infoValue}>{exercise.reps}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Rest</Text>
-              <Text style={styles.infoValue}>{exercise.restTime}s</Text>
-            </View>
+          {/* Exercise Image with Gradient Overlay - Edge to Edge */}
+          <View style={styles.exerciseImageContainer}>
+            <Image
+              source={{ uri: 'https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/exersice-wide-photo/mock_image_dense.jpg' }}
+              style={styles.exerciseImage}
+              contentFit="cover"
+              transition={200}
+            />
+            <LinearGradient
+              colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.3)', colors.dark]}
+              style={styles.imageGradientOverlay}
+              locations={[0, 0.5, 1]}
+            />
           </View>
+
+          <View style={styles.exerciseContentWrapper}>
+            {/* Exercise Name */}
+            <Text style={styles.exerciseName}>{exercise.name}</Text>
+            
+            {/* Exercise Tracker - Sets Grid with Info */}
             <ExerciseTracker
                 exercise={exercise}
                 exerciseKey={exercise.id}
@@ -390,17 +392,13 @@ export default function WorkoutExerciseTrackerScreen() {
                   // hook for future if we add custom back handling
                 }}
               />
+
           {exercise.notes && (
             <View style={styles.notesContainer}>
               <Text style={styles.notesTitle}>Technique Notes:</Text>
               <Text style={styles.notesText}>{exercise.notes}</Text>
             </View>
           )}
-          <View style={styles.trackerContainer}>
-            <Text style={styles.trackerTitle}>Track Your Sets</Text>
-            <View style={styles.instructionContainer}>
-              <Text style={styles.instructionText}>💪 Do more reps than the previous workout</Text>
-            </View>
           </View>
         </ScrollView>
         )}
@@ -417,17 +415,41 @@ export default function WorkoutExerciseTrackerScreen() {
             </View>
           </View>
         )}
-      </SafeAreaView>
-    </LinearGradient>
+      </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.dark,
   },
-  safeArea: {
+  fullScreen: {
     flex: 1,
+  },
+  floatingHeaderBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 60, // Extended for status bar/dynamic island
+    paddingBottom: 16,
+  },
+  floatingBackButton: {
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+  },
+  floatingDeleteButton: {
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
   },
   header: {
     flexDirection: 'row',
@@ -454,17 +476,40 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
+    padding: 0,
     paddingBottom: 32,
+  },
+  exerciseImageContainer: {
+    width: '100%',
+    height: 280,
+    position: 'relative',
+    marginTop: 0,
+    marginBottom: -40,
+  },
+  exerciseImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageGradientOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '70%',
+  },
+  exerciseContentWrapper: {
+    padding: 16,
+    paddingTop: 20,
   },
   exerciseHeader: {
     marginBottom: 16,
   },
   exerciseName: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: colors.white,
-    marginBottom: 8,
+    marginBottom: 16,
+    letterSpacing: 0.5,
   },
   targetMuscle: {
     backgroundColor: colors.primary,
@@ -475,27 +520,6 @@ const styles = StyleSheet.create({
   },
   targetMuscleText: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.white,
-  },
-  infoContainer: {
-    flexDirection: 'row',
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  infoItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: colors.lightGray,
-    marginBottom: 4,
-  },
-  infoValue: {
-    fontSize: 20,
     fontWeight: 'bold',
     color: colors.white,
   },
@@ -515,28 +539,9 @@ const styles = StyleSheet.create({
     color: colors.lighterGray,
     lineHeight: 24,
   },
-  trackerContainer: {
-    marginBottom: 16,
-  },
-  trackerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.white,
-    marginBottom: 16,
-  },
-  instructionContainer: {
-    backgroundColor: 'rgba(58, 81, 153, 0.2)',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
-  },
-  instructionText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
-    textAlign: 'center',
+  errorWrapper: {
+    padding: 16,
+    marginTop: 100,
   },
   errorContainer: {
     flex: 1,

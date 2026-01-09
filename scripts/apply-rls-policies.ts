@@ -40,6 +40,7 @@ async function applyRLSPolicies() {
       join(__dirname, '../db/migrations/postgres/0007_allow_unauthenticated_progress_select.sql'),
       join(__dirname, '../db/migrations/postgres/0008_allow_unauthenticated_wizard_select.sql'),
       join(__dirname, '../db/migrations/postgres/0009_allow_unauthenticated_progress_update.sql'),
+      join(__dirname, '../db/migrations/postgres/0010_exercises_rls.sql'),
     ];
     
     let totalApplied = 0;

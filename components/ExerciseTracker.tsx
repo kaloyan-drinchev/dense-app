@@ -667,7 +667,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      {/* <View style={styles.header}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>{exercise.name}</Text>
           <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
@@ -681,7 +681,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           <Text style={styles.historyButtonText}>History</Text>
         </TouchableOpacity>
         )}
-      </View>
+      </View> */}
       
       {/* Completed Badge - Simple and Clean */}
       {allSetsCompleted && (
@@ -717,6 +717,23 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         </View>
       )}
       <View style={styles.unitToggleRow}>
+        {/* Exercise Info - Left Side */}
+        <View style={styles.exerciseInfoRow}>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>Sets</Text>
+            <Text style={styles.infoValue}>{exercise.sets}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>Reps</Text>
+            <Text style={styles.infoValue}>{exercise.reps}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>Rest</Text>
+            <Text style={styles.infoValue}>{exercise.restTime}s</Text>
+          </View>
+        </View>
+        
+        {/* Unit Toggle - Right Side */}
         <View style={styles.unitToggle}>
           <TouchableOpacity
             onPress={() => setUnit('kg')}
@@ -991,9 +1008,29 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   unitToggleRow: {
-    marginBottom: 8,
+    marginBottom: 16,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  exerciseInfoRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  infoItem: {
+    alignItems: 'center',
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: colors.lightGray,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  infoValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
   },
   unitButton: {
     paddingVertical: 6,

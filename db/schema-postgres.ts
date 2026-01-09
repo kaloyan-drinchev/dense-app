@@ -38,6 +38,21 @@ export const programs = pgTable('programs', {
   syncedAt: timestamp('synced_at'),
 });
 
+// Exercises Table - Reference data for all available exercises
+export const exercises = pgTable('exercises', {
+  id: text('id').primaryKey(), // e.g., 'barbell-bench-press'
+  name: text('name').notNull(), // e.g., 'Barbell Bench Press'
+  category: text('category').notNull(), // e.g., 'Chest', 'Back', 'Legs', 'Arms', 'Shoulders'
+  targetMuscle: text('target_muscle').notNull(), // e.g., 'Chest', 'Lats', 'Quads'
+  equipment: text('equipment'), // e.g., 'Barbell', 'Dumbbell', 'Machine', 'Bodyweight'
+  difficulty: text('difficulty'), // e.g., 'Beginner', 'Intermediate', 'Advanced'
+  instructions: text('instructions'), // How to perform the exercise
+  videoUrl: text('video_url'), // Video demonstration URL
+  thumbnailUrl: text('thumbnail_url'), // Thumbnail image URL
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // User Progress Table
 export const userProgress = pgTable('user_progress', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -138,6 +153,9 @@ export type NewUserProfile = typeof userProfiles.$inferInsert;
 
 export type Program = typeof programs.$inferSelect;
 export type NewProgram = typeof programs.$inferInsert;
+
+export type Exercise = typeof exercises.$inferSelect;
+export type NewExercise = typeof exercises.$inferInsert;
 
 export type UserProgress = typeof userProgress.$inferSelect;
 export type NewUserProgress = typeof userProgress.$inferInsert;
