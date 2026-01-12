@@ -13,6 +13,7 @@ export {
   customMealService,
   wizardResultsService,
   syncStatusService,
+  activeWorkoutSessionService,
 } from './services-supabase';
 
 // Re-export types from PostgreSQL schema

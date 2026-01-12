@@ -17,7 +17,7 @@ import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutCacheStore } from '@/store/workout-cache-store';
-import { wizardResultsService, userProgressService } from '@/db/services';
+import { wizardResultsService, userProgressService, activeWorkoutSessionService } from '@/db/services';
 import { useWorkoutTimer } from '@/hooks/useWorkoutTimer';
 import { useTimerStore } from '@/store/timer-store';
 import {
@@ -68,7 +68,6 @@ export default function WorkoutSessionScreen() {
       if (loadingRef.current) {
         // Check if we have data now before forcing loading to false
         if (userProgressDataRef.current) {
-          console.log('✅ WorkoutSession: Data loaded, setting loading to false');
           setLoading(false);
         } else {
           console.warn('⚠️ WorkoutSession: Loading timeout reached but no data - keeping loading state');
@@ -96,6 +95,7 @@ export default function WorkoutSessionScreen() {
   const [exercisePRs, setExercisePRs] = useState<ExercisePRs>({});
   const [updatingExerciseId, setUpdatingExerciseId] = useState<string | null>(null);
   const [userWeight, setUserWeight] = useState<number>(cachedWeight || 70);
+  const [activeSessionData, setActiveSessionData] = useState<any>(null); // Active workout session data
   const { 
     formattedTime,
     timeElapsed,
@@ -115,7 +115,6 @@ export default function WorkoutSessionScreen() {
     // Check for manual workout first (this includes cardio)
     if (manualWorkout) {
       const isCardio = manualWorkout.type === 'cardio' || manualWorkout.category === 'cardio';
-      console.log(`✅ Loaded ${isCardio ? 'cardio' : 'manual'} workout:`, manualWorkout.name, `(${manualWorkout.exercises.length} exercises)`);
       return manualWorkout;
     }
     
@@ -134,7 +133,6 @@ export default function WorkoutSessionScreen() {
       return null;
     }
     
-    console.log('✅ Loaded workout template:', workoutTemplate.name, `(${workoutTemplate.exercises.length} exercises)`);
     
     return workoutTemplate;
   }, [manualWorkout, userProgressData]);
@@ -192,6 +190,27 @@ export default function WorkoutSessionScreen() {
     if (cacheIsValid) {
       setUserProgressData(cachedProgress);
       setUserWeight(cachedWeight || 70);
+      
+      // CRITICAL: Load active session for in-progress workout
+      const activeSession = await activeWorkoutSessionService.getActive(user.id);
+      if (activeSession) {
+        setActiveSessionData(activeSession.session_data);
+      } else {
+        setActiveSessionData(null);
+      }
+      
+      // Load historical data for "Last time" display and PRs
+      if (cachedProgress?.weeklyWeights) {
+        let weeklyWeights = typeof cachedProgress.weeklyWeights === 'string'
+          ? JSON.parse(cachedProgress.weeklyWeights)
+          : cachedProgress.weeklyWeights;
+        const logs = weeklyWeights?.exerciseLogs || {};
+        
+        setExerciseLogs(logs); // Keep all historical data
+        const allPRs = analyzeExercisePRs(logs);
+        setExercisePRs(allPRs);
+      }
+      
       setLoading(false);
       
       // Check cache age to decide if background refresh is needed
@@ -267,15 +286,24 @@ export default function WorkoutSessionScreen() {
       
       setUserProgressData(progress);
       
+      // CRITICAL: Load active session for in-progress workout
+      const activeSession = await activeWorkoutSessionService.getActive(user.id);
+      if (activeSession) {
+        setActiveSessionData(activeSession.session_data);
+      } else {
+        setActiveSessionData(null);
+      }
+      
       if (progress?.weeklyWeights) {
         // Handle both string (from JSON) and object (from JSONB) types
         let weeklyWeights = typeof progress.weeklyWeights === 'string'
           ? JSON.parse(progress.weeklyWeights)
           : progress.weeklyWeights;
         
-        // NEW: No more cleanup needed! Sessions only tracked by date now
         const today = new Date().toISOString().split('T')[0];
         const logs = weeklyWeights?.exerciseLogs || {};
+        
+        // Keep all historical data for "Last time" display and PRs
         setExerciseLogs(logs);
         
         const allPRs = analyzeExercisePRs(logs);
@@ -308,7 +336,6 @@ export default function WorkoutSessionScreen() {
   useEffect(() => {
     // Only load if we don't have data already (prevent duplicate loads)
     if (user?.id && !userProgressData) {
-      console.log('🔄 Initial load triggered');
       loadWorkoutData();
     }
   }, [user?.id]); // Only trigger when user.id changes, not when loadWorkoutData changes
@@ -341,7 +368,6 @@ export default function WorkoutSessionScreen() {
       const cacheValid = state.isCacheValid();
       
       if (dataChanged && state.userProgressData && cacheValid) {
-        console.log('🔔 [Cache Subscription] Progress data updated, immediately showing completed status');
         setUserProgressData(state.userProgressData);
         // IMMEDIATELY clear the updating exercise ID to show completed badge
         setUpdatingExerciseId(null);
@@ -364,17 +390,19 @@ export default function WorkoutSessionScreen() {
         const cache = useWorkoutCacheStore.getState();
         const cacheAge = cache.lastUpdated ? Date.now() - cache.lastUpdated : Infinity;
         
-        console.log('🔄 [Workout Focus] Cache check:', {
-          cacheAge: cacheAge < 60000 ? `${(cacheAge / 1000).toFixed(1)}s` : 'stale',
-          hasCache: !!cache.userProgressData,
-          timestamp: cache.lastUpdated
-        });
-        
         // If cache was updated VERY recently (within 3 seconds), it means we just completed an exercise
         // or returned from video modal - Trust the cache completely
         if (cache.userProgressData && cacheAge < 3000) {
-          console.log('✅ [Workout Focus] Using fresh cache, immediately showing completed status');
           setUserProgressData(cache.userProgressData);
+          
+          // CRITICAL: Reload active session to get latest exercise completion status
+          activeWorkoutSessionService.getActive(user.id).then(session => {
+            if (session) {
+              setActiveSessionData(session.session_data);
+            }
+          }).catch(err => {
+            console.error('❌ [Focus] Failed to reload active session:', err);
+          });
           
           // IMMEDIATELY clear the updating exercise ID to show completed badge
           // We reduced the delay from 800ms to 0ms for instant feedback
@@ -386,8 +414,17 @@ export default function WorkoutSessionScreen() {
         
         // If cache is slightly old (3-10 seconds), use it immediately
         if (cache.userProgressData && cacheAge < 10000) {
-          console.log('⏱️  [Workout Focus] Using recent cache, clearing loading state');
           setUserProgressData(cache.userProgressData);
+          
+          // CRITICAL: Reload active session to get latest exercise completion status
+          activeWorkoutSessionService.getActive(user.id).then(session => {
+            if (session) {
+              setActiveSessionData(session.session_data);
+            }
+          }).catch(err => {
+            console.error('❌ [Focus] Failed to reload active session:', err);
+          });
+          
           // IMMEDIATELY clear to show completed status
           setUpdatingExerciseId(null);
           // Skip the background refresh - cache is recent enough
@@ -616,38 +653,35 @@ export default function WorkoutSessionScreen() {
     exerciseId: string,
     plannedSets: number
   ): 'pending' | 'in-progress' | 'completed' => {
-    const today = new Date().toISOString().slice(0, 10);
-    const sessions = weeklyWeightsData?.exerciseLogs?.[exerciseId] as
-      | Array<{ date: string; sets: Array<{ weightKg: number; reps: number; isCompleted: boolean }> }>
-      | undefined;
-    
-    if (!sessions || sessions.length === 0) {
+    // CRITICAL: Check active session FIRST (in-progress workout data)
+    if (activeSessionData?.exercises?.[exerciseId]) {
+      const exerciseData = activeSessionData.exercises[exerciseId];
+      const sets = exerciseData.sets || [];
+      
+      if (sets.length === 0) {
+        return 'pending';
+      }
+      
+      const completedCount = sets.filter((s: any) => !!s.isCompleted).length;
+      const touchedSets = sets.filter((s: any) => 
+        (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0 || s.isCompleted
+      );
+      
+      const required = Math.max(0, plannedSets || 0);
+      
+      if (required > 0 && completedCount >= required) {
+        return 'completed';
+      }
+      if (touchedSets.length > 0) {
+        return 'in-progress';
+      }
+      
       return 'pending';
     }
     
-    // Simple: Just check today's date
-    const todaySession = sessions.find((s) => s.date === today);
-    
-    if (!todaySession || !todaySession.sets || todaySession.sets.length === 0) {
-      return 'pending';
-    }
-    
-    const completedCount = todaySession.sets.filter((s) => !!s.isCompleted).length;
-    const touchedSets = todaySession.sets.filter((s) => 
-      (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0 || s.isCompleted
-    );
-    
-    const required = Math.max(0, plannedSets || 0);
-    
-    if (required > 0 && completedCount >= required) {
-      return 'completed';
-    }
-    if (touchedSets.length > 0) {
-      return 'in-progress';
-    }
-    
+    // No active session = fresh workout = all exercises are pending
     return 'pending';
-  }, [weeklyWeightsData]);
+  }, [activeSessionData]);
 
   const calculateWorkoutProgress = () => {
     if (!todaysWorkout?.exercises) return { percentage: 0, completed: 0, total: 0 };
@@ -847,7 +881,6 @@ export default function WorkoutSessionScreen() {
       return;
     }
     
-    console.log('🎯 Starting workout completion...');
     
     // Show loading spinner
     setIsFinishing(true);
@@ -909,11 +942,13 @@ export default function WorkoutSessionScreen() {
         const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
         useWorkoutCacheStore.getState().setManualWorkout(null);
         
+        // CRITICAL: Delete active session after cardio completion
+        await activeWorkoutSessionService.delete(user.id);
+        
         if (updated) {
           setUserProgressData(updated);
           useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
           
-          console.log('✅ Cardio workout saved, navigating to overview...');
           
           // Hide spinner before navigation
           setIsFinishing(false);
@@ -947,7 +982,54 @@ export default function WorkoutSessionScreen() {
       // Regular workout (manual or PPL) - Calculate workout volume
       const { calculateWorkoutVolume } = await import('@/utils/volume-calculator');
       
-      // Fetch FRESH data from database to ensure we have the latest completed exercises
+      // STEP 1: Get active session and transfer to permanent storage
+      const activeSession = await activeWorkoutSessionService.getActive(user.id);
+      if (activeSession?.session_data?.exercises) {
+        
+        // Get current progress
+        const freshProgress = await userProgressService.getByUserId(user.id);
+        let weeklyWeights: any = freshProgress?.weeklyWeights;
+        if (typeof weeklyWeights === 'string') {
+          weeklyWeights = JSON.parse(weeklyWeights);
+        }
+        weeklyWeights = weeklyWeights || {};
+        weeklyWeights.exerciseLogs = weeklyWeights.exerciseLogs || {};
+        
+        // Transfer each exercise from active session to permanent storage
+        const sessionExercises: any = activeSession.session_data.exercises;
+        for (const [exerciseKey, exerciseData] of Object.entries(sessionExercises)) {
+          if (!weeklyWeights.exerciseLogs[exerciseKey]) {
+            weeklyWeights.exerciseLogs[exerciseKey] = [];
+          }
+          
+          // Add today's session
+          const todaySessionIndex = weeklyWeights.exerciseLogs[exerciseKey].findIndex(
+            (s: any) => s.date === today
+          );
+          
+          const sessionToSave = {
+            date: today,
+            unit: 'kg', // All weights stored in kg
+            sets: (exerciseData as any).sets || []
+          };
+          
+          if (todaySessionIndex >= 0) {
+            weeklyWeights.exerciseLogs[exerciseKey][todaySessionIndex] = sessionToSave;
+          } else {
+            weeklyWeights.exerciseLogs[exerciseKey].push(sessionToSave);
+          }
+        }
+        
+        // Save to permanent storage
+        await userProgressService.update(freshProgress.id, {
+          weeklyWeights: weeklyWeights
+        });
+        
+        // Delete active session
+        await activeWorkoutSessionService.delete(user.id);
+      }
+      
+      // STEP 2: Fetch FRESH data from database to ensure we have the latest completed exercises
       const freshProgress = await userProgressService.getByUserId(user.id);
       let latestExerciseLogs: any = {};
       if (freshProgress?.weeklyWeights) {
@@ -1020,10 +1102,6 @@ export default function WorkoutSessionScreen() {
         const currentWorkoutType = userProgressData.currentWorkout || 'push-a';
         const nextWorkoutType = updateWorkoutProgression(currentWorkoutType);
         
-        console.log('🔄 Workout Progression:', {
-          completedWorkout: currentWorkoutType,
-          nextWorkout: nextWorkoutType,
-        });
         
         updated = await userProgressService.update(userProgressData.id, {
           currentWorkout: nextWorkoutType,
@@ -1042,7 +1120,6 @@ export default function WorkoutSessionScreen() {
         const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
         useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
         
-        console.log('✅ Workout saved, navigating to overview...');
         
         // Hide spinner before navigation
         setIsFinishing(false);
@@ -1071,7 +1148,7 @@ export default function WorkoutSessionScreen() {
       setIsFinishing(false);
       Alert.alert('Error', 'An error occurred while finishing the workout. Please try again.');
     } finally {
-      console.log('🏁 Workout completion flow ended');
+      // Cleanup complete
     }
   };
 
@@ -1429,16 +1506,15 @@ export default function WorkoutSessionScreen() {
             
             {!isCardioWorkout && (
               todaysWorkout.exercises?.map((exercise: any, index: number) => {
+                const exerciseId = exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase();
+                const status = getExerciseStatus(exerciseId, exercise.sets);
+
                 const exerciseWithId = {
                   ...exercise,
-                  id: exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase(),
+                  id: exerciseId,
                   targetMuscle: exercise.targetMuscle || 'General',
                   restTime: exercise.restSeconds || 60,
-                  isCompleted:
-                    getExerciseStatus(
-                      exercise.id || exercise.name.replace(/\s+/g, '-').toLowerCase(),
-                      exercise.sets
-                    ) === 'completed',
+                  isCompleted: status === 'completed',
                 };
                 
                 return (
@@ -1447,7 +1523,7 @@ export default function WorkoutSessionScreen() {
                     exercise={exerciseWithId}
                     index={index}
                     onPress={() => handleExercisePress(exerciseWithId.id)}
-                    status={getExerciseStatus(exerciseWithId.id, exerciseWithId.sets)}
+                    status={status}
                     prPotential={hasPRPotential(exerciseWithId.id)}
                     isUpdating={updatingExerciseId === exerciseWithId.id}
                   />

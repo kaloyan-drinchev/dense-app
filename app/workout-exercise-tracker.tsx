@@ -69,15 +69,12 @@ export default function WorkoutExerciseTrackerScreen() {
       
       // OPTIMIZATION: Check for manual exercises FIRST (skip database fetch)
       if (exerciseId.startsWith('manual-')) {
-        console.log(`🚀 [ExerciseTracker] Fast path for manual exercise "${exerciseId}"`);
-        
         const manualWorkout = cache.manualWorkout;
         
         if (manualWorkout?.exercises) {
           const found = manualWorkout.exercises.find((ex: any) => ex.id === exerciseId);
           
           if (found) {
-            console.log(`✅ [ExerciseTracker] Found manual exercise: ${found.name}`);
             foundExercise = {
               ...found,
               targetMuscle: found.targetMuscle || 'General',
@@ -160,21 +157,16 @@ export default function WorkoutExerciseTrackerScreen() {
         // NEW SYSTEM: Load from workout templates
         const currentWorkoutType = progress?.currentWorkout; // e.g., 'push-a', 'pull-b'
         
-        console.log(`🔍 [ExerciseTracker] Loading exercise "${exerciseId}" from workout "${currentWorkoutType}"`);
-        
         if (currentWorkoutType) {
           // Import workout template dynamically
           const { getWorkoutTemplate } = await import('@/lib/workout-templates');
           const workoutTemplate = getWorkoutTemplate(currentWorkoutType);
           
           if (workoutTemplate) {
-            console.log(`✅ [ExerciseTracker] Found workout template with ${workoutTemplate.exercises.length} exercises`);
-            
             // Find the exercise in the template
             const found = workoutTemplate.exercises.find((ex) => ex.id === exerciseId);
             
             if (found) {
-              console.log(`✅ [ExerciseTracker] Found exercise: ${found.name}`);
               foundExercise = {
                 ...found,
                 restTime: Math.min(found.restTime || 60, 120),
@@ -232,9 +224,8 @@ export default function WorkoutExerciseTrackerScreen() {
           try {
             const { exerciseDatabase } = await import('@/constants/exercise-database');
             const dbExercise = exerciseDatabase.find(ex => ex.id === exerciseId);
-            
+
             if (dbExercise) {
-              console.log(`✅ [ExerciseTracker] Found exercise in database: ${dbExercise.name}`);
               foundExercise = {
                 id: dbExercise.id,
                 name: dbExercise.name,
@@ -250,9 +241,9 @@ export default function WorkoutExerciseTrackerScreen() {
           }
         }
       }
-      
+
       setExercise(foundExercise);
-      
+
       // Safety: Only set progress if it's defined to avoid reference errors
       if (progress) {
         setUserProgressData(progress);
@@ -367,10 +358,13 @@ export default function WorkoutExerciseTrackerScreen() {
           {/* Exercise Image with Gradient Overlay - Edge to Edge */}
           <View style={styles.exerciseImageContainer}>
             <Image
-              source={{ uri: 'https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/exersice-wide-photo/mock_image_dense.jpg' }}
+              source={{ 
+                uri: exercise.thumbnail_url || 'https://eiihwogvlqiegnqjcidr.supabase.co/storage/v1/object/public/exercise-thumbnails/default-image.jpg'
+              }}
               style={styles.exerciseImage}
               contentFit="cover"
               transition={200}
+              cachePolicy="none"
             />
             <LinearGradient
               colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.3)', colors.dark]}

@@ -5,6 +5,8 @@
  * Each workout has 6 exercises optimized for hypertrophy
  */
 
+import { getExerciseMedia } from './exercise-media-map';
+
 export interface WorkoutExercise {
   id: string;
   name: string;
@@ -13,6 +15,8 @@ export interface WorkoutExercise {
   reps: string;
   restTime: number; // seconds (max 120)
   notes?: string;
+  thumbnail_url?: string; // Exercise thumbnail image URL
+  video_url?: string; // Exercise video URL
 }
 
 export interface WorkoutTemplate {
@@ -30,7 +34,7 @@ export const PUSH_DAY_A: WorkoutTemplate = {
   name: 'Push Day - Chest Focus',
   type: 'push-a',
   category: 'push',
-  estimatedDuration: 60,
+  estimatedDuration: 45,
   exercises: [
     {
       id: 'barbell-bench-press',
@@ -49,24 +53,6 @@ export const PUSH_DAY_A: WorkoutTemplate = {
       reps: '8-10',
       restTime: 90,
       notes: 'Set bench to 30-45 degrees. Full range of motion.',
-    },
-    {
-      id: 'dumbbell-flyes',
-      name: 'Dumbbell Flyes',
-      targetMuscle: 'Chest',
-      sets: 3,
-      reps: '10-12',
-      restTime: 60,
-      notes: 'Slight bend in elbows. Stretch at bottom, squeeze at top.',
-    },
-    {
-      id: 'overhead-press',
-      name: 'Overhead Press',
-      targetMuscle: 'Shoulders',
-      sets: 4,
-      reps: '6-8',
-      restTime: 90,
-      notes: 'Standing or seated. Keep core tight.',
     },
     {
       id: 'lateral-raises',
@@ -160,7 +146,7 @@ export const PULL_DAY_A: WorkoutTemplate = {
   name: 'Pull Day - Back Width Focus',
   type: 'pull-a',
   category: 'pull',
-  estimatedDuration: 60,
+  estimatedDuration: 30,
   exercises: [
     {
       id: 'deadlift',
@@ -172,33 +158,6 @@ export const PULL_DAY_A: WorkoutTemplate = {
       notes: 'King of back exercises. Keep back neutral, drive through heels.',
     },
     {
-      id: 'pull-ups',
-      name: 'Pull-Ups',
-      targetMuscle: 'Lats',
-      sets: 3,
-      reps: '8-10',
-      restTime: 90,
-      notes: 'Full range of motion. Chin over bar at top.',
-    },
-    {
-      id: 'barbell-rows',
-      name: 'Barbell Rows',
-      targetMuscle: 'Mid Back',
-      sets: 4,
-      reps: '8-10',
-      restTime: 90,
-      notes: 'Pull to lower chest. Squeeze shoulder blades together.',
-    },
-    {
-      id: 'lat-pulldowns',
-      name: 'Lat Pulldowns',
-      targetMuscle: 'Lats',
-      sets: 3,
-      reps: '10-12',
-      restTime: 60,
-      notes: 'Pull bar to upper chest. Control the negative.',
-    },
-    {
       id: 'face-pulls',
       name: 'Face Pulls',
       targetMuscle: 'Rear Delts',
@@ -206,15 +165,6 @@ export const PULL_DAY_A: WorkoutTemplate = {
       reps: '15-20',
       restTime: 60,
       notes: 'Pull rope to face. External rotation at end.',
-    },
-    {
-      id: 'barbell-curls',
-      name: 'Barbell Curls',
-      targetMuscle: 'Biceps',
-      sets: 3,
-      reps: '8-10',
-      restTime: 60,
-      notes: 'No momentum. Control the weight.',
     },
   ],
 };
@@ -225,44 +175,8 @@ export const PULL_DAY_B: WorkoutTemplate = {
   name: 'Pull Day - Back Thickness Focus',
   type: 'pull-b',
   category: 'pull',
-  estimatedDuration: 60,
+  estimatedDuration: 20,
   exercises: [
-    {
-      id: 'rack-pulls',
-      name: 'Rack Pulls',
-      targetMuscle: 'Back',
-      sets: 4,
-      reps: '6-8',
-      restTime: 120,
-      notes: 'Set pins just below knees. Focus on upper back and traps.',
-    },
-    {
-      id: 'weighted-chin-ups',
-      name: 'Weighted Chin-Ups',
-      targetMuscle: 'Lats',
-      sets: 3,
-      reps: '6-8',
-      restTime: 90,
-      notes: 'Underhand grip. Add weight if possible.',
-    },
-    {
-      id: 'dumbbell-rows',
-      name: 'Dumbbell Rows',
-      targetMuscle: 'Mid Back',
-      sets: 4,
-      reps: '8-10',
-      restTime: 90,
-      notes: 'One arm at a time. Pull elbow back, not up.',
-    },
-    {
-      id: 'seated-cable-rows',
-      name: 'Seated Cable Rows',
-      targetMuscle: 'Mid Back',
-      sets: 3,
-      reps: '10-12',
-      restTime: 60,
-      notes: 'Squeeze shoulder blades. Keep torso stable.',
-    },
     {
       id: 'rear-delt-flyes',
       name: 'Rear Delt Flyes',
@@ -271,15 +185,6 @@ export const PULL_DAY_B: WorkoutTemplate = {
       reps: '12-15',
       restTime: 60,
       notes: 'Bent over or on incline bench. Lead with elbows.',
-    },
-    {
-      id: 'hammer-curls',
-      name: 'Hammer Curls',
-      targetMuscle: 'Biceps',
-      sets: 3,
-      reps: '10-12',
-      restTime: 60,
-      notes: 'Neutral grip. Targets brachialis and brachioradialis.',
     },
   ],
 };
@@ -290,17 +195,8 @@ export const LEG_DAY_A: WorkoutTemplate = {
   name: 'Leg Day - Quad Focus',
   type: 'leg-a',
   category: 'legs',
-  estimatedDuration: 65,
+  estimatedDuration: 45,
   exercises: [
-    {
-      id: 'barbell-squats',
-      name: 'Barbell Squats',
-      targetMuscle: 'Quads',
-      sets: 4,
-      reps: '6-8',
-      restTime: 120,
-      notes: 'King of leg exercises. Depth to at least parallel.',
-    },
     {
       id: 'leg-press',
       name: 'Leg Press',
@@ -318,15 +214,6 @@ export const LEG_DAY_A: WorkoutTemplate = {
       reps: '12-15',
       restTime: 60,
       notes: 'Step far enough forward. Keep torso upright.',
-    },
-    {
-      id: 'romanian-deadlift',
-      name: 'Romanian Deadlift',
-      targetMuscle: 'Hamstrings',
-      sets: 3,
-      reps: '8-10',
-      restTime: 90,
-      notes: 'Feel stretch in hamstrings. Slight knee bend.',
     },
     {
       id: 'leg-curls',
@@ -355,17 +242,8 @@ export const LEG_DAY_B: WorkoutTemplate = {
   name: 'Leg Day - Hamstring Focus',
   type: 'leg-b',
   category: 'legs',
-  estimatedDuration: 65,
+  estimatedDuration: 40,
   exercises: [
-    {
-      id: 'front-squats',
-      name: 'Front Squats',
-      targetMuscle: 'Quads',
-      sets: 4,
-      reps: '6-8',
-      restTime: 120,
-      notes: 'Elbows high, chest up. More quad emphasis than back squat.',
-    },
     {
       id: 'bulgarian-split-squats',
       name: 'Bulgarian Split Squats',
@@ -374,24 +252,6 @@ export const LEG_DAY_B: WorkoutTemplate = {
       reps: '10-12',
       restTime: 90,
       notes: 'Rear foot elevated. Balance and control.',
-    },
-    {
-      id: 'hack-squats',
-      name: 'Hack Squats',
-      targetMuscle: 'Quads',
-      sets: 3,
-      reps: '10-12',
-      restTime: 90,
-      notes: 'Machine exercise. Deep squat, push through heels.',
-    },
-    {
-      id: 'stiff-leg-deadlift',
-      name: 'Stiff-Leg Deadlift',
-      targetMuscle: 'Hamstrings',
-      sets: 4,
-      reps: '8-10',
-      restTime: 90,
-      notes: 'Less knee bend than RDL. Feel deep hamstring stretch.',
     },
     {
       id: 'seated-leg-curls',
@@ -424,12 +284,32 @@ export const ALL_WORKOUT_TEMPLATES: WorkoutTemplate[] = [
   LEG_DAY_B,
 ];
 
+/**
+ * Enriches a workout template's exercises with media URLs (thumbnails and videos)
+ */
+function enrichWorkoutWithMedia(template: WorkoutTemplate): WorkoutTemplate {
+  return {
+    ...template,
+    exercises: template.exercises.map(exercise => {
+      const media = getExerciseMedia(exercise.name);
+      return {
+        ...exercise,
+        thumbnail_url: media.thumbnail,
+        video_url: media.video
+      };
+    })
+  };
+}
+
 // Helper function to get template by ID
 export function getWorkoutTemplate(id: string): WorkoutTemplate | undefined {
-  return ALL_WORKOUT_TEMPLATES.find((template) => template.id === id);
+  const template = ALL_WORKOUT_TEMPLATES.find((template) => template.id === id);
+  return template ? enrichWorkoutWithMedia(template) : undefined;
 }
 
 // Helper function to get all templates by category
 export function getWorkoutsByCategory(category: 'push' | 'pull' | 'legs'): WorkoutTemplate[] {
-  return ALL_WORKOUT_TEMPLATES.filter((template) => template.category === category);
+  return ALL_WORKOUT_TEMPLATES
+    .filter((template) => template.category === category)
+    .map(enrichWorkoutWithMedia);
 }

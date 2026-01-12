@@ -18,7 +18,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutCacheStore } from '@/store/workout-cache-store';
 import { useTimerStore } from '@/store/timer-store';
 import { useSubscriptionStore } from '@/store/subscription-store.js';
-import { wizardResultsService, userProgressService } from '@/db/services';
+import { wizardResultsService, userProgressService, activeWorkoutSessionService } from '@/db/services';
 import { colors, gradients, buttonStyles } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { formatDate } from '@/utils/helpers';
@@ -44,6 +44,28 @@ import { getWorkoutTemplate } from '@/lib/workout-templates';
 import { checkWorkoutAvailability, formatAvailabilityDate, type WorkoutAvailability } from '@/utils/workout-availability';
 import { ensureMinimumDuration } from '@/utils/workout-duration';
 
+// Exercise Thumbnail with Loading Spinner
+const ExerciseThumbnailWithLoader: React.FC<{ exerciseName: string }> = ({ exerciseName }) => {
+  const [loading, setLoading] = useState(true);
+
+  return (
+    <View style={styles.thumbnailWrapper}>
+      <Image
+        source={{ uri: getExerciseThumbnailUrl(exerciseName) }}
+        style={styles.exerciseThumbnail}
+        contentFit="cover"
+        onLoadStart={() => setLoading(true)}
+        onLoadEnd={() => setLoading(false)}
+        transition={200}
+      />
+      {loading && (
+        <View style={styles.thumbnailLoader}>
+          <ActivityIndicator size="small" color={colors.white} />
+        </View>
+      )}
+    </View>
+  );
+};
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -484,14 +506,15 @@ export default function HomeScreen() {
   // NEW: Action button handlers for workout card
   const handleSkipWorkout = async () => {
     if (!user?.id || !userProgressData) return;
-    
+
     setIsSkipping(true);
     try {
-      // Clear any active manual/cardio workout from cache FIRST
+      // Clear any active manual/cardio workout from cache
       useWorkoutCacheStore.getState().setManualWorkout(null);
-      
-      // Also clear the timer if a manual/cardio workout was active
       useTimerStore.getState().completeWorkout();
+      
+      // Delete active session from database
+      await activeWorkoutSessionService.delete(user.id);
       
       // Skip to next workout in rotation
       const nextWorkoutType = updateWorkoutProgression(userProgressData.currentWorkout);
@@ -520,14 +543,15 @@ export default function HomeScreen() {
 
   const handleRegenerateWorkout = async () => {
     if (!user?.id || !userProgressData) return;
-    
+
     setIsRegenerating(true);
     try {
-      // Clear any active manual/cardio workout from cache FIRST
+      // Clear any active manual/cardio workout from cache
       useWorkoutCacheStore.getState().setManualWorkout(null);
-      
-      // Also clear the timer if a manual/cardio workout was active
       useTimerStore.getState().completeWorkout();
+      
+      // Delete active session from database
+      await activeWorkoutSessionService.delete(user.id);
       
       // Switch to alternate variation (A ↔ B)
       const alternateWorkout = getAlternateWorkout(userProgressData.currentWorkout);
@@ -703,11 +727,7 @@ export default function HomeScreen() {
         {/* Next Workout Preview */}
         {nextWorkout ? (
           <View style={styles.todaysWorkout}>
-            <TouchableOpacity 
-              style={styles.workoutCard}
-              onPress={handleStartWorkoutPress}
-              activeOpacity={0.9}
-            >
+            <View style={styles.workoutCard}>
               <LinearGradient
                 colors={gradients.card as [string, string, ...string[]]}
                 style={styles.workoutGradient}
@@ -725,10 +745,15 @@ export default function HomeScreen() {
                     <View style={styles.loadingWorkoutName} />
                   ) : (
                     <>
-                      {/* Workout Name */}
-                      <Text style={styles.workoutName}>{nextWorkout.name}</Text>
+                      {/* Workout Name - Clickable */}
+                      <TouchableOpacity 
+                        onPress={handleStartWorkoutPress}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.workoutName}>{nextWorkout.name}</Text>
+                      </TouchableOpacity>
                       
-                      {/* Exercise Thumbnails Row */}
+                      {/* Exercise Thumbnails Row - Scrollable */}
                       <ScrollView 
                         horizontal 
                         showsHorizontalScrollIndicator={false}
@@ -736,13 +761,10 @@ export default function HomeScreen() {
                         contentContainerStyle={styles.thumbnailsContent}
                       >
                         {nextWorkout.exercises.slice(0, 6).map((exercise: any, idx: number) => (
-                          <View key={exercise.id} style={styles.thumbnailWrapper}>
-                            <Image
-                              source={{ uri: getExerciseThumbnailUrl(exercise.name) }}
-                              style={styles.exerciseThumbnail}
-                              contentFit="cover"
-                            />
-                          </View>
+                          <ExerciseThumbnailWithLoader 
+                            key={exercise.id} 
+                            exerciseName={exercise.name}
+                          />
                         ))}
                       </ScrollView>
                       
@@ -762,10 +784,7 @@ export default function HomeScreen() {
                       styles.actionButton, 
                       (isWorkoutActive || isSkipping || isRegenerating) && styles.actionButtonDisabled
                     ]} 
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleSkipWorkout();
-                    }}
+                    onPress={handleSkipWorkout}
                     disabled={isWorkoutActive || isSkipping || isRegenerating}
                   >
                     {isSkipping ? (
@@ -784,10 +803,7 @@ export default function HomeScreen() {
                       styles.actionButton, 
                       (isWorkoutActive || isSkipping || isRegenerating) && styles.actionButtonDisabled
                     ]} 
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleRegenerateWorkout();
-                    }}
+                    onPress={handleRegenerateWorkout}
                     disabled={isWorkoutActive || isSkipping || isRegenerating}
                   >
                     {isRegenerating ? (
@@ -803,10 +819,7 @@ export default function HomeScreen() {
                   {/* Duration Button */}
                   <TouchableOpacity 
                     style={styles.actionButton} 
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleAdjustDuration();
-                    }}
+                    onPress={handleAdjustDuration}
                   >
                     <Icon name="clock" size={20} color={colors.white} />
                     <Text style={styles.actionButtonText}>Duration</Text>
@@ -815,17 +828,14 @@ export default function HomeScreen() {
                   {/* Share Button */}
                   <TouchableOpacity 
                     style={styles.actionButton} 
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleShareWorkout();
-                    }}
+                    onPress={handleShareWorkout}
                   >
                     <Icon name="send" size={20} color={colors.white} />
                     <Text style={styles.actionButtonText}>Share</Text>
                   </TouchableOpacity>
                 </View>
               </LinearGradient>
-            </TouchableOpacity>
+            </View>
           </View>
         ) : null}
             
@@ -1238,6 +1248,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: colors.darkGray,
+    position: 'relative',
+  },
+  thumbnailLoader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 2,
   },
   exerciseThumbnail: {
     width: '100%',
@@ -1251,7 +1273,6 @@ const styles = StyleSheet.create({
   actionButtonsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
     gap: 8,
     paddingHorizontal: 20,
   },
@@ -1263,7 +1284,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
     paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     gap: 4,
   },
   actionButtonText: {

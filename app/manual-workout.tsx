@@ -18,7 +18,7 @@ import { Feather as Icon } from '@expo/vector-icons';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
-import { userProgressService } from '@/db/services';
+import { userProgressService, activeWorkoutSessionService } from '@/db/services';
 import { useWorkoutCacheStore } from '@/store/workout-cache-store';
 import { exerciseDatabase, ExerciseData } from '@/constants/exercise-database';
 
@@ -68,8 +68,8 @@ const ALLOWED_EXERCISE_NAMES = [
 ];
 
 // Filter to only include the 36 allowed exercises
-const AVAILABLE_EXERCISES = exerciseDatabase.filter(ex => 
-  ALLOWED_EXERCISE_NAMES.some(name => 
+const AVAILABLE_EXERCISES = exerciseDatabase.filter(ex =>
+  ALLOWED_EXERCISE_NAMES.some(name =>
     ex.name.toLowerCase().includes(name.toLowerCase()) ||
     name.toLowerCase().includes(ex.name.toLowerCase())
   )
@@ -199,8 +199,17 @@ export default function ManualWorkoutScreen() {
           reps: '10', // Default reps per set
           restTime: 60, // Default rest time
           notes: '',
+          thumbnail_url: ex.thumbnail_url, // CRITICAL: Preserve media URLs
+          video_url: ex.video_url, // CRITICAL: Preserve media URLs
         })),
       };
+
+      // CRITICAL: Create active session for manual workout
+      await activeWorkoutSessionService.create(
+        user.id,
+        'manual',
+        workoutName.trim()
+      );
 
       // Save workout data to cache store for workout-session to use
       const { setManualWorkout } = useWorkoutCacheStore.getState();

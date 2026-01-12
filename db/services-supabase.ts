@@ -20,7 +20,12 @@ import type {
   UserWizardResults,
   NewUserWizardResults,
   SyncStatus,
+  ActiveWorkoutSession,
+  NewActiveWorkoutSession,
 } from './schema-postgres';
+
+// Import Active Workout Session Service
+export { activeWorkoutSessionService } from './services/active-workout-session-service';
 
 // Helper to generate a proper UUID v4
 function generateUUID(): string {

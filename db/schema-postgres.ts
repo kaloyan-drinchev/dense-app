@@ -53,6 +53,18 @@ export const exercises = pgTable('exercises', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Active Workout Sessions Table - Temporary storage for in-progress workouts
+export const activeWorkoutSessions = pgTable('active_workout_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull(),
+  workoutType: text('workout_type').notNull(), // 'push-a', 'push-b', 'pull-a', 'pull-b', 'leg-a', 'leg-b', 'manual', 'cardio'
+  workoutName: text('workout_name').notNull(),
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  sessionData: jsonb('session_data').notNull().default('{}'), // Exercise completion status, sets, reps, weights
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // User Progress Table
 export const userProgress = pgTable('user_progress', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -156,6 +168,9 @@ export type NewProgram = typeof programs.$inferInsert;
 
 export type Exercise = typeof exercises.$inferSelect;
 export type NewExercise = typeof exercises.$inferInsert;
+
+export type ActiveWorkoutSession = typeof activeWorkoutSessions.$inferSelect;
+export type NewActiveWorkoutSession = typeof activeWorkoutSessions.$inferInsert;
 
 export type UserProgress = typeof userProgress.$inferSelect;
 export type NewUserProgress = typeof userProgress.$inferInsert;

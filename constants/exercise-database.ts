@@ -1,14 +1,19 @@
 // Comprehensive exercise database for custom exercise selection
 // Organized by muscle group for better searchability
 
+import { getExerciseMedia } from '@/lib/exercise-media-map';
+
 export interface ExerciseData {
   id: string;
   name: string;
   category: string;
   targetMuscle: string;
+  thumbnail_url?: string;
+  video_url?: string;
 }
 
-export const exerciseDatabase: ExerciseData[] = [
+// Base exercise database without media URLs
+const baseExerciseDatabase: ExerciseData[] = [
   // CHEST EXERCISES
   { id: 'barbell-bench-press', name: 'Barbell Bench Press', category: 'Chest', targetMuscle: 'Chest' },
   { id: 'incline-barbell-bench', name: 'Incline Barbell Bench Press', category: 'Chest', targetMuscle: 'Upper Chest' },
@@ -170,14 +175,38 @@ export const exerciseDatabase: ExerciseData[] = [
   { id: 'couch-stretch', name: 'Couch Stretch', category: 'Mobility', targetMuscle: 'Hip Flexors' },
 ];
 
-// Helper function to search exercises
+/**
+ * Enriches an exercise with media URLs (thumbnail and video)
+ */
+function enrichExerciseWithMedia(exercise: ExerciseData): ExerciseData {
+  const media = getExerciseMedia(exercise.name);
+  return {
+    ...exercise,
+    thumbnail_url: media.thumbnail,
+    video_url: media.video
+  };
+}
+
+/**
+ * Enriches all exercises with media URLs
+ */
+function enrichExercisesWithMedia(exercises: ExerciseData[]): ExerciseData[] {
+  return exercises.map(enrichExerciseWithMedia);
+}
+
+/**
+ * Exercise database with media URLs included
+ * Use this for displaying exercises in the UI
+ */
+export const exerciseDatabase: ExerciseData[] = enrichExercisesWithMedia(baseExerciseDatabase);
+
+// Helper function to search exercises (already enriched)
 export const searchExercises = (query: string): ExerciseData[] => {
   if (!query || query.trim().length === 0) {
     return exerciseDatabase;
   }
   
   const lowerQuery = query.toLowerCase().trim();
-  
   return exerciseDatabase.filter(exercise => 
     exercise.name.toLowerCase().includes(lowerQuery) ||
     exercise.category.toLowerCase().includes(lowerQuery) ||
@@ -185,7 +214,7 @@ export const searchExercises = (query: string): ExerciseData[] => {
   );
 };
 
-// Get exercise by ID
+// Get exercise by ID (already enriched)
 export const getExerciseById = (id: string): ExerciseData | undefined => {
   return exerciseDatabase.find(ex => ex.id === id);
 };

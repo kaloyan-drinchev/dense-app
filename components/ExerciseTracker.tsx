@@ -20,7 +20,7 @@ import { colors } from '@/constants/colors';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutCacheStore } from '@/store/workout-cache-store';
-import { userProgressService } from '@/db/services';
+import { userProgressService, activeWorkoutSessionService } from '@/db/services';
 import { generateId } from '@/utils/helpers';
 import { Feather as Icon } from '@expo/vector-icons';
 import { typography } from '@/constants/typography';
@@ -110,7 +110,6 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     
     // OPTIMIZATION: Skip PR data for manual workout exercises (they have unique session IDs)
     if (exerciseKey.startsWith('manual-')) {
-      console.log(`⏩ [ExerciseTracker] Skipping PR data for manual exercise`);
       setExerciseLogs({});
       setExercisePRs({});
       setBeatLastSuggestions([]);
@@ -119,8 +118,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     }
     
     const prStart = performance.now();
-    console.log(`⏱️ [ExerciseTracker] Loading PR data for: ${exerciseKey}`);
-    
+
     try {
       // OPTIMIZATION: Try cache first to avoid database fetch
       const cache = useWorkoutCacheStore.getState();
@@ -130,9 +128,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       if (!progress || !cache.isCacheValid()) {
         const fetchStart = performance.now();
         progress = await userProgressService.getByUserId(user.id);
-        console.log(`⏱️ [ExerciseTracker] PR data fetch: ${(performance.now() - fetchStart).toFixed(0)}ms`);
       } else {
-        console.log(`⏱️ [ExerciseTracker] Using cached PR data`);
+        // Using cached PR data
       }
       
       if (progress?.weeklyWeights) {
@@ -155,7 +152,6 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         setBeatLastSuggestions(suggestions);
       }
       setIsPRDataLoaded(true);
-      console.log(`⏱️ [ExerciseTracker] Total loadPRData: ${(performance.now() - prStart).toFixed(0)}ms`);
     } catch (error) {
       console.error('Failed to load PR data:', error);
       setIsPRDataLoaded(true); // Set to true even on error to prevent infinite loading
@@ -165,8 +161,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   // Load session data function (reusable)
   const loadSessionData = async () => {
     const loadStart = performance.now();
-    console.log(`⏱️ [ExerciseTracker] Loading session for: ${exerciseKey}`);
-    
+
     if (presetSession) {
       const limitedSets = presetSession.sets.slice(0, MAX_SETS);
       const hydrated: ExerciseSet[] = (limitedSets.length > 0
@@ -176,13 +171,11 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       setUnit(presetSession.unit || 'kg');
       setSets(hydrated);
       setIsLoadingSets(false);
-      console.log(`⏱️ [ExerciseTracker] Preset session loaded: ${(performance.now() - loadStart).toFixed(0)}ms`);
       return;
     }
     
     // OPTIMIZATION: Skip session loading for manual exercises (they always start fresh)
     if (exerciseKey.startsWith('manual-')) {
-      console.log(`⏩ [ExerciseTracker] Skipping session load for manual exercise (starting fresh)`);
       setIsLoadingSets(false);
       return;
     }
@@ -193,39 +186,34 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       return;
     }
     try {
-      // Use passed progress data instead of fetching from DB
-      let todaySession = null;
-      if (propUserProgressData) {
-        // Use passed progress data (from cache)
-        const weeklyWeights = typeof propUserProgressData.weeklyWeights === 'string'
-          ? JSON.parse(propUserProgressData.weeklyWeights)
-          : propUserProgressData.weeklyWeights;
+      // CRITICAL: Check active session FIRST (in-progress workout data)
+      const activeSession = await activeWorkoutSessionService.getActive(user.id);
+
+      if (activeSession?.session_data?.exercises?.[exerciseKey]) {
+        const exerciseData = activeSession.session_data.exercises[exerciseKey];
+        const activeSets = exerciseData.sets || [];
         
-        const today = new Date().toISOString().split('T')[0];
-        const sessions = weeklyWeights?.exerciseLogs?.[exerciseKey] || [];
-        
-        // Simple: Just check today's date
-        todaySession = sessions.find((session: any) => session.date === today);
-      } else {
-        // Fallback to DB fetch if no progress data passed
-        todaySession = await userProgressService.getTodayExerciseSession(user.id, exerciseKey);
+        if (activeSets.length > 0) {
+          setUnit('kg'); // All weights stored in kg
+          
+          const limitedSets = activeSets.slice(0, MAX_SETS);
+          const hydrated: ExerciseSet[] = limitedSets.map((s: any) => ({ 
+            id: generateId(), 
+            reps: s.reps || 0, 
+            weight: s.weightKg || 0, 
+            isCompleted: !!s.isCompleted 
+          }));
+          setSets(hydrated);
+          setIsLoadingSets(false);
+          return;
+        }
       }
-      
-      if (todaySession?.sets && todaySession.sets.length > 0) {
-        setUnit(todaySession.unit || 'kg');
-        const limitedSets = todaySession.sets.slice(0, MAX_SETS);
-        const hydrated: ExerciseSet[] = limitedSets.map((s) => ({ 
-          id: generateId(), 
-          reps: s.reps || 0, 
-          weight: s.weightKg || 0, 
-          isCompleted: !!s.isCompleted 
-        }));
-        setSets(hydrated);
-      }
+
+      // No active session = fresh workout = start with empty sets (don't load old data)
+      setIsLoadingSets(false);
     } catch (e) {
       // If no previous session found, start with empty sets
       console.error('❌ Error loading session, starting fresh:', e);
-    } finally {
       setIsLoadingSets(false);
     }
   };
@@ -487,18 +475,14 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     const isManualExercise = exerciseKey.startsWith('manual-');
     
     if (isManualExercise) {
-      console.log('🚀 [ExerciseTracker] Fast completion path for manual exercise');
-      
       try {
         // Save to database (still needed for history tracking)
         await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
-        console.log('✅ [ExerciseTracker] Manual exercise completed and saved');
-        
+
         // Update cache so workout-session shows completed badge
         const freshProgress = await userProgressService.getByUserId(user.id);
         if (freshProgress) {
           useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
-          console.log('✅ [ExerciseTracker] Cache updated for manual exercise');
         }
         
         // Navigate back
@@ -565,15 +549,26 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     }
     
     try {
-      // STEP 2: Save to database to ensure data consistency
-      await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
-      
-      // STEP 3: Sync cache with database IMMEDIATELY for instant status update
-      const freshProgress = await userProgressService.getByUserId(user.id);
-      if (freshProgress) {
-        console.log('✅ [ExerciseTracker] Cache updated with fresh data after completion');
-        useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
+      // STEP 2: Save to ACTIVE SESSION (not permanent storage)
+      // Get or create active session
+      let session = await activeWorkoutSessionService.getActive(user.id);
+      if (!session) {
+        // Create new session if none exists
+        const isManualExercise = exerciseKey.startsWith('manual-');
+        const workoutType = isManualExercise ? 'manual' : (currentProgress?.currentWorkout || 'push-a');
+        session = await activeWorkoutSessionService.create(user.id, workoutType, exercise.name);
       }
+
+      // Update session with exercise completion
+      const sessionData = session.session_data || { exercises: {}, startTime: new Date().toISOString(), lastUpdated: new Date().toISOString() };
+      if (!sessionData.exercises) sessionData.exercises = {};
+
+      sessionData.exercises[exerciseKey] = {
+        completed: true,
+        sets: payload.sets
+      };
+
+      await activeWorkoutSessionService.updateSessionData(session.id, sessionData);
       
       // Show success feedback - DISABLED
       // if (Platform.OS !== 'web') {
