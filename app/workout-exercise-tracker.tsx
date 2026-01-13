@@ -19,6 +19,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutCacheStore } from '@/store/workout-cache-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
 import { ExerciseTracker } from '@/components/ExerciseTracker';
+import { FloatingButton } from '@/components/FloatingButton';
 import {
   Feather as Icon,
 } from '@expo/vector-icons';
@@ -33,6 +34,14 @@ export default function WorkoutExerciseTrackerScreen() {
   const [isExerciseCompleted, setIsExerciseCompleted] = useState(false);
   const [userProgressData, setUserProgressData] = useState<any>(null);
   const isCustomExercise = exerciseId?.startsWith('custom-');
+  
+  // Complete button state from ExerciseTracker
+  const [completeButtonState, setCompleteButtonState] = useState<{
+    allCompleted: boolean;
+    isCompleting: boolean;
+    isLoading: boolean;
+    onComplete: () => void;
+  } | null>(null);
 
   useEffect(() => {
     loadExerciseData();
@@ -385,6 +394,8 @@ export default function WorkoutExerciseTrackerScreen() {
                 registerSave={(fn) => {
                   // hook for future if we add custom back handling
                 }}
+                hideCompleteButton={true}
+                onCompleteStateChange={setCompleteButtonState}
               />
 
           {exercise.notes && (
@@ -395,6 +406,16 @@ export default function WorkoutExerciseTrackerScreen() {
           )}
           </View>
         </ScrollView>
+        )}
+        
+        {/* Floating Complete Button - Always visible at bottom */}
+        {exercise && completeButtonState && (
+          <FloatingButton
+            text={completeButtonState.allCompleted ? 'Completed' : 'Complete Exercise'}
+            onPress={completeButtonState.onComplete}
+            disabled={completeButtonState.allCompleted || completeButtonState.isLoading || completeButtonState.isCompleting}
+            icon={!completeButtonState.allCompleted ? 'check' : undefined}
+          />
         )}
         
         {/* Loading Overlay - Only shows for completed exercises */}
@@ -471,7 +492,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 0,
-    paddingBottom: 32,
+    paddingBottom: 120, // Extra padding for floating button
   },
   exerciseImageContainer: {
     width: '100%',

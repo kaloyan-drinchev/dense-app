@@ -41,7 +41,7 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="Home/index"
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => (
@@ -50,7 +50,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="nutrition"
+        name="Nutrition/index"
         options={{
           title: 'Nutrition',
           tabBarIcon: ({ color }) => (
@@ -59,7 +59,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="progress"
+        name="Progress/index"
         options={{
           title: 'Progress',
           tabBarIcon: ({ color }) => (
@@ -68,7 +68,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="Settings/index"
         options={{
           title: 'Settings',
           tabBarIcon: ({ color }) => (
@@ -77,25 +77,8 @@ export default function TabLayout() {
         }}
       />
       {/* Programs tab removed - now accessible via home screen card */}
-      <Tabs.Screen
-        name="programs"
-        options={{
-          href: null, // Hide from tab bar
-          headerShown: true,
-          headerTitle: '',
-          headerLeft: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 16, gap: 12 }}>
-              <TouchableOpacity onPress={() => router.back()}>
-                <Icon name="arrow-left" size={24} color={colors.white} />
-              </TouchableOpacity>
-              <Text style={{ ...typography.h3, color: colors.white }}>Programs</Text>
-            </View>
-          ),
-        }}
-      />
+    
       </Tabs>
-      
-
 
       {/* Floating AI Assistant Button - Temporarily Removed */}
       {/* <TouchableOpacity
@@ -116,46 +99,46 @@ export default function TabLayout() {
     </View>
   );
 }
+// ai styles
+// const styles = StyleSheet.create({
 
-const styles = StyleSheet.create({
-
-  floatingButton: {
-    position: 'absolute',
-    bottom: 85, // 15px above the 70px tab bar
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    zIndex: 1000,
-  },
-  badge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#FF9800',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  badgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-  },
-});
+//   floatingButton: {
+//     position: 'absolute',
+//     bottom: 85, // 15px above the 70px tab bar
+//     right: 20,
+//     width: 60,
+//     height: 60,
+//     borderRadius: 30,
+//     backgroundColor: '#4CAF50',
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//     elevation: 8,
+//     shadowColor: '#000',
+//     shadowOffset: {
+//       width: 0,
+//       height: 4,
+//     },
+//     shadowOpacity: 0.3,
+//     shadowRadius: 8,
+//     zIndex: 1000,
+//   },
+//   badge: {
+//     position: 'absolute',
+//     top: -2,
+//     right: -2,
+//     width: 16,
+//     height: 16,
+//     borderRadius: 8,
+//     backgroundColor: '#FF9800',
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//     borderWidth: 2,
+//     borderColor: '#FFFFFF',
+//   },
+//   badgeDot: {
+//     width: 6,
+//     height: 6,
+//     borderRadius: 3,
+//     backgroundColor: '#FFFFFF',
+//   },
+// });

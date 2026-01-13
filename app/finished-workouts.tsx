@@ -18,12 +18,14 @@ type CompletedEntry = {
   duration?: number; // in seconds
   percentageSuccess?: number; // completion percentage
   totalVolume?: number; // total volume lifted in kg
+  caloriesBurned?: number; // calories burned (for cardio workouts)
   exercises?: Array<{
     name: string;
     sets: number;
     completedSets: number;
     totalReps: number;
     totalVolume: number;
+    caloriesBurned?: number;
   }>;
 };
 
@@ -78,12 +80,14 @@ export default function FinishedWorkoutsScreen() {
           setTotalVolumeLifted(0);
         }
         const wiz = await wizardResultsService.getByUserId(user.id);
-        if (wiz?.generatedSplit) {
+        // Cast to any to access legacy field (generatedSplit)
+        const legacyWiz = wiz as any;
+        if (legacyWiz?.generatedSplit) {
           // Handle both string (JSON) and object (JSONB) types
           try { 
-            setProgram(typeof wiz.generatedSplit === 'string' 
-              ? JSON.parse(wiz.generatedSplit) 
-              : wiz.generatedSplit); 
+            setProgram(typeof legacyWiz.generatedSplit === 'string' 
+              ? JSON.parse(legacyWiz.generatedSplit) 
+              : legacyWiz.generatedSplit); 
           } catch {}
         }
       } catch (e) {

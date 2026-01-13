@@ -8,7 +8,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, RelativePathString } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
@@ -248,7 +248,7 @@ export default function WorkoutOverviewScreen() {
           {/* Action Button */}
           <TouchableOpacity 
             style={styles.homeButton}
-            onPress={() => router.push('/(tabs)')}
+            onPress={() => router.push('/(tabs)/Home')}
           >
             <LinearGradient
               colors={[colors.primary, colors.secondary]}

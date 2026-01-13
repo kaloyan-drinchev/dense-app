@@ -16,6 +16,19 @@ export {
   activeWorkoutSessionService,
 } from './services-supabase';
 
+// New workout session service (Template/Session architecture)
+export { workoutSessionService } from './services/workout-session-service';
+export type {
+  WorkoutTemplate,
+  TemplateExercise,
+  WorkoutSession,
+  SessionExercise,
+  SessionSet,
+  SessionExerciseWithSets,
+  WorkoutSessionWithExercises,
+  WorkoutTemplateWithExercises,
+} from '@/types/workout-session';
+
 // Re-export types from PostgreSQL schema
 export type {
   UserProfile,

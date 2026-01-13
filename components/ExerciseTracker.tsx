@@ -44,6 +44,8 @@ interface ExerciseTrackerProps {
     sets: Array<{ setNumber: number; weightKg: number; reps: number; isCompleted: boolean }>;
   };
   userProgressData?: any; // Pass cached progress to avoid expensive DB fetch
+  hideCompleteButton?: boolean; // Hide internal button (parent will render floating button)
+  onCompleteStateChange?: (state: { allCompleted: boolean; isCompleting: boolean; isLoading: boolean; onComplete: () => void }) => void;
 }
 
 export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
@@ -53,6 +55,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   readOnly = false,
   presetSession,
   userProgressData: propUserProgressData,
+  hideCompleteButton = false,
+  onCompleteStateChange,
 }) => {
   const router = useRouter();
   const MAX_SETS = 8;
@@ -102,6 +106,56 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
   // PR Celebration Modal state
   const [showPRModal, setShowPRModal] = useState(false);
   const [achievedPRs, setAchievedPRs] = useState<PersonalRecord[]>([]);
+
+  // Rest timer state
+  const [restTimerActive, setRestTimerActive] = useState(false);
+  const [restTimeRemaining, setRestTimeRemaining] = useState(90); // 1:30 in seconds
+  const restTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Exercise finalization state (tracks if user clicked "Complete Exercise" button)
+  const [isExerciseFinalized, setIsExerciseFinalized] = useState(false);
+
+  // Start rest timer when a set is checked
+  const startRestTimer = () => {
+    // Clear any existing timer
+    if (restTimerRef.current) {
+      clearInterval(restTimerRef.current);
+    }
+    
+    setRestTimeRemaining(90); // Reset to 1:30
+    setRestTimerActive(true);
+    
+    restTimerRef.current = setInterval(() => {
+      setRestTimeRemaining((prev) => {
+        if (prev <= 1) {
+          // Timer finished
+          if (restTimerRef.current) {
+            clearInterval(restTimerRef.current);
+            restTimerRef.current = null;
+          }
+          setRestTimerActive(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (restTimerRef.current) {
+        clearInterval(restTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Format rest time as MM:SS
+  const formatRestTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
 
   // Load PR data function (moved outside useEffect for reuse)
@@ -307,10 +361,41 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     const updatedSets = sets.map((set) =>
       set.id === setId ? { ...set, reps: numReps } : set
     );
-    
+
     setSets(updatedSets);
     updateExerciseSet(exerciseKey, setId, { reps: numReps });
     hasUserEditedRef.current = true;
+    scheduleAutoSave();
+  };
+
+  const handleToggleSetComplete = (setId: string) => {
+    if (readOnly || isExerciseFinalized) return;
+    hasUserEditedRef.current = true;
+    
+    const set = sets.find((s) => s.id === setId);
+    if (!set) return;
+    
+    // Toggle completion
+    const newCompleted = !set.isCompleted;
+    const updatedSets = sets.map((s) =>
+      s.id === setId ? { ...s, isCompleted: newCompleted } : s
+    );
+    
+    setSets(updatedSets);
+    updateExerciseSet(exerciseKey, setId, { isCompleted: newCompleted });
+    
+    // Start rest timer when checking a set (if it has weight and reps)
+    if (newCompleted && set.weight > 0 && set.reps > 0) {
+      startRestTimer();
+    } else if (!newCompleted) {
+      // Stop timer when unchecking
+      if (restTimerRef.current) {
+        clearInterval(restTimerRef.current);
+        restTimerRef.current = null;
+      }
+      setRestTimerActive(false);
+    }
+    
     scheduleAutoSave();
   };
 
@@ -383,15 +468,15 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     try {
       await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
       setSaveStatus('saved');
-      
+
       // Don't update cache on auto-save - only update when exercise is completed
       // Auto-save happens on every weight/reps change, which would mark as "in-progress"
       // Only update cache in completeExercise() to avoid incorrect status
-      
+
       // Don't reload session data after save - it creates an infinite loop
       // The data is already correct in memory
       // await loadSessionData();
-      
+
       // OPTIMIZATION: Don't reload PR data on auto-save - PRs only change on exercise completion
       // This was causing performance issues as it refetched and reanalyzed data on every edit
       // PR data is loaded on mount and after exercise completion, which is sufficient
@@ -419,17 +504,29 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     }, 250);
   };
 
-  // Check if all sets are completed
-  const allSetsCompleted = sets.every(s => s.isCompleted && s.weight > 0 && s.reps > 0);
+  // Check if at least one set is completed (ready to complete, but not finalized yet)
+  const allSetsChecked = sets.some(s => s.isCompleted && s.weight > 0 && s.reps > 0);
+
+  // Notify parent of completion state changes
+  useEffect(() => {
+    if (onCompleteStateChange) {
+      onCompleteStateChange({
+        allCompleted: isExerciseFinalized,
+        isCompleting: isCompletingExercise,
+        isLoading: isLoadingSets,
+        onComplete: handleCompleteExercise
+      });
+    }
+  }, [isExerciseFinalized, isCompletingExercise, isLoadingSets, onCompleteStateChange]);
 
   const handleCompleteExercise = async () => {
-    if (readOnly || allSetsCompleted) return;
-    
+    if (readOnly || isExerciseFinalized || !allSetsChecked) return;
+
     // Calculate completion data for modal
     const completedSets = sets.filter(s => s.isCompleted).length;
     const totalSets = sets.length;
     const completionPercentage = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
-    
+
     // Simple confirmation modal - no PR tracking
     setCompletionData({ percentage: completionPercentage, completed: completedSets, total: totalSets });
     setShowConfirmModal(true);
@@ -443,8 +540,8 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
     
     // IMMEDIATELY set completing flag to hide buttons
     setIsCompletingExercise(true);
-    
-    // Prepare the completed session data
+
+    // Prepare the completed session data (keep user's checked state)
     const updatedSets = sets.map((set) => {
       const reps = set.reps > 0 ? set.reps : 1;
       const weight = set.weight > 0 ? set.weight : 0;
@@ -452,20 +549,20 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         ...set,
         reps,
         weight,
-        isCompleted: true,
+        // Keep the user's checked state - don't force all to true
       };
     });
-    
+
     // IMMEDIATELY update local state to show completed status
     setSets(updatedSets);
-    
+
     const payload = {
       unit,
       sets: updatedSets.map((s, idx) => ({
         setNumber: idx + 1,
         weightKg: s.weight ?? 0,
         reps: s.reps ?? 0,
-        isCompleted: true,
+        isCompleted: s.isCompleted, // Use actual checked state
       })),
     };
     
@@ -485,7 +582,61 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
         }
         
-        // Navigate back
+        // NEW: Update new database system (mark ONLY checked sets as completed)
+        try {
+          const { workoutSessionService } = await import('@/db/services');
+          const activeSession = await workoutSessionService.getActiveSession(user.id);
+          if (activeSession) {
+            const sessionData = await workoutSessionService.getSessionWithExercises(activeSession.id);
+            const exerciseData = sessionData?.exercises.find((ex: any) => ex.exercise_id === exerciseKey);
+            if (exerciseData) {
+              // Only mark the sets that were actually checked by the user
+              for (const dbSet of exerciseData.sets || []) {
+                // Find the corresponding local set
+                const localSet = sets.find((s) => s.id === dbSet.id);
+                if (localSet && localSet.isCompleted) {
+                  // Only update if the set was checked
+                  await workoutSessionService.updateSet(dbSet.id, {
+                    is_completed: true,
+                    weight_kg: localSet.weight || 0,
+                    reps: localSet.reps || 0,
+                  });
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Failed to update new database system:', err);
+          // Don't fail the whole operation if new system fails
+        }
+        
+        // Mark as finalized
+        setIsExerciseFinalized(true);
+        
+        // OPTIMISTIC UPDATE: Update active session state immediately (don't wait for DB)
+        try {
+          const { workoutSessionService } = await import('@/db/services');
+          const activeSession = await workoutSessionService.getActiveSession(user.id);
+          if (activeSession) {
+            const sessionData = await workoutSessionService.getSessionWithExercises(activeSession.id);
+            // Update the exercise status in memory immediately
+            if (sessionData?.exercises) {
+              const exerciseIndex = sessionData.exercises.findIndex((ex: any) => ex.exercise_id === exerciseKey);
+              if (exerciseIndex !== -1) {
+                // Mark exercise as completed in cached state
+                sessionData.exercises[exerciseIndex].status = 'COMPLETED';
+                // Store in a temporary cache that workout screen can read
+                if (typeof window !== 'undefined') {
+                  (window as any).__optimisticSessionUpdate = sessionData;
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Failed to create optimistic update:', err);
+        }
+        
+        // Navigate back immediately (no delay!)
         router.back();
         return; // Exit early
       } catch (error) {
@@ -570,15 +721,67 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
 
       await activeWorkoutSessionService.updateSessionData(session.id, sessionData);
       
+      // NEW: Update new database system (mark ONLY checked sets as completed)
+      try {
+        const { workoutSessionService } = await import('@/db/services');
+        const activeSession = await workoutSessionService.getActiveSession(user.id);
+        if (activeSession) {
+          const sessionData = await workoutSessionService.getSessionWithExercises(activeSession.id);
+          const exerciseData = sessionData?.exercises.find((ex: any) => ex.exercise_id === exerciseKey);
+          if (exerciseData) {
+            // Only mark the sets that were actually checked by the user
+            for (const dbSet of exerciseData.sets || []) {
+              // Find the corresponding local set
+              const localSet = sets.find((s) => s.id === dbSet.id);
+              if (localSet && localSet.isCompleted) {
+                // Only update if the set was checked
+                await workoutSessionService.updateSet(dbSet.id, {
+                  is_completed: true,
+                  weight_kg: localSet.weight || 0,
+                  reps: localSet.reps || 0,
+                });
+              }
+            }
+            console.log(`✅ Exercise "${exerciseKey}" - completed sets saved to new database`);
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Failed to update new database system:', err);
+        // Don't fail the whole operation if new system fails
+      }
+      
       // Show success feedback - DISABLED
       // if (Platform.OS !== 'web') {
       //   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // }
       
-      // Keep completing flag active to show loader during navigation
-      // It will be reset when component unmounts or on the next screen
+      // Mark as finalized
+      setIsExerciseFinalized(true);
       
-      // Navigate back to workout session
+      // OPTIMISTIC UPDATE: Update active session state immediately (don't wait for DB)
+      try {
+        const { workoutSessionService } = await import('@/db/services');
+        const activeSession = await workoutSessionService.getActiveSession(user.id);
+        if (activeSession) {
+          const sessionData = await workoutSessionService.getSessionWithExercises(activeSession.id);
+          // Update the exercise status in memory immediately
+          if (sessionData?.exercises) {
+            const exerciseIndex = sessionData.exercises.findIndex((ex: any) => ex.exercise_id === exerciseKey);
+            if (exerciseIndex !== -1) {
+              // Mark exercise as completed in cached state
+              sessionData.exercises[exerciseIndex].status = 'COMPLETED';
+              // Store in a temporary cache that workout screen can read
+              if (typeof window !== 'undefined') {
+                (window as any).__optimisticSessionUpdate = sessionData;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Failed to create optimistic update:', err);
+      }
+      
+      // Navigate back immediately (no delay!)
       router.back();
       
     } catch (e) {
@@ -667,7 +870,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
           <Text style={styles.title}>{exercise.name}</Text>
           <Text style={styles.subtitle}>{exercise.targetMuscle}</Text>
         </View>
-        {!allSetsCompleted && (
+        {!isExerciseFinalized && (
         <TouchableOpacity 
           style={styles.historyButton}
           onPress={() => router.push(`/exercise-history?exerciseId=${exerciseKey}&exerciseName=${encodeURIComponent(exercise.name)}`)}
@@ -679,7 +882,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       </View> */}
       
       {/* Completed Badge - Simple and Clean */}
-      {allSetsCompleted && (
+      {isExerciseFinalized && (
         <View style={styles.completedBanner}>
           <Icon name="check-circle" size={20} color={colors.success} />
           <Text style={styles.completedBannerText}>Completed</Text>
@@ -687,7 +890,7 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
       )}
       
       {/* Beat Last Workout Suggestions - Hidden when completed */}
-      {!allSetsCompleted && false && !readOnly && beatLastSuggestions.length > 0 && showSuggestions && isPRDataLoaded && (
+      {!isExerciseFinalized && false && !readOnly && beatLastSuggestions.length > 0 && showSuggestions && isPRDataLoaded && (
         <View style={styles.suggestionsContainer}>
           <View style={styles.suggestionsHeader}>
             <Icon name="target" size={16} color={colors.primary} />
@@ -770,28 +973,28 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             <View style={styles.weightColumn}>
               <View style={[styles.inputContainer, !editable && styles.disabledField]}>
                 <TouchableOpacity
-                  style={[styles.adjustButton, (!editable || allSetsCompleted) && styles.disabledButton]}
+                  style={[styles.adjustButton, (!editable || isExerciseFinalized) && styles.disabledButton]}
                   onPress={() => handleAdjustWeight(set.id, unit === 'kg' ? -2.5 : -5)}
-                  disabled={!editable || allSetsCompleted}
+                  disabled={!editable || isExerciseFinalized}
                   activeOpacity={1}
                 >
                   <Icon name="minus" size={16} color={colors.white} />
                 </TouchableOpacity>
 
                 <TextInput
-                  style={[styles.input, (!editable || allSetsCompleted) && styles.inputDisabled]}
+                  style={[styles.input, (!editable || isExerciseFinalized) && styles.inputDisabled]}
                   value={toDisplayWeight(set.weight)}
                   onChangeText={(text) => handleWeightChange(set.id, text)}
                   keyboardType="numeric"
                   placeholderTextColor={colors.lightGray}
                   placeholder={`0 (max ${MAX_WEIGHT_KG}${unit})`}
-                  editable={editable && !readOnly && !allSetsCompleted}
+                  editable={editable && !readOnly && !isExerciseFinalized}
                 />
 
                 <TouchableOpacity
-                  style={[styles.adjustButton, (!editable || allSetsCompleted) && styles.disabledButton]}
+                  style={[styles.adjustButton, (!editable || isExerciseFinalized) && styles.disabledButton]}
                   onPress={() => handleAdjustWeight(set.id, unit === 'kg' ? 2.5 : 5)}
-                  disabled={!editable || allSetsCompleted}
+                  disabled={!editable || isExerciseFinalized}
                   activeOpacity={1}
                 >
                   <Icon name="plus" size={16} color={colors.white} />
@@ -802,53 +1005,111 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
             <View style={styles.repsColumn}>
               <View style={[styles.inputContainer, !editable && styles.disabledField]}>
                 <TouchableOpacity
-                  style={[styles.adjustButton, (!editable || set.reps <= 0 || allSetsCompleted) && styles.disabledButton]}
+                  style={[styles.adjustButton, (!editable || set.reps <= 0 || isExerciseFinalized) && styles.disabledButton]}
                   onPress={() => handleAdjustReps(set.id, -1)}
-                  disabled={!editable || set.reps <= 0 || allSetsCompleted}
+                  disabled={!editable || set.reps <= 0 || isExerciseFinalized}
                   activeOpacity={1}
                 >
                   <Icon name="minus" size={16} color={colors.white} />
                 </TouchableOpacity>
 
                 <TextInput
-                  style={[styles.input, (!editable || allSetsCompleted) && styles.inputDisabled]}
+                  style={[styles.input, (!editable || isExerciseFinalized) && styles.inputDisabled]}
                   value={set.reps.toString()}
                   onChangeText={(text) => handleRepsChange(set.id, text)}
                   keyboardType="numeric"
                   placeholderTextColor={colors.lightGray}
                   placeholder={`0 (max ${MAX_REPS})`}
-                  editable={editable && !readOnly && !allSetsCompleted}
+                  editable={editable && !readOnly && !isExerciseFinalized}
                 />
 
                 <TouchableOpacity
-                  style={[styles.adjustButton, (!editable || allSetsCompleted) && styles.disabledButton]}
+                  style={[styles.adjustButton, (!editable || isExerciseFinalized) && styles.disabledButton]}
                   onPress={() => handleAdjustReps(set.id, 1)}
-                  disabled={!editable || allSetsCompleted}
+                  disabled={!editable || isExerciseFinalized}
                   activeOpacity={1}
                 >
                   <Icon name="plus" size={16} color={colors.white} />
                 </TouchableOpacity>
               </View>
             </View>
+
+            {/* Checkbox Column */}
+            {!readOnly && (
+              <View style={styles.checkboxColumn}>
+                <TouchableOpacity
+                  style={[
+                    styles.checkbox,
+                    set.isCompleted && styles.checkboxChecked,
+                    isExerciseFinalized && styles.disabledButton
+                  ]}
+                  onPress={() => handleToggleSetComplete(set.id)}
+                  disabled={isExerciseFinalized}
+                  activeOpacity={0.7}
+                >
+                  {set.isCompleted && (
+                    <Icon name="check" size={16} color={colors.black} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         );
         })
       )}
 
+      {/* Rest Timer Banner */}
+      {restTimerActive && !readOnly && (
+        <View style={styles.restTimerBanner}>
+          <LinearGradient
+            colors={[
+              'rgba(132, 204, 22, 0.15)',
+              'rgba(34, 197, 94, 0.1)',
+              'rgba(20, 25, 35, 0.8)',
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.restTimerGradient}
+          >
+            <View style={styles.restTimerContent}>
+              <View style={styles.restTimerLeft}>
+                <Text style={styles.restTimerTitle}>REST TIME</Text>
+                <Text style={styles.restTimerSubtext}>Recover before next set</Text>
+              </View>
+              <View style={styles.restTimerRight}>
+                <Text style={styles.restTimerTime}>{formatRestTime(restTimeRemaining)}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (restTimerRef.current) {
+                      clearInterval(restTimerRef.current);
+                      restTimerRef.current = null;
+                    }
+                    setRestTimerActive(false);
+                  }}
+                  style={styles.restTimerSkip}
+                >
+                  <Text style={styles.restTimerSkipText}>Skip</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+      )}
+
       {!readOnly && (
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={[styles.secondaryButton, (sets.length <= MIN_SETS || allSetsCompleted || isLoadingSets || isCompletingExercise) && styles.disabledButton]}
+            style={[styles.secondaryButton, (sets.length <= MIN_SETS || isExerciseFinalized || isLoadingSets || isCompletingExercise) && styles.disabledButton]}
             onPress={() => handleRemoveSet()}
-            disabled={sets.length <= MIN_SETS || allSetsCompleted || isLoadingSets || isCompletingExercise}
+            disabled={sets.length <= MIN_SETS || isExerciseFinalized || isLoadingSets || isCompletingExercise}
           >
             <Icon name="minus" size={16} color={colors.white} />
             <Text style={styles.secondaryButtonText}>Remove last</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.secondaryButton, (sets.length >= MAX_SETS || allSetsCompleted || isLoadingSets || isCompletingExercise) && styles.disabledButton]}
+            style={[styles.secondaryButton, (sets.length >= MAX_SETS || isExerciseFinalized || isLoadingSets || isCompletingExercise) && styles.disabledButton]}
             onPress={handleAddSet}
-            disabled={sets.length >= MAX_SETS || allSetsCompleted || isLoadingSets || isCompletingExercise}
+            disabled={sets.length >= MAX_SETS || isExerciseFinalized || isLoadingSets || isCompletingExercise}
           >
             <Icon name="plus" size={16} color={colors.white} />
             <Text style={styles.secondaryButtonText}>Add set</Text>
@@ -856,15 +1117,15 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = ({
         </View>
       )}
 
-      {!readOnly && (
+      {!readOnly && !hideCompleteButton && (
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={[styles.completeButton, (allSetsCompleted || isLoadingSets || isCompletingExercise) && styles.disabledButton]}
+            style={[styles.completeButton, (!allSetsChecked || isExerciseFinalized || isLoadingSets || isCompletingExercise) && styles.disabledButton]}
             onPress={handleCompleteExercise}
-            disabled={allSetsCompleted || isLoadingSets || isCompletingExercise}
+            disabled={!allSetsChecked || isExerciseFinalized || isLoadingSets || isCompletingExercise}
           >
             <Text style={styles.completeButtonText}>
-              {allSetsCompleted ? 'Completed' : 'Complete Exercise'}
+              {isExerciseFinalized ? 'Completed' : 'Complete Exercise'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1061,18 +1322,37 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.mediumGray,
   },
   setColumn: {
-    width: '15%',
+    width: '12%',
     alignItems: 'center',
   },
   weightColumn: {
-    width: '42%',
+    width: '37%',
     alignItems: 'center',
     marginHorizontal: 2,
   },
   repsColumn: {
-    width: '43%',
+    width: '37%',
     alignItems: 'center',
     marginHorizontal: 2,
+  },
+  checkboxColumn: {
+    width: '14%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkbox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   setNumber: {
     ...typography.timerSmall,
@@ -1158,6 +1438,7 @@ const styles = StyleSheet.create({
   completedButton: {
     backgroundColor: colors.mediumGray,
     opacity: 0.7,
+    
   },
   completedButtonText: {
     color: colors.lightGray,
@@ -1420,6 +1701,66 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginTop: 16,
     fontSize: 16,
+    fontWeight: '600',
+  },
+  restTimerBanner: {
+    marginVertical: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  restTimerGradient: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(132, 204, 22, 0.3)',
+    overflow: 'hidden',
+  },
+  restTimerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(15, 20, 30, 0.85)',
+  },
+  restTimerLeft: {
+    flex: 1,
+  },
+  restTimerTitle: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: 'bold',
+    fontSize: 11,
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  restTimerSubtext: {
+    ...typography.caption,
+    color: colors.lightGray,
+    fontSize: 11,
+  },
+  restTimerRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  restTimerTime: {
+    ...typography.h2,
+    color: colors.white,
+    fontSize: 28,
+    fontWeight: 'bold',
+  },
+  restTimerSkip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  restTimerSkipText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontSize: 11,
     fontWeight: '600',
   },
 });

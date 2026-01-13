@@ -17,7 +17,8 @@ import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutCacheStore } from '@/store/workout-cache-store';
-import { wizardResultsService, userProgressService, activeWorkoutSessionService } from '@/db/services';
+import { useActiveWorkout } from '@/context/ActiveWorkoutContext';
+import { wizardResultsService, userProgressService, activeWorkoutSessionService, workoutSessionService } from '@/db/services';
 import { useWorkoutTimer } from '@/hooks/useWorkoutTimer';
 import { useTimerStore } from '@/store/timer-store';
 import {
@@ -29,6 +30,7 @@ import { WorkoutPreviewModal } from '@/components/WorkoutPreviewModal';
 import { WorkoutNotStartedModal } from '@/components/WorkoutNotStartedModal';
 import { AddCustomExerciseModal } from '@/components/AddCustomExerciseModal';
 import { CardioEntryModal } from '@/components/CardioEntryModal';
+import { FloatingButton } from '@/components/FloatingButton';
 import { markTodayWorkoutCompleted } from '@/utils/workout-completion-tracker';
 import { ensureMinimumDuration } from '@/utils/workout-duration';
 import { 
@@ -95,17 +97,27 @@ export default function WorkoutSessionScreen() {
   const [exercisePRs, setExercisePRs] = useState<ExercisePRs>({});
   const [updatingExerciseId, setUpdatingExerciseId] = useState<string | null>(null);
   const [userWeight, setUserWeight] = useState<number>(cachedWeight || 70);
-  const [activeSessionData, setActiveSessionData] = useState<any>(null); // Active workout session data
+  
+  // Use global Context for active workout (NO MORE LOCAL STATE!)
+  const {
+    sessionId: currentSessionId,
+    exercises: sessionExercises,
+    isLoading: isLoadingSession,
+    refreshSession: refreshActiveSession,
+    updateExerciseStatus: optimisticUpdateExerciseStatus,
+    startWorkout: startWorkoutSession, // Renamed to avoid conflict with timer
+  } = useActiveWorkout();
+  
   const { 
     formattedTime,
     timeElapsed,
     isRunning, 
     isWorkoutActive,
-    startWorkout, 
+    startWorkout: startWorkoutTimer, // Renamed for clarity
     pauseTimer, 
     resumeTimer, 
     resetTimer, 
-    completeWorkout 
+    completeWorkout: completeWorkoutTimer 
   } = useWorkoutTimer();
   const workoutStartTime = useTimerStore((state) => state.workoutStartTime);
   const isLoadingRef = useRef(false);
@@ -191,13 +203,8 @@ export default function WorkoutSessionScreen() {
       setUserProgressData(cachedProgress);
       setUserWeight(cachedWeight || 70);
       
-      // CRITICAL: Load active session for in-progress workout
-      const activeSession = await activeWorkoutSessionService.getActive(user.id);
-      if (activeSession) {
-        setActiveSessionData(activeSession.session_data);
-      } else {
-        setActiveSessionData(null);
-      }
+      // ✅ Active session auto-loaded by Context on mount
+      // Available via: currentSessionId, sessionExercises
       
       // Load historical data for "Last time" display and PRs
       if (cachedProgress?.weeklyWeights) {
@@ -286,13 +293,8 @@ export default function WorkoutSessionScreen() {
       
       setUserProgressData(progress);
       
-      // CRITICAL: Load active session for in-progress workout
-      const activeSession = await activeWorkoutSessionService.getActive(user.id);
-      if (activeSession) {
-        setActiveSessionData(activeSession.session_data);
-      } else {
-        setActiveSessionData(null);
-      }
+      // ✅ Active session is now loaded automatically by Context
+      // No need to manually fetch - it's always available via `currentSessionId` and `sessionExercises`
       
       if (progress?.weeklyWeights) {
         // Handle both string (from JSON) and object (from JSONB) types
@@ -347,7 +349,7 @@ export default function WorkoutSessionScreen() {
       const timerDate = workoutStartTime ? new Date(workoutStartTime).toISOString().slice(0, 10) : null;
       
       if (timerDate && timerDate !== today) {
-        completeWorkout(); // Reset timer if it's from a different day
+        completeWorkoutTimer(); // Reset timer if it's from a different day
       }
     }
   }, []); // Only run once on mount
@@ -379,82 +381,18 @@ export default function WorkoutSessionScreen() {
     };
   }, []);
 
+  // ✅ NO MORE MANUAL FETCHING! Context handles everything globally
+  // The active workout data is ALWAYS available from the context (zero flicker!)
   useFocusEffect(
     useCallback(() => {
-      let updateTimeoutId: ReturnType<typeof setTimeout> | null = null;
-      let refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
-      
-      if (user?.id && !isLoadingRef.current) {
-        
-        // Get cache state - always get fresh state
+      if (user?.id) {
+        // Refresh user progress for history/PRs (lightweight)
         const cache = useWorkoutCacheStore.getState();
-        const cacheAge = cache.lastUpdated ? Date.now() - cache.lastUpdated : Infinity;
-        
-        // If cache was updated VERY recently (within 3 seconds), it means we just completed an exercise
-        // or returned from video modal - Trust the cache completely
-        if (cache.userProgressData && cacheAge < 3000) {
+        if (cache.userProgressData) {
           setUserProgressData(cache.userProgressData);
-          
-          // CRITICAL: Reload active session to get latest exercise completion status
-          activeWorkoutSessionService.getActive(user.id).then(session => {
-            if (session) {
-              setActiveSessionData(session.session_data);
-            }
-          }).catch(err => {
-            console.error('❌ [Focus] Failed to reload active session:', err);
-          });
-          
-          // IMMEDIATELY clear the updating exercise ID to show completed badge
-          // We reduced the delay from 800ms to 0ms for instant feedback
-          setUpdatingExerciseId(null);
-          
-          // Don't fetch from database - the cache subscription will handle updates
-          return;
         }
         
-        // If cache is slightly old (3-10 seconds), use it immediately
-        if (cache.userProgressData && cacheAge < 10000) {
-          setUserProgressData(cache.userProgressData);
-          
-          // CRITICAL: Reload active session to get latest exercise completion status
-          activeWorkoutSessionService.getActive(user.id).then(session => {
-            if (session) {
-              setActiveSessionData(session.session_data);
-            }
-          }).catch(err => {
-            console.error('❌ [Focus] Failed to reload active session:', err);
-          });
-          
-          // IMMEDIATELY clear to show completed status
-          setUpdatingExerciseId(null);
-          // Skip the background refresh - cache is recent enough
-          return;
-        }
-        
-        // Only fetch if cache is very stale (>5 seconds old)
-        if (cache.userProgressData && cacheAge < 30000) {
-          // Use cache but schedule a delayed refresh
-          setUserProgressData(cache.userProgressData);
-          setUpdatingExerciseId(null);
-          
-          refreshTimeoutId = setTimeout(() => {
-            userProgressService.getByUserId(user.id).then(freshProgress => {
-              if (freshProgress) {
-                setUserProgressData(freshProgress);
-                useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
-              }
-            }).catch(err => {
-              console.error('❌ Background refresh failed:', err);
-            });
-          }, 1000); // 1 second delay
-          
-          return () => {
-            if (refreshTimeoutId) clearTimeout(refreshTimeoutId);
-          };
-        }
-        
-        // Cache is very stale or missing - fetch immediately
-        setUpdatingExerciseId(null);
+        // Optionally refresh user progress in background (for history display)
         userProgressService.getByUserId(user.id).then(freshProgress => {
           if (freshProgress) {
             setUserProgressData(freshProgress);
@@ -463,13 +401,11 @@ export default function WorkoutSessionScreen() {
         }).catch(err => {
           console.error('❌ Failed to refresh progress:', err);
         });
+        
+        // Clear updating indicator
+        setUpdatingExerciseId(null);
       }
-      
-      return () => {
-        if (updateTimeoutId) clearTimeout(updateTimeoutId);
-        if (refreshTimeoutId) clearTimeout(refreshTimeoutId);
-      };
-    }, [user?.id]) // Only depend on user.id
+    }, [user?.id])
   );
 
   const handleAddCustomExercise = async (exerciseName: string) => {
@@ -654,34 +590,45 @@ export default function WorkoutSessionScreen() {
     plannedSets: number
   ): 'pending' | 'in-progress' | 'completed' => {
     // CRITICAL: Check active session FIRST (in-progress workout data)
-    if (activeSessionData?.exercises?.[exerciseId]) {
-      const exerciseData = activeSessionData.exercises[exerciseId];
-      const sets = exerciseData.sets || [];
+    // USE GLOBAL CONTEXT - NO MORE LOCAL STATE!
+    if (sessionExercises.length > 0) {
+      // Find exercise in global context (instant access, no flicker!)
+      const exerciseData = sessionExercises.find((ex: any) => ex.exercise_id === exerciseId);
       
-      if (sets.length === 0) {
+      if (exerciseData) {
+        // Use the database status field (auto-updated by trigger)
+        // Maps: NOT_STARTED -> pending, IN_PROGRESS -> in-progress, COMPLETED -> completed
+        if (exerciseData.status === 'NOT_STARTED') return 'pending';
+        if (exerciseData.status === 'IN_PROGRESS') return 'in-progress';
+        if (exerciseData.status === 'COMPLETED') return 'completed';
+        
+        // Fallback: Calculate from sets if status is missing
+        const sets = exerciseData.sets || [];
+        if (sets.length === 0) {
+          return 'pending';
+        }
+
+        const completedCount = sets.filter((s: any) => !!s.is_completed).length;
+        const touchedSets = sets.filter((s: any) =>
+          (s.reps ?? 0) > 0 || (s.weight_kg ?? 0) > 0 || s.is_completed
+        );
+
+        const required = Math.max(0, plannedSets || 0);
+
+        if (required > 0 && completedCount >= required) {
+          return 'completed';
+        }
+        if (touchedSets.length > 0) {
+          return 'in-progress';
+        }
+
         return 'pending';
       }
-      
-      const completedCount = sets.filter((s: any) => !!s.isCompleted).length;
-      const touchedSets = sets.filter((s: any) => 
-        (s.reps ?? 0) > 0 || (s.weightKg ?? 0) > 0 || s.isCompleted
-      );
-      
-      const required = Math.max(0, plannedSets || 0);
-      
-      if (required > 0 && completedCount >= required) {
-        return 'completed';
-      }
-      if (touchedSets.length > 0) {
-        return 'in-progress';
-      }
-      
-      return 'pending';
     }
-    
+
     // No active session = fresh workout = all exercises are pending
     return 'pending';
-  }, [activeSessionData]);
+  }, [sessionExercises]);
 
   const calculateWorkoutProgress = () => {
     if (!todaysWorkout?.exercises) return { percentage: 0, completed: 0, total: 0 };
@@ -769,13 +716,49 @@ export default function WorkoutSessionScreen() {
     handleStartWorkout();
   };
 
-  const handleStartWorkout = () => {
+  const handleStartWorkout = async () => {
     setShowPreviewModal(false);
-    setWorkoutStarted(true);
-    startWorkout(
-      todaysWorkout?.id || 'today-workout',
-      todaysWorkout?.name || "Today's Workout"
-    );
+
+    if (!user?.id || !todaysWorkout) {
+      Alert.alert('Error', 'Unable to start workout. Please try again.');
+      return;
+    }
+
+    try {
+      console.log('🏋️ Starting workout:', todaysWorkout.name);
+
+      // Get template ID from database (match by type)
+      const templates = await workoutSessionService.getTemplates(user.id);
+      const template = templates.find(t => t.type === todaysWorkout.type);
+
+      if (!template) {
+        Alert.alert('Error', 'Workout template not found. Please try again.');
+        console.error('❌ Template not found for type:', todaysWorkout.type);
+        return;
+      }
+
+      // ✅ USE CONTEXT to start workout (updates global state instantly!)
+      await startWorkoutSession(template.id);
+      console.log('✅ Workout session started via Context!');
+
+      // BRIDGE: Also create old-format session for compatibility (temporary)
+      // This keeps the rest of the app working while we migrate
+      await activeWorkoutSessionService.create(
+        user.id,
+        todaysWorkout.type || 'workout',
+        todaysWorkout.name
+      );
+
+      // Start UI state & timer
+      setWorkoutStarted(true);
+      startWorkoutTimer(
+        todaysWorkout?.id || 'today-workout',
+        todaysWorkout?.name || "Today's Workout"
+      );
+    } catch (error) {
+      console.error('❌ Failed to start workout:', error);
+      Alert.alert('Error', 'Failed to start workout. Please try again.');
+    }
   };
 
   const handleStopWorkout = () => {
@@ -800,8 +783,24 @@ export default function WorkoutSessionScreen() {
     try {
       if (!user?.id || !userProgressData) return;
 
-      completeWorkout();
+      completeWorkoutTimer();
       
+      // ✅ Cancel session via service (Context state will auto-refresh)
+      try {
+        if (currentSessionId) {
+          console.log('🔄 Cancelling workout session...');
+          await workoutSessionService.cancelSession(currentSessionId);
+          // Context will detect the cancelled session on next refresh
+          console.log('✅ Workout session cancelled');
+        }
+        
+        // Also delete old active session
+        await activeWorkoutSessionService.delete(user.id);
+      } catch (err) {
+        console.error('⚠️ Failed to cancel session:', err);
+      }
+      
+      // OLD: Reset old system data
       let weeklyWeights: any = {};
       if (userProgressData.weeklyWeights) {
         try {
@@ -885,9 +884,12 @@ export default function WorkoutSessionScreen() {
     // Show loading spinner
     setIsFinishing(true);
     
+    // Wait for loading overlay to render before processing
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     try {
       const startTimeToSave = workoutStartTime || new Date().toISOString();
-      const { duration } = completeWorkout();
+      const { duration } = completeWorkoutTimer();
       
       const currentWorkout = userProgressData.currentWorkout || 1;
       const currentWorkoutIndex = currentWorkout - 1;
@@ -942,7 +944,10 @@ export default function WorkoutSessionScreen() {
         const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
         useWorkoutCacheStore.getState().setManualWorkout(null);
         
-        // CRITICAL: Delete active session after cardio completion
+        // CRITICAL: Complete and cleanup session after cardio completion
+        if (currentSessionId) {
+          await workoutSessionService.completeSession(currentSessionId, duration, 0);
+        }
         await activeWorkoutSessionService.delete(user.id);
         
         if (updated) {
@@ -1025,7 +1030,20 @@ export default function WorkoutSessionScreen() {
           weeklyWeights: weeklyWeights
         });
         
-        // Delete active session
+        // Complete session in new system and delete old active session
+        if (currentSessionId) {
+          // Calculate total volume from session data
+          let totalVolume = 0;
+          for (const [exerciseKey, exerciseData] of Object.entries(sessionExercises)) {
+            const sets = (exerciseData as any).sets || [];
+            for (const set of sets) {
+              if (set.isCompleted) {
+                totalVolume += (set.weightKg || 0) * (set.reps || 0);
+              }
+            }
+          }
+          await workoutSessionService.completeSession(currentSessionId, duration, totalVolume);
+        }
         await activeWorkoutSessionService.delete(user.id);
       }
       
@@ -1245,25 +1263,7 @@ export default function WorkoutSessionScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-            ) : (
-              <View style={styles.startButtonContainer}>
-                <TouchableOpacity 
-                  style={styles.startWorkoutButton}
-                  onPress={handleStartWorkoutPress}
-                  activeOpacity={1}
-                >
-                  <LinearGradient
-                    colors={['#00FF88', '#00CC6A']}
-                    style={styles.startWorkoutGradient}
-                  >
-                    <Icon name="play" size={24} color={colors.black} />
-                    <Text style={[styles.startWorkoutText, typography.button]}>
-                      Start Workout
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            )}
+            ) : null}
             
             <View style={styles.workoutMeta}>
               <View style={styles.metaItem}>
@@ -1271,10 +1271,6 @@ export default function WorkoutSessionScreen() {
                 <Text style={styles.metaText}>
                   {isCardioWorkout ? todaysWorkout.estimatedDuration : ensureMinimumDuration(todaysWorkout.estimatedDuration)} min
                 </Text>
-              </View>
-              <View style={styles.metaItem}>
-                <Icon name="target" size={16} color={colors.primary} />
-                <Text style={styles.metaText}>{todaysWorkout.type}</Text>
               </View>
               {(() => {
                 const today = new Date().toISOString().slice(0, 10);
@@ -1632,6 +1628,17 @@ export default function WorkoutSessionScreen() {
             )}
           </View>
         </ScrollView>
+
+        {/* Floating Start Workout Button */}
+        {!workoutStarted && (
+          <FloatingButton
+            text="Start Workout"
+            onPress={handleStartWorkoutPress}
+            icon="play"
+            gradientColors={['#00FF88', '#00CC6A']}
+            textColor={colors.black}
+          />
+        )}
       </SafeAreaView>
 
       {/* Modals */}
@@ -1813,6 +1820,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
+    paddingBottom: 120, // Extra padding for floating button
   },
   workoutHeader: {
     marginBottom: 16,
@@ -1829,6 +1837,7 @@ const styles = StyleSheet.create({
   workoutName: {
     ...typography.h3,
     color: colors.white,
+    marginBottom: 16
   },
   timerContainer: {
     flexDirection: 'row',
@@ -1890,26 +1899,6 @@ const styles = StyleSheet.create({
   },
   stopButton: {
     backgroundColor: colors.error,
-  },
-  startButtonContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  startWorkoutButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  startWorkoutGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  startWorkoutText: {
-    color: colors.black,
-    fontSize: 18,
   },
   workoutMeta: {
     flexDirection: 'row',
@@ -2280,7 +2269,7 @@ const styles = StyleSheet.create({
   },
   finishingOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -19,6 +19,7 @@
     "db:verify-rls": "tsx scripts/verify-rls-policies.ts",
     "db:apply-rls": "tsx scripts/apply-rls-policies.ts",
     "db:seed-exercises": "tsx scripts/seed-exercises.ts",
+    "db:seed-templates": "tsx scripts/seed-ppl-templates.ts",
     "db:cleanup-duplicates": "tsx scripts/cleanup-duplicate-progress.ts",
     "db:cleanup-all-duplicates": "tsx scripts/cleanup-all-duplicates.ts",
     "db:truncate-all": "tsx scripts/truncate-all-tables.ts"

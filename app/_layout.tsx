@@ -34,6 +34,7 @@ import { SubscriptionReminderModal } from "@/components/SubscriptionReminderModa
 
 import { AppUpdateManager } from "@/utils/app-updates";
 import { AppErrorBoundary, NavigationErrorBoundary } from "@/components/ErrorBoundaries";
+import { ActiveWorkoutProvider } from "@/context/ActiveWorkoutContext";
 
 import { ErrorBoundary } from "./error-boundary";
 import { colors } from "@/constants/colors";
@@ -474,21 +475,22 @@ function AppNavigator() {
 
 function RootLayoutNav() {
   return (
-    <Stack
-      screenOptions={{
-        headerBackTitle: "Back",
-        headerStyle: {
-          backgroundColor: colors.dark,
-        },
-        headerTintColor: colors.white,
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
-        contentStyle: {
-          backgroundColor: colors.dark,
-        },
-      }}
-    >
+    <ActiveWorkoutProvider>
+      <Stack
+        screenOptions={{
+          headerBackTitle: "Back",
+          headerStyle: {
+            backgroundColor: colors.dark,
+          },
+          headerTintColor: colors.white,
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+          contentStyle: {
+            backgroundColor: colors.dark,
+          },
+        }}
+      >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen 
         name="program/[id]" 
@@ -593,6 +595,14 @@ function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+          name="Programs/index" 
+          options={{ 
+          headerShown: true,
+          headerTitle: 'Programs',
+          animation: 'default',
+        }} 
+      />
+      <Stack.Screen 
         name="workout-exercise-tracker" 
         options={{ 
           headerShown: false,
@@ -663,5 +673,6 @@ function RootLayoutNav() {
         }} 
       />
     </Stack>
+    </ActiveWorkoutProvider>
   );
 }
