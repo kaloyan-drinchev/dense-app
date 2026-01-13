@@ -154,7 +154,7 @@ export const useProgressLogic = () => {
       setLoadingProgress(false);
       setLoadingWizard(false);
     }
-  }, [user?.id, loadGeneratedProgram, loadUserProgress, loadWizardData]);
+  }, [user?.id]); // Fixed: Removed circular dependencies
 
   // Focus Effect
   useFocusEffect(

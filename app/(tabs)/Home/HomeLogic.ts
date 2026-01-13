@@ -159,7 +159,7 @@ export const useHomeLogic = () => {
 
     loadGeneratedProgram();
     loadUserProgress();
-  }, [user?.id, loadGeneratedProgram, loadUserProgress]);
+  }, [user?.id]); // Fixed: Removed circular dependencies
 
   // Availability Check
   useEffect(() => {
@@ -241,6 +241,14 @@ export const useHomeLogic = () => {
     if (!completedWorkouts || !trainingSchedule || trainingSchedule.length === 0) return 0;
     
     try {
+      // Helper: Convert Date to local YYYY-MM-DD string (timezone-safe)
+      const toLocalDateString = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
       // Get all workout dates, sorted descending (most recent first)
       const workoutDates = completedWorkouts
         .filter(w => typeof w === 'object' && w.date && w.workoutName)
@@ -274,7 +282,8 @@ export const useHomeLogic = () => {
       
       // Look back up to 365 days (sanity limit)
       for (let i = 0; i < 365; i++) {
-        const dateStr = currentDate.toISOString().split('T')[0];
+        // Use local date string to avoid timezone issues
+        const dateStr = toLocalDateString(currentDate);
         const dayOfWeek = currentDate.getDay();
         
         // Check if this is a scheduled training day
@@ -324,19 +333,26 @@ export const useHomeLogic = () => {
   };
 
   const getFirstUncompletedExercise = useCallback(() => {
-    if (!nextWorkout || !sessionId) return null;
-    for (const exercise of nextWorkout.exercises) {
-      const exerciseId = exercise.id || exercise.name.toLowerCase().replace(/\s+/g, '-');
-      const sessionExercise = exercises.find(ex => ex.exercise_id === exerciseId);
-      if (sessionExercise?.status === 'COMPLETED') continue;
+    if (!nextWorkout || !sessionId || !exercises || exercises.length === 0) return null;
+    
+    // Find first uncompleted exercise from session data
+    for (const sessionExercise of exercises) {
+      if (sessionExercise.status === 'COMPLETED') continue;
       
-      const completedSets = sessionExercise?.sets?.filter(s => s.is_completed).length || 0;
-      const lastSet = sessionExercise?.sets?.[sessionExercise?.sets?.length - 1];
+      // Match template exercise for display info (name, target sets/reps)
+      const exerciseId = sessionExercise.exercise_id;
+      const templateExercise = nextWorkout.exercises?.find((ex: any) => {
+        const templateId = ex.id || ex.name.toLowerCase().replace(/\s+/g, '-');
+        return templateId === exerciseId;
+      });
+      
+      const completedSets = sessionExercise.sets?.filter(s => s.is_completed).length || 0;
+      const lastSet = sessionExercise.sets?.[sessionExercise.sets?.length - 1];
       
       return {
-        name: exercise.name,
-        sets: exercise.sets || 0,
-        reps: exercise.reps || 0,
+        name: sessionExercise.exercise_name || templateExercise?.name || 'Exercise',
+        sets: sessionExercise.target_sets || templateExercise?.sets || 0,
+        reps: Number(sessionExercise.target_reps) || templateExercise?.reps || 0,
         lastWeight: lastSet?.weight_kg || 0,
         lastReps: lastSet?.reps || 0,
         completedSets,
