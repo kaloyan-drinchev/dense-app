@@ -54,13 +54,29 @@ export const useNutritionLogic = () => {
         ? JSON.parse((wizardResults as any).generatedSplit)
         : (wizardResults as any).generatedSplit;
         
-      // currentWorkout is now a string type ('push-a'), but legacy code expects index
-      // Convert to number if it's actually a string number, otherwise default to 0
-      const workoutIndex = typeof progress.currentWorkout === 'string' 
-        ? parseInt(progress.currentWorkout as string, 10) || 0
-        : (progress.currentWorkout as number);
-      const currentWorkoutIndex = workoutIndex - 1;
-      const todaysWorkout = program.weeklyStructure?.[currentWorkoutIndex];
+      // Find today's workout
+      // New system: currentWorkout is a template type string ('push-a', 'pull-b', etc.)
+      // Old system: currentWorkout is a numeric index
+      let todaysWorkout;
+      
+      if (typeof progress.currentWorkout === 'string') {
+        const workoutType = progress.currentWorkout;
+        const parsedIndex = parseInt(workoutType, 10);
+        
+        if (isNaN(parsedIndex)) {
+          // It's a template type string (e.g., 'push-a') - find by type
+          todaysWorkout = program.weeklyStructure?.find((w: any) => 
+            w.type === workoutType || w.name?.toLowerCase().includes(workoutType.toLowerCase())
+          );
+        } else {
+          // It's a numeric string (legacy) - use as index
+          todaysWorkout = program.weeklyStructure?.[parsedIndex - 1];
+        }
+      } else {
+        // It's a number (legacy) - use as index
+        const workoutIndex = progress.currentWorkout as number;
+        todaysWorkout = program.weeklyStructure?.[workoutIndex - 1];
+      }
       
       if (!todaysWorkout?.exercises) {
         setWorkoutCalories(0);

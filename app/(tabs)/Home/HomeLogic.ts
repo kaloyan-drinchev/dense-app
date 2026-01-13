@@ -238,17 +238,64 @@ export const useHomeLogic = () => {
   const nextWorkout = useMemo(() => getNextWorkout(), [cachedManualWorkout, userProgressData]);
 
   const calculateWorkoutStreak = (completedWorkouts: any[], trainingSchedule: string[]) => {
-    if (!completedWorkouts || !trainingSchedule) return 0;
+    if (!completedWorkouts || !trainingSchedule || trainingSchedule.length === 0) return 0;
+    
     try {
+      // Get all workout dates, sorted descending (most recent first)
       const workoutDates = completedWorkouts
         .filter(w => typeof w === 'object' && w.date && w.workoutName)
         .map(w => new Date(w.date).toISOString().split('T')[0])
         .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
       if (workoutDates.length === 0) return 0;
-      // ... (Rest of streak logic is standard, keeping concise)
-      return workoutDates.length; // Simplified for the example, paste full logic if needed
+
+      // Convert workout dates to Set for O(1) lookup
+      const workoutDateSet = new Set(workoutDates);
+      
+      // Map training schedule to day indices (0 = Sunday, 1 = Monday, etc.)
+      const dayNameToIndex: { [key: string]: number } = {
+        'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+        'thursday': 4, 'friday': 5, 'saturday': 6
+      };
+      const scheduledDayIndices = trainingSchedule
+        .map(day => dayNameToIndex[day.toLowerCase()])
+        .filter(idx => idx !== undefined);
+
+      if (scheduledDayIndices.length === 0) return 0;
+
+      // Start from today or the most recent workout date
+      const today = new Date();
+      const mostRecentWorkoutDate = new Date(workoutDates[0]);
+      const startDate = mostRecentWorkoutDate > today ? mostRecentWorkoutDate : today;
+      
+      let streak = 0;
+      let currentDate = new Date(startDate);
+      currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
+      
+      // Look back up to 365 days (sanity limit)
+      for (let i = 0; i < 365; i++) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const dayOfWeek = currentDate.getDay();
+        
+        // Check if this is a scheduled training day
+        if (scheduledDayIndices.includes(dayOfWeek)) {
+          // If scheduled training day has a workout, increment streak
+          if (workoutDateSet.has(dateStr)) {
+            streak++;
+          } else {
+            // Scheduled training day was missed - streak ends
+            break;
+          }
+        }
+        // If not a scheduled training day (rest day), just skip it
+        
+        // Move to previous day
+        currentDate.setDate(currentDate.getDate() - 1);
+      }
+
+      return streak;
     } catch (error) {
+      console.error('Error calculating workout streak:', error);
       return 0;
     }
   };
