@@ -586,81 +586,81 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
-          name="single-program-view/index"
+          name="single-program-view"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="single-recipe-view/index"
+          name="single-recipe-view"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="add-food-page/index"
+          name="add-food-page"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="nutrition-detail/index"
+          name="nutrition-detail"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="my-goals/index"
+          name="my-goals"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="icloud-backup/index"
+          name="icloud-backup"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="allowed-foods/index"
+          name="allowed-foods"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="notification-settings/index"
+          name="notification-settings"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="ltwins-points/index"
+          name="ltwins-points"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="nutrition-history/index"
+          name="nutrition-history"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="finished-workouts/index"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="finished-workouts-detail/index"
+          name="finished-workouts"
           options={{
             headerShown: false,
             animation: "slide_from_right",
           }}
         />
         <Stack.Screen
-          name="Programs/index"
+          name="finished-workouts-detail"
+          options={{
+            headerShown: false,
+            animation: "slide_from_right",
+          }}
+        />
+        <Stack.Screen
+          name="Programs"
           options={{
             headerShown: true,
             headerTitle: "Programs",
@@ -668,70 +668,70 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
-          name="workout-exercise-tracker/index"
+          name="workout-exercise-tracker"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="check-our-progress/index"
+          name="check-our-progress"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="photo-effects/index"
+          name="photo-effects"
           options={{
             headerShown: false,
           }}
         />
         <Stack.Screen
-          name="exercise-history/index"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="ai-chat/index"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="about-us/index"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="profile-edit/index"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="workout-session/index"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="workout-overview/index"
+          name="exercise-history"
           options={{
             headerShown: false,
             animation: "slide_from_right",
           }}
         />
         <Stack.Screen
-          name="my-achievements/index"
+          name="ai-chat"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="about-us"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="profile-edit"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="workout-session"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="workout-overview"
           options={{
             headerShown: false,
             animation: "slide_from_right",
           }}
         />
         <Stack.Screen
-          name="profile/index"
+          name="my-achievements"
+          options={{
+            headerShown: false,
+            animation: "slide_from_right",
+          }}
+        />
+        <Stack.Screen
+          name="profile"
           options={{
             title: "Profile",
             presentation: "modal",
