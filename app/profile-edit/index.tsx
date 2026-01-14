@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,24 +8,28 @@ import {
   StyleSheet,
   Alert,
   Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Feather as Icon } from '@expo/vector-icons';
-import { colors } from '@/constants/colors';
-import { typography } from '@/constants/typography';
-import { useAuthStore } from '@/store/auth-store';
-import { useWorkoutStore } from '@/store/workout-store';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import { validateFile, FILE_SECURITY } from '@/utils/file-security';
-import { validateProfileData, validateData, VALIDATION_SCHEMAS } from '@/utils/data-validation';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Feather as Icon } from "@expo/vector-icons";
+import { colors } from "@/constants/colors";
+import { typography } from "@/constants/typography";
+import { useAuthStore } from "@/store/auth-store";
+import { useWorkoutStore } from "@/store/workout-store";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
+import { validateFile, FILE_SECURITY } from "@/utils/file-security";
+import {
+  validateProfileData,
+  validateData,
+  VALIDATION_SCHEMAS,
+} from "@/utils/data-validation";
 
 interface ProfileData {
   // Basic Personal Details
   name: string;
   profilePicture: string; // Base64 or URI
-  
+
   // Physical Measurements
   bodyFat: string; // percentage
 }
@@ -36,9 +40,9 @@ export default function ProfileEditScreen() {
   const { userProfile } = useWorkoutStore();
 
   const [profile, setProfile] = useState<ProfileData>({
-    name: user?.name || userProfile?.name || '',
-    profilePicture: userProfile?.profilePicture || '',
-    bodyFat: '',
+    name: user?.name || userProfile?.name || "",
+    profilePicture: userProfile?.profilePicture || "",
+    bodyFat: "",
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -46,10 +50,14 @@ export default function ProfileEditScreen() {
   const pickImage = async () => {
     try {
       // Request permissions first
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
       if (permissionResult.granted === false) {
-        Alert.alert('Permission Required', 'You need to allow access to your photo library to change your profile picture.');
+        Alert.alert(
+          "Permission Required",
+          "You need to allow access to your photo library to change your profile picture."
+        );
         return;
       }
 
@@ -63,12 +71,12 @@ export default function ProfileEditScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        
+
         // Validate file security
         const isValidFile = validateFile(asset, {
           maxSize: FILE_SECURITY.MAX_IMAGE_SIZE,
           allowedTypes: FILE_SECURITY.ALLOWED_IMAGE_TYPES,
-          isImage: true
+          isImage: true,
         });
 
         if (!isValidFile) {
@@ -76,15 +84,15 @@ export default function ProfileEditScreen() {
         }
 
         // Convert to base64 for storage
-        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.Base64,
+        const base64 = await (FileSystem as any).readAsStringAsync(asset.uri, {
+          encoding: (FileSystem as any).EncodingType.Base64,
         });
-        
-        updateProfile('profilePicture', `data:image/jpeg;base64,${base64}`);
+
+        updateProfile("profilePicture", `data:image/jpeg;base64,${base64}`);
       }
     } catch (error) {
-      console.error('Image picker error:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      console.error("Image picker error:", error);
+      Alert.alert("Error", "Failed to pick image. Please try again.");
     }
   };
 
@@ -93,9 +101,9 @@ export default function ProfileEditScreen() {
     try {
       // Validate profile data
       const validation = validateProfileData(profile);
-      
+
       if (!validation.isValid) {
-        Alert.alert('Validation Error', validation.errors.join('\n'));
+        Alert.alert("Validation Error", validation.errors.join("\n"));
         return;
       }
 
@@ -109,31 +117,52 @@ export default function ProfileEditScreen() {
       }
 
       // Save to database using userProfileService
-      const { userProfileService } = await import('@/db/services');
-      
-      // Check if profile exists
+      const { userProfileService } = await import("@/db/services");
+
+      // Check if profile exists using user ID (primary key)
       let existingProfile;
       try {
-        // Try to find existing profile by email
-        const allProfiles = await userProfileService.getAll();
-        existingProfile = allProfiles.find(p => p.email === user?.email);
+        if (user?.id) {
+          existingProfile = await userProfileService.getById(user.id);
+        }
       } catch (error) {
-        console.log('No existing profile found');
+        console.log("No existing profile found:", error);
       }
 
       const profileData = {
         name: sanitizedData.name,
         email: user?.email, // Keep existing email from auth store
         profilePicture: sanitizedData.profilePicture,
-        bodyFat: sanitizedData.bodyFat ? parseFloat(sanitizedData.bodyFat) : undefined,
+        bodyFat: sanitizedData.bodyFat
+          ? parseFloat(sanitizedData.bodyFat)
+          : undefined,
       };
 
+      let savedProfile;
       if (existingProfile) {
         // Update existing profile
-        await userProfileService.update(existingProfile.id, profileData);
+        savedProfile = await userProfileService.update(user!.id, profileData);
+
+        // If update failed (no rows affected), try to create instead
+        if (!savedProfile) {
+          console.log(
+            "Update returned no rows, attempting to create profile..."
+          );
+          savedProfile = await userProfileService.create({
+            ...profileData,
+            id: user?.id,
+          });
+        }
       } else {
-        // Create new profile
-        await userProfileService.create(profileData);
+        // Create new profile with user ID
+        savedProfile = await userProfileService.create({
+          ...profileData,
+          id: user?.id,
+        });
+      }
+
+      if (!savedProfile) {
+        throw new Error("Failed to save profile - no data returned");
       }
 
       // Update workout store
@@ -142,25 +171,19 @@ export default function ProfileEditScreen() {
         ...profileData,
       });
 
-      Alert.alert('Success', 'Profile updated successfully!');
+      Alert.alert("Success", "Profile updated successfully!");
       router.back();
     } catch (error) {
-      console.error('Failed to save profile:', error);
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
+      console.error("Failed to save profile:", error);
+      Alert.alert("Error", "Failed to update profile. Please try again.");
     } finally {
       setIsSaving(false);
     }
   };
 
   const updateProfile = (field: keyof ProfileData, value: any) => {
-    setProfile(prev => ({ ...prev, [field]: value }));
+    setProfile((prev) => ({ ...prev, [field]: value }));
   };
-
-
-
-
-
-
 
   const renderSection = (title: string, children: React.ReactNode) => (
     <View style={styles.section}>
@@ -179,7 +202,7 @@ export default function ProfileEditScreen() {
     <View style={styles.inputGroup}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
-        style={keyboardType === 'numeric' ? styles.numericInput : styles.input}
+        style={keyboardType === "numeric" ? styles.numericInput : styles.input}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -189,84 +212,110 @@ export default function ProfileEditScreen() {
     </View>
   );
 
-
-
-
-
-
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Icon name="arrow-left" size={24} color={colors.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
         <TouchableOpacity onPress={handleSave} disabled={isSaving}>
-          <Text style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}>
-            {isSaving ? 'Saving...' : 'Save'}
+          <Text
+            style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+          >
+            {isSaving ? "Saving..." : "Save"}
           </Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.scrollView} 
+      <ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
         {/* Profile Picture */}
-        {renderSection('Profile Picture', (
+        {renderSection(
+          "Profile Picture",
           <View style={styles.profilePictureSection}>
-            <TouchableOpacity style={styles.profilePictureContainer} onPress={pickImage}>
-              {profile.profilePicture && profile.profilePicture !== 'placeholder_avatar' ? (
-                <Image source={{ uri: profile.profilePicture }} style={styles.profileImage} />
+            <TouchableOpacity
+              style={styles.profilePictureContainer}
+              onPress={pickImage}
+            >
+              {profile.profilePicture &&
+              profile.profilePicture !== "placeholder_avatar" ? (
+                <Image
+                  source={{ uri: profile.profilePicture }}
+                  style={styles.profileImage}
+                />
               ) : (
                 <View style={styles.profilePlaceholder}>
                   <Icon name="camera" size={32} color={colors.lightGray} />
                   <Text style={styles.profilePlaceholderText}>
-                    {profile.profilePicture === 'placeholder_avatar' ? 'Placeholder Set' : 'Add Photo'}
+                    {profile.profilePicture === "placeholder_avatar"
+                      ? "Placeholder Set"
+                      : "Add Photo"}
                   </Text>
                 </View>
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.changePhotoButton} onPress={pickImage}>
+            <TouchableOpacity
+              style={styles.changePhotoButton}
+              onPress={pickImage}
+            >
               <Text style={styles.changePhotoText}>
-                {profile.profilePicture ? 'Change Photo' : 'Add Photo'}
+                {profile.profilePicture ? "Change Photo" : "Add Photo"}
               </Text>
             </TouchableOpacity>
           </View>
-        ))}
+        )}
 
         {/* Basic Personal Details */}
-        {renderSection('Personal Information', (
+        {renderSection(
+          "Personal Information",
           <>
-            {renderInput('Full Name', profile.name, (text) => updateProfile('name', text), 'Enter your full name')}
+            {renderInput(
+              "Full Name",
+              profile.name,
+              (text) => updateProfile("name", text),
+              "Enter your full name"
+            )}
           </>
-        ))}
+        )}
 
         {/* Physical Measurements */}
-        {renderSection('Physical Measurements', (
+        {renderSection(
+          "Physical Measurements",
           <>
-            {renderInput('Body Fat % (optional)', profile.bodyFat, (text) => updateProfile('bodyFat', text), '15', 'numeric')}
-            <TouchableOpacity 
+            {renderInput(
+              "Body Fat % (optional)",
+              profile.bodyFat,
+              (text) => updateProfile("bodyFat", text),
+              "15",
+              "numeric"
+            )}
+            <TouchableOpacity
               style={styles.weightRedirect}
-              onPress={() => router.push('/(tabs)/progress')}
+              onPress={() => router.push("/(tabs)/Progress")}
               activeOpacity={0.7}
             >
               <View style={styles.weightRedirectContent}>
-                <Text style={styles.weightRedirectText}>💪 Manage your weight tracking</Text>
+                <Text style={styles.weightRedirectText}>
+                  💪 Manage your weight tracking
+                </Text>
                 <Text style={styles.weightRedirectSubtext}>
-                  Track current weight, set targets, and monitor progress in the Progress tab
+                  Track current weight, set targets, and monitor progress in the
+                  Progress tab
                 </Text>
               </View>
               <Icon name="arrow-right" size={20} color={colors.primary} />
             </TouchableOpacity>
           </>
-        ))}
-
-
+        )}
 
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -276,15 +325,15 @@ export default function ProfileEditScreen() {
 
 const styles = StyleSheet.create({
   weightRedirect: {
-    backgroundColor: colors.darkest,
+    backgroundColor: colors.dark,
     borderRadius: 12,
     padding: 16,
     marginTop: 8,
     borderWidth: 1,
     borderColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   weightRedirectContent: {
     flex: 1,
@@ -293,7 +342,7 @@ const styles = StyleSheet.create({
   weightRedirectText: {
     ...typography.body,
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 4,
   },
   weightRedirectSubtext: {
@@ -306,9 +355,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
@@ -376,7 +425,7 @@ const styles = StyleSheet.create({
 
   // Profile Picture Styles
   profilePictureSection: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   profilePictureContainer: {
     marginBottom: 16,
@@ -392,17 +441,17 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     backgroundColor: colors.darkGray,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 2,
     borderColor: colors.mediumGray,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
   },
   profilePlaceholderText: {
     ...typography.caption,
     color: colors.lightGray,
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   changePhotoButton: {
     backgroundColor: colors.primary,

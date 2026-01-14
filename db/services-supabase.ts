@@ -160,7 +160,10 @@ export const userProfileService = {
   },
 
   async getById(id: string): Promise<UserProfile | undefined> {
-    const { data, error } = await supabase
+    // Use supabaseAdmin to bypass RLS (consistent with create/update)
+    const client = supabaseAdmin || supabase;
+    
+    const { data, error } = await client
       .from('user_profiles')
       .select('*')
       .eq('id', id)
@@ -175,19 +178,33 @@ export const userProfileService = {
 
   async update(id: string, updates: Partial<UserProfile>): Promise<UserProfile | undefined> {
     const updateData = convertToSnakeCase({ ...updates, updatedAt: new Date() });
-    const { data, error } = await supabase
+    
+    // Use supabaseAdmin to bypass RLS (same as create method)
+    const client = supabaseAdmin || supabase;
+    
+    const { data, error } = await client
       .from('user_profiles')
       .update(updateData)
       .eq('id', id)
-      .select()
-      .single();
+      .select();
     
     if (error) handleSupabaseError(error, 'update user profile');
-    return data ? convertToCamelCase(data) as UserProfile : undefined;
+    
+    // Handle case where no rows were updated
+    if (!data || data.length === 0) {
+      console.warn(`⚠️ No user profile found with id: ${id}. Update failed.`);
+      return undefined;
+    }
+    
+    // Return first (and should be only) result
+    return convertToCamelCase(data[0]) as UserProfile;
   },
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase
+    // Use supabaseAdmin to bypass RLS
+    const client = supabaseAdmin || supabase;
+    
+    const { error } = await client
       .from('user_profiles')
       .delete()
       .eq('id', id);
@@ -196,7 +213,10 @@ export const userProfileService = {
   },
 
   async getAll(): Promise<UserProfile[]> {
-    const { data, error } = await supabase
+    // Use supabaseAdmin to bypass RLS
+    const client = supabaseAdmin || supabase;
+    
+    const { data, error } = await client
       .from('user_profiles')
       .select('*');
     
@@ -205,7 +225,10 @@ export const userProfileService = {
   },
 
   async deleteAll(): Promise<void> {
-    const { error } = await supabase
+    // Use supabaseAdmin to bypass RLS
+    const client = supabaseAdmin || supabase;
+    
+    const { error } = await client
       .from('user_profiles')
       .delete()
       .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all

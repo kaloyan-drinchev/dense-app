@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather as Icon } from '@expo/vector-icons';
 
 import { styles } from './styles';
-import { useNutritionLogic } from './NutritionLogic';
+import { useNutritionLogic } from './logic';
 import { colors } from '@/constants/colors';
 
 import { NutritionProgressCharts } from '@/components/NutritionProgressCharts';

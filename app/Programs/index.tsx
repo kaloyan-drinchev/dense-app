@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather as Icon } from '@expo/vector-icons';
 
 import { styles } from "./styles";
-import { useProgramsLogic } from "./ProgramsLogic";
+import { useProgramsLogic } from "./logic";
 import { colors } from "@/constants/colors";
 import { LoadingState } from '@/components/LoadingState';
 

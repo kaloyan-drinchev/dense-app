@@ -1,15 +1,21 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { colors } from '@/constants/colors';
-import { typography } from '@/constants/typography';
-import { useNutritionStore } from '@/store/nutrition-store';
-import { NutritionSummary } from '@/components/NutritionSummary';
-import { MealSection } from '@/components/MealSection';
-import { Feather as Icon } from '@expo/vector-icons';
-import { MealType } from '@/types/nutrition';
+import React, { useEffect, useState } from "react";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { colors } from "@/constants/colors";
+import { typography } from "@/constants/typography";
+import { useNutritionStore } from "@/store/nutrition-store";
+import { NutritionSummary } from "@/components/NutritionSummary";
+import { MealSection } from "@/components/MealSection";
+import { Feather as Icon } from "@expo/vector-icons";
+import { MealType, FoodEntry } from "@/types/nutrition";
 
 export default function NutritionDetailScreen() {
   const router = useRouter();
@@ -17,10 +23,12 @@ export default function NutritionDetailScreen() {
   const { loggedMealSessions, nutritionGoals } = useNutritionStore();
   const [loading, setLoading] = useState(true);
 
-  const mealSession = loggedMealSessions.find(session => session.id === sessionId);
-  
+  const mealSession = loggedMealSessions.find(
+    (session) => session.id === sessionId
+  );
+
   const dailyLog = mealSession || {
-    date: '',
+    date: "",
     entries: [],
     totalNutrition: {
       calories: 0,
@@ -32,13 +40,16 @@ export default function NutritionDetailScreen() {
   };
 
   // Group entries by meal type
-  const entriesByMeal = dailyLog.entries.reduce((acc, entry) => {
+  type EntriesByMealType = Partial<Record<MealType, FoodEntry[]>>;
+  const entriesByMeal: EntriesByMealType = (
+    dailyLog.entries || []
+  ).reduce<EntriesByMealType>((acc, entry) => {
     if (!acc[entry.mealType]) {
       acc[entry.mealType] = [];
     }
-    acc[entry.mealType].push(entry);
+    acc[entry.mealType]!.push(entry);
     return acc;
-  }, {} as Record<MealType, typeof dailyLog.entries>);
+  }, {});
 
   useEffect(() => {
     setLoading(false);
@@ -50,76 +61,96 @@ export default function NutritionDetailScreen() {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    if (dateString === today.toISOString().split('T')[0]) {
-      return 'Today\'s Meals';
-    } else if (dateString === yesterday.toISOString().split('T')[0]) {
-      return 'Yesterday\'s Meals';
+    if (dateString === today.toISOString().split("T")[0]) {
+      return "Today's Meals";
+    } else if (dateString === yesterday.toISOString().split("T")[0]) {
+      return "Yesterday's Meals";
     } else {
-      return date.toLocaleDateString('en-US', { 
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long', 
-        day: 'numeric' 
+      return date.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
       });
     }
   };
 
   const formatSessionTime = (timestamp: string) => {
     try {
-      return new Date(timestamp).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
+      return new Date(timestamp).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
         hour12: true,
       });
     } catch {
-      return '';
+      return "";
     }
   };
 
   const formatTime = (timestamp: string) => {
     try {
-      return new Date(timestamp).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
+      return new Date(timestamp).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
         hour12: true,
       });
     } catch {
-      return '';
+      return "";
     }
   };
 
   const getMealIcon = (mealType: MealType) => {
     switch (mealType) {
-      case 'breakfast': return '🌅';
-      case 'brunch': return '🥐';
-      case 'lunch': return '🍽️';
-      case 'pre-workout': return '⚡';
-      case 'post-workout': return '💪';
-      case 'dinner': return '🌙';
-      case 'snack': return '🥜';
-      default: return '🍴';
+      case "breakfast":
+        return "🌅";
+      case "brunch":
+        return "🥐";
+      case "lunch":
+        return "🍽️";
+      case "pre-workout":
+        return "⚡";
+      case "post-workout":
+        return "💪";
+      case "dinner":
+        return "🌙";
+      case "snack":
+        return "🥜";
+      default:
+        return "🍴";
     }
   };
 
   const getMealDisplayName = (mealType: MealType) => {
     switch (mealType) {
-      case 'pre-workout': return 'Pre-Workout';
-      case 'post-workout': return 'Post-Workout';
-      default: return mealType.charAt(0).toUpperCase() + mealType.slice(1);
+      case "pre-workout":
+        return "Pre-Workout";
+      case "post-workout":
+        return "Post-Workout";
+      default:
+        return mealType.charAt(0).toUpperCase() + mealType.slice(1);
     }
   };
 
   return (
-    <LinearGradient colors={[colors.dark, colors.darkGray]} style={styles.container}>
+    <LinearGradient
+      colors={[colors.dark, colors.darkGray]}
+      style={styles.container}
+    >
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
             <Icon name="arrow-left" size={24} color={colors.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Nutrition Detail</Text>
         </View>
 
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+        >
           {loading ? (
             <View style={styles.centerBox}>
               <Text style={styles.loadingText}>Loading…</Text>
@@ -128,23 +159,38 @@ export default function NutritionDetailScreen() {
             <>
               {/* Session Header */}
               <View style={styles.dateHeader}>
-                <Text style={styles.dateTitle}>{formatDate(dailyLog.date || '')}</Text>
+                <Text style={styles.dateTitle}>
+                  {formatDate(dailyLog.date || "")}
+                </Text>
                 {mealSession?.timestamp && (
-                  <Text style={styles.sessionTime}>Logged at {formatSessionTime(mealSession.timestamp)}</Text>
+                  <Text style={styles.sessionTime}>
+                    Logged at {formatSessionTime(mealSession.timestamp)}
+                  </Text>
                 )}
                 <View style={styles.summaryStats}>
                   <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{dailyLog.entries.length}</Text>
+                    <Text style={styles.statValue}>
+                      {dailyLog.entries.length}
+                    </Text>
                     <Text style={styles.statLabel}>Foods</Text>
                   </View>
                   <View style={styles.statDivider} />
                   <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{dailyLog.totalNutrition.calories}</Text>
+                    <Text style={styles.statValue}>
+                      {dailyLog.totalNutrition.calories}
+                    </Text>
                     <Text style={styles.statLabel}>Calories</Text>
                   </View>
                   <View style={styles.statDivider} />
                   <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{Math.round((dailyLog.totalNutrition.calories / dailyLog.calorieGoal) * 100)}%</Text>
+                    <Text style={styles.statValue}>
+                      {Math.round(
+                        (dailyLog.totalNutrition.calories /
+                          dailyLog.calorieGoal) *
+                          100
+                      )}
+                      %
+                    </Text>
                     <Text style={styles.statLabel}>of Goal</Text>
                   </View>
                 </View>
@@ -157,24 +203,48 @@ export default function NutritionDetailScreen() {
               {Object.keys(entriesByMeal).length > 0 ? (
                 <View style={styles.mealsContainer}>
                   <Text style={styles.mealsTitle}>Meals & Foods</Text>
-                  
-                  {(['breakfast', 'brunch', 'lunch', 'pre-workout', 'post-workout', 'dinner', 'snack'] as MealType[]).map(mealType => {
+
+                  {(
+                    [
+                      "breakfast",
+                      "brunch",
+                      "lunch",
+                      "pre-workout",
+                      "post-workout",
+                      "dinner",
+                      "snack",
+                    ] as MealType[]
+                  ).map((mealType) => {
                     const entries = entriesByMeal[mealType];
                     if (!entries || entries.length === 0) return null;
 
-                    const mealTotalCalories = entries.reduce((sum, entry) => sum + entry.nutrition.calories, 0);
-                    const mealTotalProtein = entries.reduce((sum, entry) => sum + entry.nutrition.protein, 0);
+                    const mealTotalCalories = entries.reduce(
+                      (sum, entry) => sum + entry.nutrition.calories,
+                      0
+                    );
+                    const mealTotalProtein = entries.reduce(
+                      (sum, entry) => sum + entry.nutrition.protein,
+                      0
+                    );
 
                     return (
                       <View key={mealType} style={styles.mealContainer}>
                         <View style={styles.mealHeader}>
                           <View style={styles.mealTitleContainer}>
-                            <Text style={styles.mealIcon}>{getMealIcon(mealType)}</Text>
-                            <Text style={styles.mealTitle}>{getMealDisplayName(mealType)}</Text>
+                            <Text style={styles.mealIcon}>
+                              {getMealIcon(mealType)}
+                            </Text>
+                            <Text style={styles.mealTitle}>
+                              {getMealDisplayName(mealType)}
+                            </Text>
                           </View>
                           <View style={styles.mealSummary}>
-                            <Text style={styles.mealCalories}>{mealTotalCalories} cal</Text>
-                            <Text style={styles.mealProtein}>{Math.round(mealTotalProtein)}g protein</Text>
+                            <Text style={styles.mealCalories}>
+                              {mealTotalCalories} cal
+                            </Text>
+                            <Text style={styles.mealProtein}>
+                              {Math.round(mealTotalProtein)}g protein
+                            </Text>
                           </View>
                         </View>
 
@@ -182,7 +252,9 @@ export default function NutritionDetailScreen() {
                           {entries.map((entry, index) => (
                             <View key={entry.id} style={styles.foodItem}>
                               <View style={styles.foodInfo}>
-                                <Text style={styles.foodName}>{entry.name}</Text>
+                                <Text style={styles.foodName}>
+                                  {entry.name}
+                                </Text>
                                 <Text style={styles.foodAmount}>
                                   {entry.amount} {entry.unit}
                                 </Text>
@@ -193,11 +265,19 @@ export default function NutritionDetailScreen() {
                                 )}
                               </View>
                               <View style={styles.foodNutrition}>
-                                <Text style={styles.foodCalories}>{entry.nutrition.calories} cal</Text>
+                                <Text style={styles.foodCalories}>
+                                  {entry.nutrition.calories} cal
+                                </Text>
                                 <View style={styles.foodMacros}>
-                                  <Text style={styles.macroText}>P: {entry.nutrition.protein}g</Text>
-                                  <Text style={styles.macroText}>C: {entry.nutrition.carbs}g</Text>
-                                  <Text style={styles.macroText}>F: {entry.nutrition.fat}g</Text>
+                                  <Text style={styles.macroText}>
+                                    P: {entry.nutrition.protein}g
+                                  </Text>
+                                  <Text style={styles.macroText}>
+                                    C: {entry.nutrition.carbs}g
+                                  </Text>
+                                  <Text style={styles.macroText}>
+                                    F: {entry.nutrition.fat}g
+                                  </Text>
                                 </View>
                               </View>
                             </View>
@@ -209,7 +289,9 @@ export default function NutritionDetailScreen() {
                 </View>
               ) : (
                 <View style={styles.noDataContainer}>
-                  <Text style={styles.noDataText}>No foods found in this session</Text>
+                  <Text style={styles.noDataText}>
+                    No foods found in this session
+                  </Text>
                 </View>
               )}
             </>
@@ -224,8 +306,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.darkGray,
@@ -234,13 +316,13 @@ const styles = StyleSheet.create({
   headerTitle: { ...typography.h4, color: colors.white, flex: 1 },
   scrollView: { flex: 1 },
   contentContainer: { paddingBottom: 24 },
-  centerBox: { 
-    padding: 24, 
-    alignItems: 'center',
+  centerBox: {
+    padding: 24,
+    alignItems: "center",
     marginTop: 60,
   },
   loadingText: { ...typography.body, color: colors.white },
-  
+
   dateHeader: {
     padding: 16,
     borderBottomWidth: 1,
@@ -249,28 +331,28 @@ const styles = StyleSheet.create({
   dateTitle: {
     ...typography.h3,
     color: colors.white,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 8,
   },
   sessionTime: {
     ...typography.body,
     color: colors.lightGray,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 16,
   },
   summaryStats: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
   },
   statItem: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingHorizontal: 16,
   },
   statValue: {
     ...typography.h4,
     color: colors.primary,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   statLabel: {
     ...typography.caption,
@@ -295,18 +377,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.darkGray,
     borderRadius: 12,
     marginBottom: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   mealHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 16,
     backgroundColor: colors.mediumGray,
   },
   mealTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   mealIcon: {
     fontSize: 20,
@@ -317,12 +399,12 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   mealSummary: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   mealCalories: {
     ...typography.body,
     color: colors.primary,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   mealProtein: {
     ...typography.bodySmall,
@@ -332,8 +414,8 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   foodItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.mediumGray,
@@ -357,16 +439,16 @@ const styles = StyleSheet.create({
     color: colors.lightGray,
   },
   foodNutrition: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   foodCalories: {
     ...typography.bodySmall,
     color: colors.primary,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 4,
   },
   foodMacros: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 6,
   },
   macroText: {
@@ -375,11 +457,11 @@ const styles = StyleSheet.create({
   },
   noDataContainer: {
     padding: 40,
-    alignItems: 'center',
+    alignItems: "center",
   },
   noDataText: {
     ...typography.body,
     color: colors.lightGray,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

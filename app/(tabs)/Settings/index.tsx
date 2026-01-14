@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
 
 import { styles } from './styles';
-import { useSettingsLogic } from './useSettingsLogic';
+import { useSettingsLogic } from './logic';
 import { colors } from '@/constants/colors';
 
 export default function SettingsScreen() {

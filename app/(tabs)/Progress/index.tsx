@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { styles } from './styles';
-import { useProgressLogic } from './ProgressLogic';
+import { useProgressLogic } from './logic';
 import { colors } from '@/constants/colors';
 
 import { WorkoutProgressCharts } from '@/components/WorkoutProgressCharts';

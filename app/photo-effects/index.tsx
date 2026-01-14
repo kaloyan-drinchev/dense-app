@@ -80,8 +80,8 @@ EDITING SETTINGS:
 `;
 
       // Create temporary file
-      const fileUri = FileSystem.documentDirectory + fileName;
-      await FileSystem.writeAsStringAsync(fileUri, pdfContent);
+      const fileUri = ((FileSystem as any).documentDirectory || '') + fileName;
+      await (FileSystem as any).writeAsStringAsync(fileUri, pdfContent);
 
       // Share/download the file
       if (await Sharing.isAvailableAsync()) {
