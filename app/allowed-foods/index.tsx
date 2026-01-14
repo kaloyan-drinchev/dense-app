@@ -1,28 +1,34 @@
-import React, { useState } from 'react';
+import React from "react";
 import {
-  StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { colors } from '@/constants/colors';
-import { typography } from '@/constants/typography';
-import { Feather as Icon } from '@expo/vector-icons';
-import { allowedFoodCategories, mealRecipeCategories } from '@/constants/allowed-foods';
+} from "react-native";
+import { Feather as Icon } from "@expo/vector-icons";
+import { colors } from "@/constants/colors";
+import {
+  allowedFoodCategories as FoodCategoriesType,
+  mealRecipeCategories as RecipeCategoriesType,
+} from "@/constants/allowed-foods";
+
+import { styles } from "./styles";
+import { useAllowedFoodsLogic } from "./logic";
 
 export default function AllowedFoodsScreen() {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'foods' | 'recipes'>('foods');
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const {
+    activeTab,
+    setActiveTab,
+    expandedCategory,
+    toggleCategory,
+    handleBack,
+    handleAddFood,
+    allowedFoodCategories,
+    mealRecipeCategories,
+  } = useAllowedFoodsLogic();
 
-  const toggleCategory = (categoryId: string) => {
-    setExpandedCategory(expandedCategory === categoryId ? null : categoryId);
-  };
-
-  const renderFoodCategory = (category: typeof allowedFoodCategories[0]) => (
+  const renderFoodCategory = (category: (typeof FoodCategoriesType)[0]) => (
     <View key={category.id} style={styles.categoryContainer}>
       <TouchableOpacity
         style={styles.categoryHeader}
@@ -35,7 +41,9 @@ export default function AllowedFoodsScreen() {
           <Text style={styles.foodCount}>({category.foods.length} items)</Text>
         </View>
         <Icon
-          name={expandedCategory === category.id ? 'chevron-up' : 'chevron-down'}
+          name={
+            expandedCategory === category.id ? "chevron-up" : "chevron-down"
+          }
           size={20}
           color={colors.lightGray}
         />
@@ -56,7 +64,7 @@ export default function AllowedFoodsScreen() {
     </View>
   );
 
-  const renderRecipeCategory = (category: typeof mealRecipeCategories[0]) => (
+  const renderRecipeCategory = (category: (typeof RecipeCategoriesType)[0]) => (
     <View key={category.id} style={styles.categoryContainer}>
       <TouchableOpacity
         style={styles.categoryHeader}
@@ -65,10 +73,14 @@ export default function AllowedFoodsScreen() {
       >
         <View style={styles.categoryTitleContainer}>
           <Text style={styles.categoryTitle}>{category.name}</Text>
-          <Text style={styles.foodCount}>({category.recipes.length} recipes)</Text>
+          <Text style={styles.foodCount}>
+            ({category.recipes.length} recipes)
+          </Text>
         </View>
         <Icon
-          name={expandedCategory === category.id ? 'chevron-up' : 'chevron-down'}
+          name={
+            expandedCategory === category.id ? "chevron-up" : "chevron-down"
+          }
           size={20}
           color={colors.lightGray}
         />
@@ -93,7 +105,7 @@ export default function AllowedFoodsScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={handleBack}
           activeOpacity={1}
         >
           <Icon name="arrow-left" size={24} color={colors.white} />
@@ -105,20 +117,30 @@ export default function AllowedFoodsScreen() {
       {/* Tab Selector */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'foods' && styles.activeTab]}
-          onPress={() => setActiveTab('foods')}
+          style={[styles.tab, activeTab === "foods" && styles.activeTab]}
+          onPress={() => setActiveTab("foods")}
           activeOpacity={1}
         >
-          <Text style={[styles.tabText, activeTab === 'foods' && styles.activeTabText]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "foods" && styles.activeTabText,
+            ]}
+          >
             Approved Foods
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'recipes' && styles.activeTab]}
-          onPress={() => setActiveTab('recipes')}
+          style={[styles.tab, activeTab === "recipes" && styles.activeTab]}
+          onPress={() => setActiveTab("recipes")}
           activeOpacity={1}
         >
-          <Text style={[styles.tabText, activeTab === 'recipes' && styles.activeTabText]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "recipes" && styles.activeTabText,
+            ]}
+          >
             25 Meal Recipes
           </Text>
         </TouchableOpacity>
@@ -127,7 +149,12 @@ export default function AllowedFoodsScreen() {
       {/* Info Banner */}
       <View style={styles.infoBanner}>
         <View style={styles.infoBannerContent}>
-          <Icon name="info" size={20} color={colors.primary} style={styles.infoIcon} />
+          <Icon
+            name="info"
+            size={20}
+            color={colors.primary}
+            style={styles.infoIcon}
+          />
           <View style={styles.infoBannerTextContainer}>
             <Text style={styles.infoBannerTitle}>Read-Only Reference</Text>
             <Text style={styles.infoBannerText}>
@@ -137,7 +164,7 @@ export default function AllowedFoodsScreen() {
         </View>
         <TouchableOpacity
           style={styles.addFoodButton}
-          onPress={() => router.push('/add-food-page')}
+          onPress={handleAddFood}
           activeOpacity={1}
         >
           <Icon name="plus" size={16} color={colors.black} />
@@ -151,19 +178,21 @@ export default function AllowedFoodsScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {activeTab === 'foods' && (
+        {activeTab === "foods" && (
           <View>
             <Text style={styles.sectionDescription}>
-              Core foods approved for the Dense Diet program. These foods form the foundation of your nutrition plan.
+              Core foods approved for the Dense Diet program. These foods form
+              the foundation of your nutrition plan.
             </Text>
             {allowedFoodCategories.map(renderFoodCategory)}
           </View>
         )}
 
-        {activeTab === 'recipes' && (
+        {activeTab === "recipes" && (
           <View>
             <Text style={styles.sectionDescription}>
-              25 meal recipes using approved Dense Diet foods with flavor variations for taste variety.
+              25 meal recipes using approved Dense Diet foods with flavor
+              variations for taste variety.
             </Text>
             {mealRecipeCategories.map(renderRecipeCategory)}
           </View>
@@ -172,166 +201,3 @@ export default function AllowedFoodsScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.dark,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.mediumGray,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    ...typography.h3,
-    color: colors.white,
-    textAlign: 'center',
-  },
-  placeholder: {
-    width: 40,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    padding: 4,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  activeTab: {
-    backgroundColor: colors.primary,
-  },
-  tabText: {
-    ...typography.body,
-    color: colors.lightGray,
-  },
-  activeTabText: {
-    color: colors.black,
-    fontWeight: 'bold',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  sectionDescription: {
-    ...typography.body,
-    color: colors.lightGray,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  categoryContainer: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    marginBottom: 16,
-    overflow: 'hidden',
-  },
-  categoryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-  },
-  categoryTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  categoryIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  categoryTitle: {
-    ...typography.h4,
-    color: colors.white,
-    marginRight: 8,
-  },
-  foodCount: {
-    ...typography.bodySmall,
-    color: colors.lightGray,
-  },
-  foodsList: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  foodItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.mediumGray,
-  },
-  foodName: {
-    ...typography.body,
-    color: colors.white,
-    marginBottom: 4,
-  },
-  foodDetails: {
-    ...typography.bodySmall,
-    color: colors.lightGray,
-    lineHeight: 18,
-  },
-  infoBanner: {
-    backgroundColor: colors.darkGray,
-    marginHorizontal: 20,
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
-  },
-  infoBannerContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  infoIcon: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  infoBannerTextContainer: {
-    flex: 1,
-  },
-  infoBannerTitle: {
-    ...typography.body,
-    color: colors.white,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  infoBannerText: {
-    ...typography.bodySmall,
-    color: colors.lightGray,
-    lineHeight: 20,
-  },
-  addFoodButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    gap: 8,
-  },
-  addFoodButtonText: {
-    ...typography.body,
-    color: colors.black,
-    fontWeight: 'bold',
-  },
-});

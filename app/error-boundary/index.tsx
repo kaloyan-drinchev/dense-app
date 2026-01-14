@@ -21,7 +21,7 @@ const webTargetOrigins = [
 ];    
 
 function sendErrorToIframeParent(error: any, errorInfo?: any) {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
     console.debug('Sending error to parent:', {
       error,
       errorInfo,

@@ -1,135 +1,29 @@
-import React, { useEffect, useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  ScrollView,
-} from "react-native";
+import React from "react";
+import { Text, View, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { colors } from "@/constants/colors";
-import { typography } from "@/constants/typography";
-import { useNutritionStore } from "@/store/nutrition-store";
-import { NutritionSummary } from "@/components/NutritionSummary";
-import { MealSection } from "@/components/MealSection";
 import { Feather as Icon } from "@expo/vector-icons";
-import { MealType, FoodEntry } from "@/types/nutrition";
+import { colors } from "@/constants/colors";
+
+import { NutritionSummary } from "@/components/NutritionSummary";
+import { styles } from "./styles";
+import { useNutritionDetailLogic } from "./logic";
 
 export default function NutritionDetailScreen() {
-  const router = useRouter();
-  const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
-  const { loggedMealSessions, nutritionGoals } = useNutritionStore();
-  const [loading, setLoading] = useState(true);
-
-  const mealSession = loggedMealSessions.find(
-    (session) => session.id === sessionId
-  );
-
-  const dailyLog = mealSession || {
-    date: "",
-    entries: [],
-    totalNutrition: {
-      calories: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-    },
-    calorieGoal: nutritionGoals.calories,
-  };
-
-  // Group entries by meal type
-  type EntriesByMealType = Partial<Record<MealType, FoodEntry[]>>;
-  const entriesByMeal: EntriesByMealType = (
-    dailyLog.entries || []
-  ).reduce<EntriesByMealType>((acc, entry) => {
-    if (!acc[entry.mealType]) {
-      acc[entry.mealType] = [];
-    }
-    acc[entry.mealType]!.push(entry);
-    return acc;
-  }, {});
-
-  useEffect(() => {
-    setLoading(false);
-  }, [sessionId]);
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (dateString === today.toISOString().split("T")[0]) {
-      return "Today's Meals";
-    } else if (dateString === yesterday.toISOString().split("T")[0]) {
-      return "Yesterday's Meals";
-    } else {
-      return date.toLocaleDateString("en-US", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    }
-  };
-
-  const formatSessionTime = (timestamp: string) => {
-    try {
-      return new Date(timestamp).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
-    } catch {
-      return "";
-    }
-  };
-
-  const formatTime = (timestamp: string) => {
-    try {
-      return new Date(timestamp).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
-    } catch {
-      return "";
-    }
-  };
-
-  const getMealIcon = (mealType: MealType) => {
-    switch (mealType) {
-      case "breakfast":
-        return "🌅";
-      case "brunch":
-        return "🥐";
-      case "lunch":
-        return "🍽️";
-      case "pre-workout":
-        return "⚡";
-      case "post-workout":
-        return "💪";
-      case "dinner":
-        return "🌙";
-      case "snack":
-        return "🥜";
-      default:
-        return "🍴";
-    }
-  };
-
-  const getMealDisplayName = (mealType: MealType) => {
-    switch (mealType) {
-      case "pre-workout":
-        return "Pre-Workout";
-      case "post-workout":
-        return "Post-Workout";
-      default:
-        return mealType.charAt(0).toUpperCase() + mealType.slice(1);
-    }
-  };
+  const {
+    loading,
+    mealSession,
+    dailyLog,
+    entriesByMeal,
+    orderedMealTypes,
+    handleBack,
+    formatDate,
+    formatSessionTime,
+    formatTime,
+    getMealIcon,
+    getMealDisplayName,
+    getGoalPercentage,
+  } = useNutritionDetailLogic();
 
   return (
     <LinearGradient
@@ -138,10 +32,7 @@ export default function NutritionDetailScreen() {
     >
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Icon name="arrow-left" size={24} color={colors.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Nutrition Detail</Text>
@@ -183,14 +74,7 @@ export default function NutritionDetailScreen() {
                   </View>
                   <View style={styles.statDivider} />
                   <View style={styles.statItem}>
-                    <Text style={styles.statValue}>
-                      {Math.round(
-                        (dailyLog.totalNutrition.calories /
-                          dailyLog.calorieGoal) *
-                          100
-                      )}
-                      %
-                    </Text>
+                    <Text style={styles.statValue}>{getGoalPercentage()}%</Text>
                     <Text style={styles.statLabel}>of Goal</Text>
                   </View>
                 </View>
@@ -204,17 +88,7 @@ export default function NutritionDetailScreen() {
                 <View style={styles.mealsContainer}>
                   <Text style={styles.mealsTitle}>Meals & Foods</Text>
 
-                  {(
-                    [
-                      "breakfast",
-                      "brunch",
-                      "lunch",
-                      "pre-workout",
-                      "post-workout",
-                      "dinner",
-                      "snack",
-                    ] as MealType[]
-                  ).map((mealType) => {
+                  {orderedMealTypes.map((mealType) => {
                     const entries = entriesByMeal[mealType];
                     if (!entries || entries.length === 0) return null;
 
@@ -249,7 +123,7 @@ export default function NutritionDetailScreen() {
                         </View>
 
                         <View style={styles.foodsList}>
-                          {entries.map((entry, index) => (
+                          {entries.map((entry) => (
                             <View key={entry.id} style={styles.foodItem}>
                               <View style={styles.foodInfo}>
                                 <Text style={styles.foodName}>
@@ -301,167 +175,3 @@ export default function NutritionDetailScreen() {
     </LinearGradient>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.darkGray,
-  },
-  backButton: { marginRight: 16, padding: 8 },
-  headerTitle: { ...typography.h4, color: colors.white, flex: 1 },
-  scrollView: { flex: 1 },
-  contentContainer: { paddingBottom: 24 },
-  centerBox: {
-    padding: 24,
-    alignItems: "center",
-    marginTop: 60,
-  },
-  loadingText: { ...typography.body, color: colors.white },
-
-  dateHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.darkGray,
-  },
-  dateTitle: {
-    ...typography.h3,
-    color: colors.white,
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  sessionTime: {
-    ...typography.body,
-    color: colors.lightGray,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  summaryStats: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  statItem: {
-    alignItems: "center",
-    paddingHorizontal: 16,
-  },
-  statValue: {
-    ...typography.h4,
-    color: colors.primary,
-    fontWeight: "bold",
-  },
-  statLabel: {
-    ...typography.caption,
-    color: colors.lightGray,
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: colors.mediumGray,
-  },
-
-  mealsContainer: {
-    padding: 16,
-  },
-  mealsTitle: {
-    ...typography.h4,
-    color: colors.white,
-    marginBottom: 16,
-  },
-  mealContainer: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    marginBottom: 16,
-    overflow: "hidden",
-  },
-  mealHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    backgroundColor: colors.mediumGray,
-  },
-  mealTitleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  mealIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  mealTitle: {
-    ...typography.h4,
-    color: colors.white,
-  },
-  mealSummary: {
-    alignItems: "flex-end",
-  },
-  mealCalories: {
-    ...typography.body,
-    color: colors.primary,
-    fontWeight: "bold",
-  },
-  mealProtein: {
-    ...typography.bodySmall,
-    color: colors.lightGray,
-  },
-  foodsList: {
-    padding: 16,
-  },
-  foodItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.mediumGray,
-  },
-  foodInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  foodName: {
-    ...typography.body,
-    color: colors.white,
-    marginBottom: 2,
-  },
-  foodAmount: {
-    ...typography.bodySmall,
-    color: colors.primary,
-    marginBottom: 2,
-  },
-  foodTime: {
-    ...typography.caption,
-    color: colors.lightGray,
-  },
-  foodNutrition: {
-    alignItems: "flex-end",
-  },
-  foodCalories: {
-    ...typography.bodySmall,
-    color: colors.primary,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  foodMacros: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  macroText: {
-    ...typography.caption,
-    color: colors.lightGray,
-  },
-  noDataContainer: {
-    padding: 40,
-    alignItems: "center",
-  },
-  noDataText: {
-    ...typography.body,
-    color: colors.lightGray,
-    textAlign: "center",
-  },
-});

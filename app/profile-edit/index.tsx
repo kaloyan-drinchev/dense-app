@@ -1,190 +1,31 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   ScrollView,
-  StyleSheet,
-  Alert,
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { Feather as Icon } from "@expo/vector-icons";
 import { colors } from "@/constants/colors";
-import { typography } from "@/constants/typography";
-import { useAuthStore } from "@/store/auth-store";
-import { useWorkoutStore } from "@/store/workout-store";
-import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
-import { validateFile, FILE_SECURITY } from "@/utils/file-security";
-import {
-  validateProfileData,
-  validateData,
-  VALIDATION_SCHEMAS,
-} from "@/utils/data-validation";
 
-interface ProfileData {
-  // Basic Personal Details
-  name: string;
-  profilePicture: string; // Base64 or URI
-
-  // Physical Measurements
-  bodyFat: string; // percentage
-}
+import { styles } from "./styles";
+import { useProfileEditLogic } from "./logic";
 
 export default function ProfileEditScreen() {
-  const router = useRouter();
-  const { user } = useAuthStore();
-  const { userProfile } = useWorkoutStore();
+  const {
+    profile,
+    isSaving,
+    pickImage,
+    handleSave,
+    updateProfile,
+    handleWeightRedirect,
+    handleBack,
+  } = useProfileEditLogic();
 
-  const [profile, setProfile] = useState<ProfileData>({
-    name: user?.name || userProfile?.name || "",
-    profilePicture: userProfile?.profilePicture || "",
-    bodyFat: "",
-  });
-
-  const [isSaving, setIsSaving] = useState(false);
-
-  const pickImage = async () => {
-    try {
-      // Request permissions first
-      const permissionResult =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (permissionResult.granted === false) {
-        Alert.alert(
-          "Permission Required",
-          "You need to allow access to your photo library to change your profile picture."
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-        base64: false, // Don't load into memory immediately
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-
-        // Validate file security
-        const isValidFile = validateFile(asset, {
-          maxSize: FILE_SECURITY.MAX_IMAGE_SIZE,
-          allowedTypes: FILE_SECURITY.ALLOWED_IMAGE_TYPES,
-          isImage: true,
-        });
-
-        if (!isValidFile) {
-          return; // Validation failed, error already shown
-        }
-
-        // Convert to base64 for storage
-        const base64 = await (FileSystem as any).readAsStringAsync(asset.uri, {
-          encoding: (FileSystem as any).EncodingType.Base64,
-        });
-
-        updateProfile("profilePicture", `data:image/jpeg;base64,${base64}`);
-      }
-    } catch (error) {
-      console.error("Image picker error:", error);
-      Alert.alert("Error", "Failed to pick image. Please try again.");
-    }
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      // Validate profile data
-      const validation = validateProfileData(profile);
-
-      if (!validation.isValid) {
-        Alert.alert("Validation Error", validation.errors.join("\n"));
-        return;
-      }
-
-      // Use sanitized data if validation passed
-      const sanitizedData = validation.sanitized || profile;
-
-      // Update auth store if name changed
-      if (sanitizedData.name !== user?.name) {
-        const { updateUser } = useAuthStore.getState();
-        updateUser({ ...user, name: sanitizedData.name });
-      }
-
-      // Save to database using userProfileService
-      const { userProfileService } = await import("@/db/services");
-
-      // Check if profile exists using user ID (primary key)
-      let existingProfile;
-      try {
-        if (user?.id) {
-          existingProfile = await userProfileService.getById(user.id);
-        }
-      } catch (error) {
-        console.log("No existing profile found:", error);
-      }
-
-      const profileData = {
-        name: sanitizedData.name,
-        email: user?.email, // Keep existing email from auth store
-        profilePicture: sanitizedData.profilePicture,
-        bodyFat: sanitizedData.bodyFat
-          ? parseFloat(sanitizedData.bodyFat)
-          : undefined,
-      };
-
-      let savedProfile;
-      if (existingProfile) {
-        // Update existing profile
-        savedProfile = await userProfileService.update(user!.id, profileData);
-
-        // If update failed (no rows affected), try to create instead
-        if (!savedProfile) {
-          console.log(
-            "Update returned no rows, attempting to create profile..."
-          );
-          savedProfile = await userProfileService.create({
-            ...profileData,
-            id: user?.id,
-          });
-        }
-      } else {
-        // Create new profile with user ID
-        savedProfile = await userProfileService.create({
-          ...profileData,
-          id: user?.id,
-        });
-      }
-
-      if (!savedProfile) {
-        throw new Error("Failed to save profile - no data returned");
-      }
-
-      // Update workout store
-      const { updateUserProfile } = useWorkoutStore.getState();
-      updateUserProfile({
-        ...profileData,
-      });
-
-      Alert.alert("Success", "Profile updated successfully!");
-      router.back();
-    } catch (error) {
-      console.error("Failed to save profile:", error);
-      Alert.alert("Error", "Failed to update profile. Please try again.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const updateProfile = (field: keyof ProfileData, value: any) => {
-    setProfile((prev) => ({ ...prev, [field]: value }));
-  };
-
+  // Helper render functions
   const renderSection = (title: string, children: React.ReactNode) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -216,10 +57,7 @@ export default function ProfileEditScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Icon name="arrow-left" size={24} color={colors.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
@@ -300,7 +138,7 @@ export default function ProfileEditScreen() {
             )}
             <TouchableOpacity
               style={styles.weightRedirect}
-              onPress={() => router.push("/(tabs)/Progress")}
+              onPress={handleWeightRedirect}
               activeOpacity={0.7}
             >
               <View style={styles.weightRedirectContent}>
@@ -322,145 +160,3 @@ export default function ProfileEditScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  weightRedirect: {
-    backgroundColor: colors.dark,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  weightRedirectContent: {
-    flex: 1,
-    marginRight: 12,
-  },
-  weightRedirectText: {
-    ...typography.body,
-    color: colors.primary,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  weightRedirectSubtext: {
-    ...typography.caption,
-    color: colors.lightGray,
-    lineHeight: 18,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.dark,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.darkGray,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    ...typography.h4,
-    color: colors.white,
-  },
-  saveButton: {
-    ...typography.button,
-    color: colors.primary,
-  },
-  saveButtonDisabled: {
-    color: colors.lightGray,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  section: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.darkGray,
-  },
-  sectionTitle: {
-    ...typography.h4,
-    color: colors.white,
-    marginBottom: 16,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    ...typography.bodySmall,
-    color: colors.white,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    ...typography.body,
-    color: colors.white,
-    borderWidth: 1,
-    borderColor: colors.mediumGray,
-  },
-  numericInput: {
-    backgroundColor: colors.darkGray,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    ...typography.timerSmall,
-    color: colors.white,
-    borderWidth: 1,
-    borderColor: colors.mediumGray,
-  },
-
-  bottomPadding: {
-    height: 40,
-  },
-
-  // Profile Picture Styles
-  profilePictureSection: {
-    alignItems: "center",
-  },
-  profilePictureContainer: {
-    marginBottom: 16,
-  },
-  profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.darkGray,
-  },
-  profilePlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.darkGray,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: colors.mediumGray,
-    borderStyle: "dashed",
-  },
-  profilePlaceholderText: {
-    ...typography.caption,
-    color: colors.lightGray,
-    marginTop: 8,
-    textAlign: "center",
-  },
-  changePhotoButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  changePhotoText: {
-    color: colors.black,
-    ...typography.bodySmall,
-  },
-});
