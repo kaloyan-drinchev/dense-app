@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { subscriptionService } from '@/services/subscription-service.js';
+import { subscriptionService } from '@/services/subscription';
 
 export const useSubscriptionStore = create()(
   persist(
@@ -18,12 +18,17 @@ export const useSubscriptionStore = create()(
         try {
           set({ isLoading: true, error: null });
           
-          const status = await subscriptionService.checkSubscriptionStatus();
-          const trialStatus = await subscriptionService.getTrialStatus();
+          const status = await subscriptionService.getUserStatus();
+          // Note: Trial status is now part of the main status from RevenueCat
+          // If you need separate trial info, check status.isPro and status.latestExpirationDate
           
           set({ 
-            subscriptionStatus: status, 
-            trialStatus: trialStatus,
+            subscriptionStatus: {
+              isActive: status.isPro,
+              endDate: status.latestExpirationDate,
+              activeSubscriptions: status.activeSubscriptions
+            }, 
+            trialStatus: null, // Trials are handled by RevenueCat entitlements
             hasCheckedStatus: true,
             isLoading: false 
           });
@@ -135,8 +140,17 @@ export const useSubscriptionStore = create()(
       },
 
       getTrialDaysRemaining: async () => {
-        const trialStatus = await subscriptionService.getTrialStatus();
-        return trialStatus?.daysRemaining || 0;
+        // Trial information is now handled through RevenueCat entitlements
+        // Check the subscription status for expiration dates
+        const status = await subscriptionService.getUserStatus();
+        if (status.latestExpirationDate) {
+          const now = new Date();
+          const expiryDate = new Date(status.latestExpirationDate);
+          const diffTime = expiryDate - now;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return Math.max(0, diffDays);
+        }
+        return 0;
       },
 
       getTrialInfo: () => {
@@ -158,9 +172,13 @@ export const useSubscriptionStore = create()(
       },
 
       // Check if user can start a trial
+      // Note: With RevenueCat, trials are part of the package offerings
+      // Users purchase a package that includes a trial period
       canStartTrial: async () => {
         try {
-          return await subscriptionService.canStartTrial();
+          const status = await subscriptionService.getUserStatus();
+          // If user has never subscribed, they can potentially start a trial
+          return !status.isPro && (!status.activeSubscriptions || status.activeSubscriptions.length === 0);
         } catch (error) {
           console.error('Failed to check trial eligibility:', error);
           return false;
@@ -168,41 +186,19 @@ export const useSubscriptionStore = create()(
       },
 
       // Start free trial
+      // Note: With RevenueCat, trials are started by purchasing a package that includes a trial
+      // This method is kept for compatibility but should redirect to the paywall
       startFreeTrial: async () => {
-        try {
-          const result = await subscriptionService.startFreeTrial();
-          
-          if (result.success) {
-            // Refresh subscription status after starting trial
-            const { checkSubscriptionStatus } = get();
-            await checkSubscriptionStatus();
-          }
-          
-          return result;
-        } catch (error) {
-          console.error('Failed to start trial:', error);
-          return {
-            success: false,
-            message: 'Failed to start trial'
-          };
-        }
+        console.warn('startFreeTrial: Trials are now handled through RevenueCat package purchases');
+        return {
+          success: false,
+          message: 'Please use the subscription screen to start a trial'
+        };
       },
 
       setSubscriptionEndDate: async (days, disableAutoRenew = false) => {
-        try {
-          const result = await subscriptionService.setSubscriptionEndDate(days, disableAutoRenew);
-          
-          if (result.success) {
-            // Refresh subscription status after update
-            const { checkSubscriptionStatus } = get();
-            await checkSubscriptionStatus();
-          }
-          
-          return result.success;
-        } catch (error) {
-          console.error('Failed to set subscription end date:', error);
-          return false;
-        }
+        console.warn('setSubscriptionEndDate: This is a legacy method not supported by RevenueCat');
+        return false;
       },
 
       // Navigation refresh trigger

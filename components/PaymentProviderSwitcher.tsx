@@ -11,8 +11,7 @@ import {
 import { colors } from '@/constants/colors';
 import { typography } from '@/constants/typography';
 import { Feather as Icon } from '@expo/vector-icons';
-import { subscriptionService } from '@/services/subscription-service.js';
-import { paymentConfig } from '@/services/payment-config';
+import { subscriptionService } from '@/services/subscription';
 import * as Haptics from 'expo-haptics';
 
 interface PaymentProviderSwitcherProps {
@@ -30,17 +29,12 @@ export const PaymentProviderSwitcher: React.FC<PaymentProviderSwitcherProps> = (
 
   // Load current provider information
   useEffect(() => {
-    const loadProviderInfo = () => {
-      try {
-        const info = subscriptionService.getPaymentProviderInfo();
-        setProviderInfo(info);
-        setCurrentProvider(info.provider as 'mock' | 'apple');
-      } catch (error) {
-        console.error('❌ Error loading payment provider info:', error);
-      }
-    };
-
-    loadProviderInfo();
+    // Note: The new RevenueCat service doesn't support provider switching
+    // Always use RevenueCat (which handles both Apple and Google payments)
+    setProviderInfo({
+      provider: 'revenuecat',
+      displayName: 'RevenueCat (Apple/Google IAP)'
+    });
   }, []);
 
   const handleProviderSwitch = (useApple: boolean) => {
@@ -78,45 +72,13 @@ export const PaymentProviderSwitcher: React.FC<PaymentProviderSwitcherProps> = (
   };
 
   const switchProvider = (provider: 'mock' | 'apple') => {
-    try {
-      subscriptionService.switchPaymentProvider(provider);
-      setCurrentProvider(provider);
-      
-      const newInfo = subscriptionService.getPaymentProviderInfo();
-      setProviderInfo(newInfo);
-
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-
-      // Notify parent component
-      onProviderChange?.(provider);
-
-      Alert.alert(
-        'Payment Provider Changed',
-        `Switched to ${newInfo.displayName}`,
-        [{ text: 'OK' }]
-      );
-
-    } catch (error) {
-      console.error('❌ Error switching payment provider:', error);
-      Alert.alert('Error', 'Failed to switch payment provider');
-    }
-  };
-
-  // Don't show on web
-  if (Platform.OS === 'web') {
-    return (
-      <View style={styles.container}>
-        <View style={styles.infoContainer}>
-          <Icon name="info" size={16} color={colors.lightGray} />
-          <Text style={styles.infoText}>
-            Payment provider switching not available on web
-          </Text>
-        </View>
-      </View>
+    // Payment provider switching is not supported with RevenueCat
+    Alert.alert(
+      'Not Supported',
+      'Payment provider switching is not available. The app now uses RevenueCat which automatically handles Apple and Google payments.',
+      [{ text: 'OK' }]
     );
-  }
+  };
 
   return (
     <View style={styles.container}>
@@ -130,72 +92,18 @@ export const PaymentProviderSwitcher: React.FC<PaymentProviderSwitcherProps> = (
         <View style={styles.currentProvider}>
           <Text style={styles.label}>Current Provider:</Text>
           <Text style={styles.providerName}>
-            {providerInfo?.displayName || 'Unknown'}
+            {providerInfo?.displayName || 'RevenueCat'}
           </Text>
         </View>
 
-        {/* Provider Switch */}
-        <View style={styles.switchContainer}>
-          <View style={styles.switchOption}>
-            <View style={styles.switchInfo}>
-              <Text style={[styles.switchLabel, currentProvider === 'mock' && styles.activeLabel]}>
-                Mock Payments
-              </Text>
-              <Text style={styles.switchDescription}>
-                Development/Testing mode
-              </Text>
-            </View>
-          </View>
-
-          <Switch
-            trackColor={{ false: colors.darkGray, true: colors.primary }}
-            thumbColor={currentProvider === 'apple' ? colors.white : colors.lightGray}
-            onValueChange={handleProviderSwitch}
-            value={currentProvider === 'apple'}
-            style={styles.switch}
-          />
-
-          <View style={styles.switchOption}>
-            <View style={styles.switchInfo}>
-              <Text style={[styles.switchLabel, currentProvider === 'apple' && styles.activeLabel]}>
-                Apple In-App Purchases
-              </Text>
-              <Text style={styles.switchDescription}>
-                Real payments (iOS only)
-              </Text>
-            </View>
-          </View>
+        {/* Info about RevenueCat */}
+        <View style={styles.infoContainer}>
+          <Icon name="info" size={16} color={colors.primary} />
+          <Text style={styles.infoText}>
+            The app now uses RevenueCat which automatically handles payments through Apple App Store (iOS) and Google Play Store (Android). Payment provider switching is no longer needed.
+          </Text>
         </View>
-
-        {/* Warning for Apple payments */}
-        {currentProvider === 'apple' && (
-          <View style={styles.warningContainer}>
-            <Icon name="alert-triangle" size={16} color={colors.warning} />
-            <Text style={styles.warningText}>
-              Apple IAP enabled - Real charges will occur
-            </Text>
-          </View>
-        )}
-
-        {/* Info for mock payments */}
-        {currentProvider === 'mock' && (
-          <View style={styles.infoContainer}>
-            <Icon name="info" size={16} color={colors.primary} />
-            <Text style={styles.infoText}>
-              Mock payments enabled - No actual charges
-            </Text>
-          </View>
-        )}
       </View>
-
-      {/* Platform availability notice */}
-      {Platform.OS !== 'ios' && (
-        <View style={styles.platformNotice}>
-          <Text style={styles.platformNoticeText}>
-            Apple In-App Purchases only available on iOS devices
-          </Text>
-        </View>
-      )}
     </View>
   );
 };

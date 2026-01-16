@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,34 +10,31 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '@/constants/colors';
-import { typography } from '@/constants/typography';
-import { Feather as Icon } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { subscriptionService, SUBSCRIPTION_PLANS } from '@/services/subscription-service.js';
-import { useAuthStore } from '@/store/auth-store';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { colors } from "@/constants/colors";
+import { typography } from "@/constants/typography";
+import { Feather as Icon } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { subscriptionService } from "@/services/subscription";
+import { USE_MOCK_PAYMENTS } from "@/services/subscription/config";
+import { useAuthStore } from "@/store/auth-store";
 
-// Define SubscriptionPlan type locally
+// Define SubscriptionPlan type locally - mapped from RevenueCat packages
 interface SubscriptionPlan {
   id: string;
-  name: string;
-  duration: number;
-  price: number;
-  originalPrice: number;
-  discount?: number;
-  popular?: boolean;
-  isPopular?: boolean;
+  rcPackage?: any; // The actual RevenueCat package object
+  identifier: string;
+  priceString: string;
+  title: string;
   description?: string;
-  savingsPercentage: number;
-  monthlyPrice: number;
   features: string[];
-  bonusFeatures?: string[];
+  bestValue: boolean;
+  label: string;
 }
-import { useSubscriptionStore } from '@/store/subscription-store.js';
-import { useRouter } from 'expo-router';
+import { useSubscriptionStore } from "@/store/subscription-store.js";
+import { useRouter } from "expo-router";
 
 interface SubscriptionScreenProps {
   onSubscribed: () => void;
@@ -47,65 +44,84 @@ interface SubscriptionScreenProps {
   onCancel?: () => void; // New prop for handling cancel with X button
 }
 
-export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({ 
-  onSubscribed, 
+export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
+  onSubscribed,
   onSkip,
   showSkipOption = false,
   programPreview,
-  onCancel 
+  onCancel,
 }) => {
   const router = useRouter();
-  const { 
-    isResubscription, 
-    getSubscriptionCount, 
-    refreshSubscriptionStatus, 
+  const {
+    isResubscription,
+    getSubscriptionCount,
+    refreshSubscriptionStatus,
     hasActiveSubscription,
-    canStartTrial,
-    startFreeTrial,
     isTrialActive,
-    getDaysUntilExpiry
+    getDaysUntilExpiry,
   } = useSubscriptionStore();
   const { restoreFromCloud } = useAuthStore();
-  const [selectedPlan, setSelectedPlan] = useState<string>('yearly'); // Default to Annual Pro plan (now first in list)
+  const [selectedPlan, setSelectedPlan] = useState<string>(""); // Will be set when plans load
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
-  const [isStartingTrial, setIsStartingTrial] = useState(false);
-  const [canUserStartTrial, setCanUserStartTrial] = useState(false);
   const [isCancelledWithTimeLeft, setIsCancelledWithTimeLeft] = useState(false);
   const [showCloudRestoreModal, setShowCloudRestoreModal] = useState(false);
-  const [restoreEmail, setRestoreEmail] = useState('');
+  const [restoreEmail, setRestoreEmail] = useState("");
   const [isRestoringCloud, setIsRestoringCloud] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [isLoadingPlans, setIsLoadingPlans] = useState(true);
 
   // Check if user has active subscription to show X button
   const userHasActiveSubscription = hasActiveSubscription();
 
-  // Check if user can start trial on component mount  
+  // Load plans from RevenueCat
   useEffect(() => {
-    const checkTrialEligibility = async () => {
+    const loadPlans = async () => {
       try {
-        const canStart = await canStartTrial();
-        setCanUserStartTrial(canStart);
+        setIsLoadingPlans(true);
+        const paywallOptions = await subscriptionService.getPaywallOptions();
+        setPlans(paywallOptions);
+        // Default to the "best value" plan (annual) or first plan
+        if (paywallOptions.length > 0) {
+          const bestValuePlan = paywallOptions.find((p) => p.bestValue);
+          const defaultPlan = bestValuePlan || paywallOptions[0];
+          setSelectedPlan(defaultPlan.id);
+          console.log(
+            "✅ Default plan set to:",
+            defaultPlan.id,
+            defaultPlan.title
+          );
+        }
       } catch (error) {
-        console.error('Error checking trial eligibility:', error);
-        setCanUserStartTrial(false);
+        console.error("Error loading plans:", error);
+        Alert.alert(
+          "Error",
+          "Failed to load subscription plans. Please try again."
+        );
+      } finally {
+        setIsLoadingPlans(false);
       }
     };
 
-    checkTrialEligibility();
-  }, [canStartTrial]);
+    loadPlans();
+  }, []);
+
+  // Note: Trial eligibility is now handled by RevenueCat packages
 
   // Check if user has cancelled subscription with time remaining
   useEffect(() => {
     const checkCancelledStatus = async () => {
       try {
-        const isCancelled = await subscriptionService.isSubscriptionCancelled();
+        // Note: Cancellation detection with RevenueCat should use subscription status
         const daysLeft = getDaysUntilExpiry();
-        
-        // Show X button if cancelled and has time remaining
-        setIsCancelledWithTimeLeft(isCancelled && daysLeft !== null && daysLeft > 0);
+
+        // Show X button if has time remaining (expiring soon)
+        setIsCancelledWithTimeLeft(
+          daysLeft !== null && daysLeft > 0 && daysLeft <= 7
+        );
       } catch (error) {
-        console.error('Error checking cancelled status:', error);
+        console.error("Error checking cancelled status:", error);
         setIsCancelledWithTimeLeft(false);
       }
     };
@@ -114,10 +130,10 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   }, [getDaysUntilExpiry]);
 
   const handleCancel = () => {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    
+
     if (onCancel) {
       onCancel();
     }
@@ -125,16 +141,20 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 
   // Auto-scroll to selected plan when component mounts
   useEffect(() => {
+    if (plans.length === 0) return;
+
     const timer = setTimeout(() => {
       if (scrollViewRef.current) {
         // Find the index of the selected plan
-        const selectedPlanIndex = SUBSCRIPTION_PLANS.findIndex(plan => plan.id === selectedPlan);
-        
+        const selectedPlanIndex = plans.findIndex(
+          (plan) => plan.id === selectedPlan
+        );
+
         if (selectedPlanIndex > 0) {
           // Scroll to approximately where the selected plan should be
           // Each plan card is roughly 200px tall with margins
           const estimatedY = selectedPlanIndex * 220 + 200; // 200px offset for header content
-          
+
           scrollViewRef.current.scrollTo({
             y: estimatedY,
             animated: true,
@@ -144,106 +164,93 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     }, 500); // Slightly longer delay to ensure layout is complete
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [plans, selectedPlan]);
 
   const handlePlanSelect = (planId: string) => {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     setSelectedPlan(planId);
   };
 
   const handlePurchase = async () => {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
     setIsProcessing(true);
 
     try {
-      // First, try to start free trial
-      const canStart = await canStartTrial();
-      
-      if (canStart) {
-        // Start the 7-day free trial
-        const trialResult = await startFreeTrial();
-        
-        if (trialResult.success) {
-          if (Platform.OS !== 'web') {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }
-          
-          // Show trial started message
-          const plan = subscriptionService.getPlan(selectedPlan);
-          const planText = plan?.duration === 1 ? `$${plan?.price}/month` : `$${plan?.price}/year`;
-          
-          console.log('🎯 Showing Free Trial Started message');
-          Alert.alert(
-            '🎉 Free Trial Started!',
-            `Welcome to your 7-day free trial of DENSE Pro! You now have full access to all premium features. Your trial will automatically end after 7 days - no charges will occur unless you choose to subscribe.`,
-            [{ text: 'Start Training', onPress: () => {
-              console.log('🎯 Trial Start Training pressed - navigating directly to home');
-              setIsProcessing(false);
-              
-              // Force navigation directly to home page, bypassing any wizard logic
-              setTimeout(() => {
-                router.replace('/(tabs)');
-                console.log('🎯 Direct navigation to home from trial completion');
-              }, 200);
-              
-              // Also call onSubscribed for any cleanup
-              onSubscribed();
-            }}]
-          );
-          return;
-        }
+      // Purchase the selected package (trials are included in packages if configured in RevenueCat)
+      // Find the selected plan's rcPackage object
+      const selectedPlanObj = plans.find((p) => p.id === selectedPlan);
+      if (!selectedPlanObj) {
+        console.error(
+          "❌ Selected plan not found. selectedPlan:",
+          selectedPlan,
+          "Available plans:",
+          plans.map((p) => p.id)
+        );
+        throw new Error("Selected plan not found");
       }
-      
-      // If trial can't be started, proceed with regular purchase
-      const result = await subscriptionService.purchasePlan(selectedPlan);
-      
-      if (result.success) {
-        if (Platform.OS !== 'web') {
+
+      console.log(
+        "✅ Purchasing plan:",
+        selectedPlanObj.id,
+        selectedPlanObj.title
+      );
+
+      // In mock mode, rcPackage won't exist - pass the whole plan object
+      const result = await subscriptionService.purchasePackage(
+        selectedPlanObj.rcPackage || selectedPlanObj
+      );
+
+      if (result.isPro) {
+        if (Platform.OS !== "web") {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
-        
+
         // Refresh subscription status in the store to get the latest status
         await refreshSubscriptionStatus();
-        
-        // Always show first-time subscription message and go directly to home
-        console.log('🎯 Showing Welcome to DENSE Pro message (NOT Welcome Back)');
+
+        // Show success message and close subscription screen
+        console.log("🎯 Subscription successful - calling onSubscribed");
+
+        setIsProcessing(false);
+
+        // Call onSubscribed to update state in _layout
+        onSubscribed();
+
         Alert.alert(
-          '🎉 Welcome to DENSE Pro!',
-          'Your subscription is now active. Enjoy unlimited access to your personalized workout programs!',
-          [{ text: 'Start Training', onPress: () => {
-            console.log('🎯 Start Training pressed - navigating directly to home');
-            setIsProcessing(false);
-            
-            // Force navigation directly to home page, bypassing any wizard logic
-            setTimeout(() => {
-              router.replace('/(tabs)');
-              console.log('🎯 Direct navigation to home from subscription screen');
-            }, 200);
-            
-            // Also call onSubscribed for any cleanup
-            onSubscribed();
-          }}]
+          "🎉 Welcome to DENSE Pro!",
+          "Your subscription is now active. Enjoy unlimited access to your personalized workout programs!",
+          [
+            {
+              text: "Start Training",
+              onPress: () => {
+                console.log(
+                  "🎯 Start Training pressed - state already updated"
+                );
+              },
+            },
+          ]
         );
+      } else if ("cancelled" in result && result.cancelled) {
+        // User cancelled the purchase (only in real RevenueCat mode)
+        setIsProcessing(false);
       } else {
-        Alert.alert('Payment Failed', result.error || 'Please try again.');
+        Alert.alert("Payment Failed", "Please try again.");
         setIsProcessing(false);
       }
     } catch (error) {
-      console.error('Purchase error:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      console.error("Purchase error:", error);
+      Alert.alert("Error", "An unexpected error occurred. Please try again.");
       setIsProcessing(false);
     }
   };
 
-
-
   const handleRestorePurchases = async () => {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
@@ -251,62 +258,65 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 
     try {
       const result = await subscriptionService.restorePurchases();
-      
-      if (result.restored > 0) {
-        if (Platform.OS !== 'web') {
+
+      if (result.isPro) {
+        if (Platform.OS !== "web") {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
-        
+
         // Show option to also restore cloud data
         Alert.alert(
-          'Subscription Restored!',
-          'Your subscription has been restored successfully. Do you also want to restore your workout data from iCloud backup?',
+          "Subscription Restored!",
+          "Your subscription has been restored successfully. Do you also want to restore your workout data from iCloud backup?",
           [
-            { 
-              text: 'Skip for now', 
-              style: 'cancel',
+            {
+              text: "Skip for now",
+              style: "cancel",
               onPress: () => {
                 setIsRestoring(true);
                 setTimeout(() => {
                   onSubscribed();
                 }, 100);
-              }
+              },
             },
-            { 
-              text: 'Restore Data', 
+            {
+              text: "Restore Data",
               onPress: () => {
                 setIsRestoring(false);
                 setShowCloudRestoreModal(true);
-              }
-            }
+              },
+            },
           ]
         );
       } else {
         // No subscription found, offer cloud restore only
         Alert.alert(
-          'No Subscription Found', 
-          'No previous purchases were found. Would you like to restore your workout data from iCloud backup instead?',
+          "No Subscription Found",
+          "No previous purchases were found. Would you like to restore your workout data from iCloud backup instead?",
           [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Restore Data', 
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Restore Data",
               onPress: () => {
                 setIsRestoring(false);
                 setShowCloudRestoreModal(true);
-              }
-            }
+              },
+            },
           ]
         );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to restore purchases. Please try again.');
+      Alert.alert("Error", "Failed to restore purchases. Please try again.");
       setIsRestoring(false);
     }
   };
 
   const handleCloudRestore = async () => {
     if (!restoreEmail.trim()) {
-      Alert.alert('Email Required', 'Please enter the email address associated with your iCloud backup.');
+      Alert.alert(
+        "Email Required",
+        "Please enter the email address associated with your iCloud backup."
+      );
       return;
     }
 
@@ -314,30 +324,32 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 
     try {
       const result = await restoreFromCloud(restoreEmail.trim());
-      
+
       if (result.success) {
         Alert.alert(
-          'Data Restored!',
-          'Your workout data has been successfully restored from iCloud backup.',
-          [{ 
-            text: 'Continue', 
-            onPress: () => {
-              setShowCloudRestoreModal(false);
-              setRestoreEmail('');
-              setTimeout(() => {
-                onSubscribed();
-              }, 100);
-            }
-          }]
+          "Data Restored!",
+          "Your workout data has been successfully restored from iCloud backup.",
+          [
+            {
+              text: "Continue",
+              onPress: () => {
+                setShowCloudRestoreModal(false);
+                setRestoreEmail("");
+                setTimeout(() => {
+                  onSubscribed();
+                }, 100);
+              },
+            },
+          ]
         );
       } else {
         Alert.alert(
-          'Restore Failed', 
-          result.error || 'No backup data found for this email address.'
+          "Restore Failed",
+          result.error || "No backup data found for this email address."
         );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to restore data. Please try again.');
+      Alert.alert("Error", "Failed to restore data. Please try again.");
     } finally {
       setIsRestoringCloud(false);
     }
@@ -345,7 +357,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 
   const renderPlanCard = (plan: SubscriptionPlan) => {
     const isSelected = selectedPlan === plan.id;
-    
+
     return (
       <TouchableOpacity
         key={plan.id}
@@ -354,33 +366,27 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         disabled={isProcessing}
         activeOpacity={1}
       >
-        {plan.isPopular && (
+        {plan.bestValue && (
           <View style={styles.popularBadge}>
-            <Text style={styles.popularText}>MOST POPULAR</Text>
+            <Text style={styles.popularText}>BEST VALUE</Text>
           </View>
         )}
-        
+
         <View style={styles.planHeader}>
           <View style={styles.planNameContainer}>
-            <Text style={styles.planName}>{plan.name}</Text>
-            {plan.savingsPercentage > 0 && (
-              <View style={styles.savingsBadge}>
-                <Text style={styles.savingsText}>Save {plan.savingsPercentage}%</Text>
-              </View>
-            )}
+            <Text style={styles.planName}>
+              {plan.label} - {plan.title}
+            </Text>
           </View>
         </View>
-        
+
         <View style={styles.priceContainer}>
-          <Text style={styles.price}>${plan.price}</Text>
-          {plan.duration > 1 && (
-            <Text style={styles.monthlyPrice}>${plan.monthlyPrice}/month</Text>
-          )}
-          {plan.originalPrice > plan.price && (
-            <Text style={styles.originalPrice}>${plan.originalPrice}</Text>
+          <Text style={styles.price}>{plan.priceString}</Text>
+          {plan.description && (
+            <Text style={styles.monthlyPrice}>{plan.description}</Text>
           )}
         </View>
-        
+
         <View style={styles.featuresContainer}>
           {plan.features.map((feature, index) => (
             <View key={index} style={styles.featureRow}>
@@ -388,16 +394,15 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
               <Text style={styles.featureText}>{feature}</Text>
             </View>
           ))}
-          
-          {plan.bonusFeatures && plan.bonusFeatures.map((bonus, index) => (
-            <View key={`bonus-${index}`} style={styles.bonusFeatureRow}>
-              <Text style={styles.bonusFeatureText}>{bonus}</Text>
-            </View>
-          ))}
         </View>
-        
+
         <View style={styles.selectionIndicator}>
-          <View style={[styles.radioButton, isSelected && styles.radioButtonSelected]}>
+          <View
+            style={[
+              styles.radioButton,
+              isSelected && styles.radioButtonSelected,
+            ]}
+          >
             {isSelected && <View style={styles.radioButtonInner} />}
           </View>
         </View>
@@ -411,7 +416,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
       style={styles.container}
     >
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView 
+        <ScrollView
           ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={styles.contentContainer}
@@ -420,30 +425,48 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           {/* Header */}
           <View style={styles.header}>
             {/* X Button - Show if user has active subscription OR cancelled with time remaining */}
-            {(userHasActiveSubscription || isCancelledWithTimeLeft) && onCancel && (
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={handleCancel}
-                activeOpacity={1}
-              >
-                <Icon name="x" size={24} color={colors.lightGray} />
-              </TouchableOpacity>
-            )}
-            
+            {(userHasActiveSubscription || isCancelledWithTimeLeft) &&
+              onCancel && (
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={handleCancel}
+                  activeOpacity={1}
+                >
+                  <Icon name="x" size={24} color={colors.lightGray} />
+                </TouchableOpacity>
+              )}
+
             <View style={styles.iconContainer}>
               <Icon name="zap" size={48} color={colors.primary} />
             </View>
             <Text style={styles.title}>Unlock Your Custom Program</Text>
             <Text style={styles.subtitle}>
-              Get unlimited access to AI-generated workout programs tailored specifically for your goals
+              Get unlimited access to AI-generated workout programs tailored
+              specifically for your goals
             </Text>
           </View>
-
 
           {/* Subscription Plans */}
           <View style={styles.plansContainer}>
             <Text style={styles.sectionTitle}>Choose Your Plan</Text>
-            {SUBSCRIPTION_PLANS.map(plan => renderPlanCard(plan))}
+            {isLoadingPlans ? (
+              <ActivityIndicator
+                size="large"
+                color={colors.primary}
+                style={{ marginVertical: 32 }}
+              />
+            ) : plans.length > 0 ? (
+              plans.map((plan) => renderPlanCard(plan))
+            ) : (
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { fontSize: 14, color: colors.lightGray },
+                ]}
+              >
+                No plans available. Please try again later.
+              </Text>
+            )}
           </View>
 
           {/* Benefits */}
@@ -451,7 +474,9 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
             <Text style={styles.benefitsTitle}>Why DENSE Pro?</Text>
             <View style={styles.benefitRow}>
               <Icon name="trending-up" size={20} color={colors.primary} />
-              <Text style={styles.benefitText}>Real-time progress tracking</Text>
+              <Text style={styles.benefitText}>
+                Real-time progress tracking
+              </Text>
             </View>
             <View style={styles.benefitRow}>
               <Icon name="smartphone" size={20} color={colors.primary} />
@@ -459,19 +484,22 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
             </View>
             <View style={styles.benefitRow}>
               <Icon name="users" size={20} color={colors.primary} />
-              <Text style={styles.benefitText}>Based on DENSE training philosophy</Text>
+              <Text style={styles.benefitText}>
+                Based on DENSE training philosophy
+              </Text>
             </View>
           </View>
         </ScrollView>
 
         {/* Footer Actions */}
         <View style={styles.footer}>
-
-
           <TouchableOpacity
-            style={[styles.subscribeButton, isProcessing && styles.subscribeButtonDisabled]}
+            style={[
+              styles.subscribeButton,
+              isProcessing && styles.subscribeButtonDisabled,
+            ]}
             onPress={handlePurchase}
-            disabled={isProcessing || isStartingTrial}
+            disabled={isProcessing}
             activeOpacity={1}
           >
             {isProcessing ? (
@@ -480,14 +508,11 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
               <>
                 <Text style={styles.subscribeButtonText}>
                   {(() => {
-                    const plan = subscriptionService.getPlan(selectedPlan);
-                    if (!plan) return 'Start 7-Day Free Trial';
-                    
-                    if (plan.duration === 1) {
-                      return `Start 7-Day Free Trial\nThen $${plan.price}/month`;
-                    } else {
-                      return `Start 7-Day Free Trial\nThen $${plan.price}/year`;
-                    }
+                    const plan = plans.find((p) => p.id === selectedPlan);
+                    if (!plan) return "Subscribe Now";
+
+                    // Show the plan's price
+                    return `Subscribe - ${plan.priceString}`;
                   })()}
                 </Text>
                 <Icon name="arrow-right" size={20} color={colors.black} />
@@ -503,7 +528,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
               activeOpacity={1}
             >
               <Text style={styles.linkText}>
-                {isRestoring ? 'Restoring...' : 'Restore Purchases'}
+                {isRestoring ? "Restoring..." : "Restore Purchases"}
               </Text>
             </TouchableOpacity>
 
@@ -519,16 +544,18 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
           </View>
 
           <Text style={styles.disclaimer}>
-            🔒 {subscriptionService.getPaymentProviderInfo().displayName} - {subscriptionService.getPaymentProviderInfo().provider === 'mock' ? 'No actual charges will be made.' : 'Real charges will occur.'}
+            🔒 Secure payment powered by{" "}
+            {Platform.OS === "ios" ? "Apple" : "Google"}{" "}
+            {__DEV__ && USE_MOCK_PAYMENTS ? "(Mock Mode - No charges)" : ""}
           </Text>
         </View>
-        
+
         {/* Loading Overlay */}
         {(isProcessing || isRestoring) && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>
-              {isProcessing ? 'Starting your journey...' : 'Loading...'}
+              {isProcessing ? "Starting your journey..." : "Loading..."}
             </Text>
           </View>
         )}
@@ -553,11 +580,12 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
                 <Icon name="x" size={24} color={colors.lightGray} />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.modalDescription}>
-              Enter the email address associated with your iCloud backup to restore your workout data, nutrition logs, and progress.
+              Enter the email address associated with your iCloud backup to
+              restore your workout data, nutrition logs, and progress.
             </Text>
-            
+
             <TextInput
               style={styles.emailInput}
               placeholder="Enter your iCloud email address"
@@ -568,7 +596,7 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
               autoCapitalize="none"
               autoCorrect={false}
             />
-            
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.modalCancelButton}
@@ -577,9 +605,12 @@ export const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
-                style={[styles.modalRestoreButton, isRestoringCloud && styles.modalRestoreButtonDisabled]}
+                style={[
+                  styles.modalRestoreButton,
+                  isRestoringCloud && styles.modalRestoreButtonDisabled,
+                ]}
                 onPress={handleCloudRestore}
                 disabled={isRestoringCloud}
                 activeOpacity={1}
@@ -613,12 +644,12 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
-    position: 'relative',
+    position: "relative",
   },
   closeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     padding: 12,
@@ -629,20 +660,20 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     backgroundColor: colors.darkGray,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 20,
   },
   title: {
     ...typography.h1,
     color: colors.white,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 12,
   },
   subtitle: {
     ...typography.body,
     color: colors.lighterGray,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 24,
   },
   plansContainer: {
@@ -650,10 +681,10 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: colors.white,
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   planCard: {
     backgroundColor: colors.darkGray,
@@ -661,15 +692,15 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: 'transparent',
-    position: 'relative',
+    borderColor: "transparent",
+    position: "relative",
   },
   planCardSelected: {
     borderColor: colors.primary,
     backgroundColor: colors.darkGray,
   },
   popularBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: -10,
     left: 20,
     right: 20,
@@ -677,28 +708,28 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 4,
     paddingHorizontal: 12,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   popularText: {
     ...typography.caption,
     color: colors.black,
-    textAlign: 'center',
+    textAlign: "center",
   },
   planHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "flex-start",
     marginBottom: 12,
     marginRight: 50, // Leave space for the selection circle
   },
   planNameContainer: {
     flex: 1,
-    flexDirection: 'column',
-    alignItems: 'flex-start',
+    flexDirection: "column",
+    alignItems: "flex-start",
   },
   planName: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: colors.white,
   },
   savingsBadge: {
@@ -707,7 +738,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     marginTop: 8,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   savingsText: {
     ...typography.caption,
@@ -718,7 +749,7 @@ const styles = StyleSheet.create({
   },
   price: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: colors.white,
   },
   monthlyPrice: {
@@ -729,15 +760,15 @@ const styles = StyleSheet.create({
   originalPrice: {
     fontSize: 14,
     color: colors.lightGray,
-    textDecorationLine: 'line-through',
+    textDecorationLine: "line-through",
     marginTop: 4,
   },
   featuresContainer: {
     marginBottom: 16,
   },
   featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   featureText: {
@@ -752,10 +783,10 @@ const styles = StyleSheet.create({
   bonusFeatureText: {
     fontSize: 14,
     color: colors.primary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   selectionIndicator: {
-    position: 'absolute',
+    position: "absolute",
     top: 20,
     right: 20,
   },
@@ -765,8 +796,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2,
     borderColor: colors.lightGray,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   radioButtonSelected: {
     borderColor: colors.primary,
@@ -785,14 +816,14 @@ const styles = StyleSheet.create({
   },
   benefitsTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: colors.white,
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   benefitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 12,
   },
   benefitText: {
@@ -811,9 +842,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 16,
     padding: 18,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 16,
   },
   subscribeButtonDisabled: {
@@ -823,13 +854,13 @@ const styles = StyleSheet.create({
     ...typography.button,
     color: colors.black,
     marginRight: 8,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
   },
 
   orDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginVertical: 12,
   },
   orLine: {
@@ -841,11 +872,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.lightGray,
     marginHorizontal: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   footerLinks: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 32,
     marginBottom: 16,
   },
@@ -855,54 +886,54 @@ const styles = StyleSheet.create({
   linkText: {
     fontSize: 16,
     color: colors.lightGray,
-    textAlign: 'center',
+    textAlign: "center",
   },
   disclaimer: {
     fontSize: 12,
     color: colors.lightGray,
-    textAlign: 'center',
-    fontStyle: 'italic',
+    textAlign: "center",
+    fontStyle: "italic",
   },
   loadingOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     ...typography.body,
     color: colors.white,
     marginTop: 16,
   },
-  
+
   // Cloud Restore Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalContent: {
     backgroundColor: colors.darkGray,
     borderRadius: 20,
     padding: 24,
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: colors.white,
   },
   modalCloseButton: {
@@ -925,7 +956,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   modalButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   modalCancelButton: {
@@ -935,11 +966,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalCancelText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.lightGray,
   },
   modalRestoreButton: {
@@ -947,14 +978,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalRestoreButtonDisabled: {
     opacity: 0.6,
   },
   modalRestoreText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.black,
   },
 });

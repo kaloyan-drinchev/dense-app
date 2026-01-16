@@ -21,7 +21,7 @@ import { Platform, View, Text, ActivityIndicator } from "react-native";
 // Database initialization removed - using Supabase now
 import { useAuthStore } from "@/store/auth-store";
 import { useSubscriptionStore } from "@/store/subscription-store.js";
-import subscriptionService from "@/services/subscription-service.js";
+import { subscriptionService } from "@/services/subscription";
 import { notificationService } from "@/services/notification-service";
 import { useWorkoutNotification } from "@/hooks/useWorkoutNotification";
 
@@ -99,7 +99,8 @@ export default function RootLayout() {
 
         // Initialize subscription service
         console.log("🔄 Initializing subscription service...");
-        await subscriptionService.initialize();
+        const { user } = useAuthStore.getState();
+        await subscriptionService.initialize(user?.id);
 
         // Initialize notifications
         console.log("🔄 Setting up notifications...");
@@ -237,21 +238,18 @@ function AppNavigator() {
     const checkForCancelledSubscription = async () => {
       if (user && !isFirstTime && hasCheckedStatus) {
         try {
-          const isCancelled =
-            await subscriptionService.isSubscriptionCancelled();
-
-          if (isCancelled) {
-            const daysLeft = getDaysUntilExpiry();
-            if (daysLeft !== null && daysLeft >= 0) {
-              setReminderDaysLeft(daysLeft);
-              setShowReminderModal(true);
-              console.log(
-                `🟡 Showing reminder for cancelled subscription (${daysLeft} days left)`
-              );
-            }
+          // Note: Cancellation checking is now handled through RevenueCat subscription status
+          // If you need this feature, you'll need to implement it using RevenueCat's subscription info
+          const daysLeft = getDaysUntilExpiry();
+          if (daysLeft !== null && daysLeft >= 0 && daysLeft <= 7) {
+            setReminderDaysLeft(daysLeft);
+            setShowReminderModal(true);
+            console.log(
+              `🟡 Showing reminder for expiring subscription (${daysLeft} days left)`
+            );
           }
         } catch (error) {
-          console.error("❌ Error checking cancelled subscription:", error);
+          console.error("❌ Error checking subscription expiry:", error);
         }
       }
     };
@@ -413,11 +411,10 @@ function AppNavigator() {
           statusDetails
         );
 
-        const statusType =
-          await subscriptionService.getSubscriptionStatusType();
-        const rawStatus = await subscriptionService.getSubscriptionStatus();
+        const rawStatus = await subscriptionService.getUserStatus();
+        const hasSubscription = rawStatus.isPro;
 
-        console.log("🔍 Navigation Debug - Status type:", statusType);
+        console.log("🔍 Navigation Debug - Has subscription:", hasSubscription);
         console.log("🔍 Navigation Debug - Raw status:", rawStatus);
 
         // IMPORTANT: If wizard results exist but wizard isn't completed, we're in subscription phase
@@ -431,19 +428,15 @@ function AppNavigator() {
           return; // Don't navigate away - wizard will handle subscription
         }
 
-        if (
-          statusType === "subscription_expired" ||
-          statusType === "no_subscription"
-        ) {
-          // Force expired or no subscription users to subscription screen
-          console.log(`🚫 Access blocked - user status: ${statusType}`);
+        if (!hasSubscription) {
+          // No subscription - show subscription screen
+          console.log(`🚫 Access blocked - no active subscription`);
           setShowWizard(false);
           setShowSubscription(true);
         } else {
-          // Active or cancelled users get main app access
-          // (cancelled users will also see reminder modal separately)
+          // Active subscription - grant access
           console.log(
-            `✅ Access granted - user status: ${statusType}, hiding wizard and subscription`
+            `✅ Access granted - active subscription, hiding wizard and subscription`
           );
           setShowWizard(false);
           setShowSubscription(false);
@@ -503,9 +496,13 @@ function AppNavigator() {
     return (
       <SubscriptionScreen
         onSubscribed={async () => {
+          console.log("🔄 onSubscribed called - refreshing status");
           // Refresh subscription status when returning from subscription
           await refreshSubscriptionStatus();
+          console.log("✅ Status refreshed - closing subscription screen");
           setShowSubscription(false);
+          // Trigger navigation refresh to re-evaluate and show main app
+          setNavigationRefresh((prev) => prev + 1);
         }}
         showSkipOption={false}
         onCancel={async () => {
@@ -742,7 +739,7 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
-          name="workout-session/index"
+          name="workout-session"
           options={{
             headerShown: false,
           }}
