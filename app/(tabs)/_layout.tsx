@@ -1,83 +1,84 @@
-import React from 'react';
-import { Tabs, useRouter } from 'expo-router';
-import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
-import { colors } from '@/constants/colors';
-import { typography } from '@/constants/typography';
-import { Feather as Icon, MaterialIcons as MaterialIcon } from '@expo/vector-icons';
-import { useChatStore } from '@/store/chat-store';
+import React from "react";
+import { Tabs, useRouter } from "expo-router";
+import { View, TouchableOpacity, StyleSheet, Text } from "react-native";
+import { colors } from "@/constants/colors";
+import { typography } from "@/constants/typography";
+import {
+  Feather as Icon,
+  MaterialIcons as MaterialIcon,
+} from "@expo/vector-icons";
+import { useChatStore } from "@/store/chat-store";
 
 export default function TabLayout() {
   const router = useRouter();
   const { hasNotifications } = useChatStore();
 
-
   const openChat = () => {
-    router.push('/ai-chat');
+    router.push("/ai-chat");
   };
 
   return (
     <View style={{ flex: 1 }}>
       <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.lightGray,
-        tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.darkGray,
-          height: 70,
-          paddingBottom: 8,
-        },
-        tabBarLabelStyle: {
-          ...typography.caption,
-        },
-        headerStyle: {
-          backgroundColor: colors.background,
-        },
-        headerTintColor: colors.white,
-        headerTitleStyle: {
-          ...typography.h3,
-        },
-        headerShadowVisible: false,
-      }}
-    >
-      <Tabs.Screen
-        name="Home/index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => (
-            <Icon name="home" size={28} color={color} />
-          ),
+        screenOptions={{
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.lightGray,
+          tabBarStyle: {
+            backgroundColor: colors.background,
+            borderTopColor: colors.darkGray,
+            height: 70,
+            paddingBottom: 8,
+          },
+          tabBarLabelStyle: {
+            ...typography.caption,
+          },
+          headerStyle: {
+            backgroundColor: colors.background,
+          },
+          headerTintColor: colors.white,
+          headerTitleStyle: {
+            ...typography.h3,
+          },
+          headerShadowVisible: false,
         }}
-      />
-      <Tabs.Screen
-        name="Nutrition/index"
-        options={{
-          title: 'Nutrition',
-          tabBarIcon: ({ color }) => (
-            <MaterialIcon name="restaurant" size={28} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="Progress/index"
-        options={{
-          title: 'Progress',
-          tabBarIcon: ({ color }) => (
-            <Icon name="bar-chart-2" size={28} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="Settings/index"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => (
-            <Icon name="user" size={28} color={color} />
-          ),
-        }}
-      />
-      {/* Programs tab removed - now accessible via home screen card */}
-    
+      >
+        <Tabs.Screen
+          name="home"
+          options={{
+            title: "Home",
+            tabBarIcon: ({ color }) => (
+              <Icon name="home" size={28} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="nutrition"
+          options={{
+            title: "Nutrition",
+            tabBarIcon: ({ color }) => (
+              <MaterialIcon name="restaurant" size={28} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="progress"
+          options={{
+            title: "Progress",
+            tabBarIcon: ({ color }) => (
+              <Icon name="bar-chart-2" size={28} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: "Settings",
+            tabBarIcon: ({ color }) => (
+              <Icon name="user" size={28} color={color} />
+            ),
+          }}
+        />
+        {/* Programs tab removed - now accessible via home screen card */}
       </Tabs>
 
       {/* Floating AI Assistant Button - Temporarily Removed */}
@@ -94,8 +95,6 @@ export default function TabLayout() {
           </View>
         )}
       </TouchableOpacity> */}
-
-
     </View>
   );
 }

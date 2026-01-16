@@ -1,8 +1,16 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, gradients } from '@/constants/colors';
-import { typography } from '@/constants/typography';
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Dimensions,
+  ColorValue,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { colors, gradients } from "@/constants/colors";
+import { typography } from "@/constants/typography";
 
 interface ErrorScreenProps {
   error?: Error | null;
@@ -12,7 +20,7 @@ interface ErrorScreenProps {
   title?: string;
   message?: string;
   showDetails?: boolean;
-  type?: 'network' | 'auth' | 'subscription' | 'general' | 'component';
+  type?: "network" | "auth" | "subscription" | "general" | "component";
 }
 
 export const ErrorScreen: React.FC<ErrorScreenProps> = ({
@@ -23,7 +31,7 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
   title = "Oops! Something went wrong",
   message,
   showDetails = false,
-  type = 'general'
+  type = "general",
 }) => {
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.8)).current;
@@ -46,30 +54,30 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
 
   const getErrorIcon = () => {
     switch (type) {
-      case 'network':
-        return '🌐';
-      case 'auth':
-        return '🔐';
-      case 'subscription':
-        return '💳';
-      case 'component':
-        return '⚙️';
+      case "network":
+        return "🌐";
+      case "auth":
+        return "🔐";
+      case "subscription":
+        return "💳";
+      case "component":
+        return "⚙️";
       default:
-        return '⚠️';
+        return "⚠️";
     }
   };
 
   const getErrorMessage = () => {
     if (message) return message;
-    
+
     switch (type) {
-      case 'network':
+      case "network":
         return "We're having trouble connecting to our servers. Please check your internet connection and try again.";
-      case 'auth':
+      case "auth":
         return "There was an issue with your authentication. Please sign in again.";
-      case 'subscription':
+      case "subscription":
         return "We couldn't verify your subscription status. Please try again or contact support.";
-      case 'component':
+      case "component":
         return "This feature encountered an unexpected error. We're working to fix it.";
       default:
         return "Something unexpected happened. Don't worry, we're on it!";
@@ -78,13 +86,13 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
 
   const getErrorTitle = () => {
     switch (type) {
-      case 'network':
+      case "network":
         return "Connection Issue";
-      case 'auth':
+      case "auth":
         return "Authentication Error";
-      case 'subscription':
+      case "subscription":
         return "Subscription Error";
-      case 'component':
+      case "component":
         return "Feature Error";
       default:
         return title;
@@ -96,13 +104,13 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
       colors={[colors.dark, colors.darkGray]}
       style={styles.container}
     >
-      <Animated.View 
+      <Animated.View
         style={[
           styles.content,
           {
             opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }]
-          }
+            transform: [{ scale: scaleAnim }],
+          },
         ]}
       >
         {/* Error Icon */}
@@ -121,9 +129,7 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
           <View style={styles.detailsContainer}>
             <Text style={styles.detailsTitle}>Technical Details:</Text>
             <Text style={styles.detailsText}>{error.message}</Text>
-            {error.stack && (
-              <Text style={styles.stackText}>{error.stack}</Text>
-            )}
+            {error.stack && <Text style={styles.stackText}>{error.stack}</Text>}
           </View>
         )}
 
@@ -136,7 +142,7 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={gradients.primaryButton}
+                colors={gradients.primaryButton as [ColorValue, ColorValue]}
                 style={styles.buttonGradient}
               >
                 <Text style={styles.buttonText}>Try Again</Text>
@@ -168,7 +174,9 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
         {/* DENSE Branding */}
         <View style={styles.brandingContainer}>
           <Text style={styles.brandingText}>DENSE</Text>
-          <Text style={styles.brandingSubtext}>Fitness & Nutrition Tracker</Text>
+          <Text style={styles.brandingSubtext}>
+            Fitness & Nutrition Tracker
+          </Text>
         </View>
       </Animated.View>
     </LinearGradient>
@@ -178,22 +186,22 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   content: {
-    alignItems: 'center',
+    alignItems: "center",
     maxWidth: 400,
-    width: '100%',
+    width: "100%",
   },
   iconContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
     backgroundColor: colors.mediumGray,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 24,
     borderWidth: 2,
     borderColor: colors.primary,
@@ -204,13 +212,13 @@ const styles = StyleSheet.create({
   title: {
     ...typography.h2,
     color: colors.white,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 16,
   },
   message: {
     ...typography.body,
     color: colors.lightGray,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 24,
     marginBottom: 32,
   },
@@ -219,12 +227,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 32,
-    width: '100%',
+    width: "100%",
   },
   detailsTitle: {
     ...typography.bodySmall,
     color: colors.primary,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
   },
   detailsText: {
@@ -235,34 +243,34 @@ const styles = StyleSheet.create({
   stackText: {
     ...typography.caption,
     color: colors.lighterGray,
-    fontFamily: 'monospace',
+    fontFamily: "monospace",
   },
   buttonContainer: {
-    width: '100%',
+    width: "100%",
     gap: 12,
   },
   primaryButton: {
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   buttonGradient: {
     paddingVertical: 16,
     paddingHorizontal: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
     ...typography.buttonLarge,
     color: colors.black,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   secondaryButton: {
     backgroundColor: colors.mediumGray,
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.lightGray,
   },
@@ -273,22 +281,22 @@ const styles = StyleSheet.create({
   tertiaryButton: {
     paddingVertical: 12,
     paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   tertiaryButtonText: {
     ...typography.bodySmall,
     color: colors.primary,
-    textDecorationLine: 'underline',
+    textDecorationLine: "underline",
   },
   brandingContainer: {
     marginTop: 48,
-    alignItems: 'center',
+    alignItems: "center",
   },
   brandingText: {
     ...typography.h3,
     color: colors.primary,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     letterSpacing: 2,
   },
   brandingSubtext: {

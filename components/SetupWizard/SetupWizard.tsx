@@ -668,7 +668,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     await refreshSubscriptionStatus();
     
     // Navigate to home
-    router.replace('/(tabs)');
+    router.replace('/(tabs)' as any);
     onClose();
   };
 
@@ -678,7 +678,7 @@ export default function SetupWizard({ onClose }: SetupWizardProps) {
     setPhase('complete');
     
     // Navigate to home
-    router.replace('/(tabs)');
+    router.replace('/(tabs)' as any);
     onClose();
   };
 

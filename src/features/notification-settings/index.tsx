@@ -15,7 +15,7 @@ import { colors } from "@/constants/colors";
 import { styles } from "./styles";
 import { useNotificationSettingsLogic } from "./logic";
 
-export default function NotificationSettingsPage() {
+export default function NotificationSettingsScreen() {
   const {
     workoutReminders,
     scheduledNotifications,
