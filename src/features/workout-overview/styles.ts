@@ -14,7 +14,7 @@ export const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 120, // Extra space for floating button
   },
   successHeader: {
     alignItems: 'center',

@@ -276,12 +276,8 @@ export default function HomeScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.alternativeCard,
-                isWorkoutActive && styles.alternativeCardDisabled,
-              ]}
-              onPress={() => !isWorkoutActive && router.push("/cardio-workout")}
-              disabled={isWorkoutActive}
+              style={styles.alternativeCard}
+              onPress={() => setShowComingSoonModal(true)}
             >
               <View
                 style={[
@@ -298,12 +294,8 @@ export default function HomeScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.alternativeCard,
-                isWorkoutActive && styles.alternativeCardDisabled,
-              ]}
-              onPress={() => !isWorkoutActive && router.push("/manual-workout")}
-              disabled={isWorkoutActive}
+              style={styles.alternativeCard}
+              onPress={() => setShowComingSoonModal(true)}
             >
               <View
                 style={[

@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutCacheStore } from '@/store/workout-cache-store';
 import { useTimerStore } from '@/store/timer-store';
 import { useActiveWorkout } from '@/context/ActiveWorkoutContext';
-import { wizardResultsService, userProgressService, activeWorkoutSessionService } from '@/db/services';
+import { wizardResultsService, userProgressService } from '@/db/services';
 import { getWorkoutTemplate } from '@/lib/workout-templates';
 import { getAlternateWorkout, updateWorkoutProgression } from '@/lib/workout-suggestion';
 import { checkWorkoutAvailability, type WorkoutAvailability } from '@/utils/workout-availability';
@@ -16,18 +16,18 @@ export const useHomeLogic = () => {
   const router = useRouter();
   const { user } = useAuthStore();
   const { userProfile, userProgress, activeProgram } = useWorkoutStore();
-  const { 
-    generatedProgram: cachedProgram, 
-    userProgressData: cachedProgress, 
-    manualWorkout: cachedManualWorkout 
+  const {
+    generatedProgram: cachedProgram,
+    userProgressData: cachedProgress,
+    manualWorkout: cachedManualWorkout
   } = useWorkoutCacheStore();
-  
-  const { 
-    isWorkoutActive, 
-    timeElapsed, 
-    isRunning, 
-    updateTimeElapsed, 
-    pauseTimer, 
+
+  const {
+    isWorkoutActive,
+    timeElapsed,
+    isRunning,
+    updateTimeElapsed,
+    pauseTimer,
     resumeTimer,
     completeWorkout
   } = useTimerStore();
@@ -40,10 +40,10 @@ export const useHomeLogic = () => {
   const [loadingProgram, setLoadingProgram] = useState(!cachedProgram);
   const [userProgressData, setUserProgressData] = useState<any>(cachedProgress);
   const [loadingProgress, setLoadingProgress] = useState(!cachedProgress);
-  
+
   // Context Data
-  const { sessionId, exercises } = useActiveWorkout();
-  
+  const { sessionId, exercises, cancelWorkout: cancelWorkoutInContext } = useActiveWorkout();
+
   // UI Loading States
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isSkipping, setIsSkipping] = useState(false);
@@ -54,7 +54,7 @@ export const useHomeLogic = () => {
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
   const [showUnavailableModal, setShowUnavailableModal] = useState(false);
-  
+
   // Availability
   const [workoutAvailability, setWorkoutAvailability] = useState<WorkoutAvailability | null>(null);
 
@@ -67,16 +67,16 @@ export const useHomeLogic = () => {
 
     try {
       const wizardResults = await wizardResultsService.getByUserId(user.id);
-      
+
       if (!wizardResults) {
         setLoadingProgram(false);
         return;
       }
-      
+
       let prog = null;
       if ((wizardResults as any).generatedSplit) {
         try {
-          const generatedSplit = typeof (wizardResults as any).generatedSplit === 'string' 
+          const generatedSplit = typeof (wizardResults as any).generatedSplit === 'string'
             ? JSON.parse((wizardResults as any).generatedSplit)
             : (wizardResults as any).generatedSplit;
           prog = generatedSplit;
@@ -84,7 +84,7 @@ export const useHomeLogic = () => {
           console.warn('⚠️ Failed to parse legacy program');
         }
       }
-      
+
       setGeneratedProgram(prog);
       if (prog) {
         useWorkoutCacheStore.getState().setWorkoutData({ generatedProgram: prog });
@@ -104,9 +104,14 @@ export const useHomeLogic = () => {
     }
 
     try {
+      console.log('🔄 [Home] Loading user progress...');
       const progress = await userProgressService.getByUserId(user.id);
-      
+
       if (progress) {
+        console.log('✅ [Home] Progress loaded:', {
+          currentWorkout: progress.currentWorkout,
+          completedWorkoutsCount: progress.completedWorkouts ? (Array.isArray(progress.completedWorkouts) ? progress.completedWorkouts.length : JSON.parse(progress.completedWorkouts as string).length) : 0
+        });
         setUserProgressData(progress);
         useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: progress });
       } else {
@@ -131,7 +136,7 @@ export const useHomeLogic = () => {
   }, [user?.id]);
 
   // --- EFFECTS ---
-  
+
   // Initial Load
   useEffect(() => {
     if (!user?.id) {
@@ -146,13 +151,13 @@ export const useHomeLogic = () => {
       setUserProgressData(cache.userProgressData);
       setLoadingProgram(false);
       setLoadingProgress(false);
-      
+
       const cacheAge = cache.lastUpdated ? Date.now() - cache.lastUpdated : Infinity;
       if (cacheAge < 60000) return;
-      
+
       Promise.allSettled([loadGeneratedProgram(), loadUserProgress()])
         .then((results) => {
-             // Optional: handle errors
+          // Optional: handle errors
         });
       return;
     }
@@ -174,7 +179,7 @@ export const useHomeLogic = () => {
       const cache = useWorkoutCacheStore.getState();
       const cacheAge = cache.lastUpdated ? Date.now() - cache.lastUpdated : Infinity;
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
-      
+
       if (cacheAge < 3000) {
         setIsRefreshingWorkout(true);
         timeoutId = setTimeout(() => {
@@ -185,7 +190,7 @@ export const useHomeLogic = () => {
       } else {
         loadUserProgress();
       }
-      
+
       return () => {
         if (timeoutId) clearTimeout(timeoutId);
       };
@@ -232,14 +237,16 @@ export const useHomeLogic = () => {
   const getNextWorkout = () => {
     if (cachedManualWorkout) return cachedManualWorkout;
     if (!userProgressData) return null;
-    return getWorkoutTemplate(userProgressData.currentWorkout || 'push-a');
+    const workoutType = userProgressData.currentWorkout || 'push-a';
+    console.log('🏋️ [Home] Getting today\'s workout:', workoutType);
+    return getWorkoutTemplate(workoutType);
   };
 
   const nextWorkout = useMemo(() => getNextWorkout(), [cachedManualWorkout, userProgressData]);
 
   const calculateWorkoutStreak = (completedWorkouts: any[], trainingSchedule: string[]) => {
     if (!completedWorkouts || !trainingSchedule || trainingSchedule.length === 0) return 0;
-    
+
     try {
       // Helper: Convert Date to local YYYY-MM-DD string (timezone-safe)
       const toLocalDateString = (date: Date): string => {
@@ -259,7 +266,7 @@ export const useHomeLogic = () => {
 
       // Convert workout dates to Set for O(1) lookup
       const workoutDateSet = new Set(workoutDates);
-      
+
       // Map training schedule to day indices (0 = Sunday, 1 = Monday, etc.)
       const dayNameToIndex: { [key: string]: number } = {
         'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
@@ -275,17 +282,17 @@ export const useHomeLogic = () => {
       const today = new Date();
       const mostRecentWorkoutDate = new Date(workoutDates[0]);
       const startDate = mostRecentWorkoutDate > today ? mostRecentWorkoutDate : today;
-      
+
       let streak = 0;
       let currentDate = new Date(startDate);
       currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
-      
+
       // Look back up to 365 days (sanity limit)
       for (let i = 0; i < 365; i++) {
         // Use local date string to avoid timezone issues
         const dateStr = toLocalDateString(currentDate);
         const dayOfWeek = currentDate.getDay();
-        
+
         // Check if this is a scheduled training day
         if (scheduledDayIndices.includes(dayOfWeek)) {
           // If scheduled training day has a workout, increment streak
@@ -297,7 +304,7 @@ export const useHomeLogic = () => {
           }
         }
         // If not a scheduled training day (rest day), just skip it
-        
+
         // Move to previous day
         currentDate.setDate(currentDate.getDate() - 1);
       }
@@ -312,7 +319,7 @@ export const useHomeLogic = () => {
   const formatTimerTime = (seconds: number): string => {
     const isCardio = nextWorkout?.type === 'cardio' || nextWorkout?.category === 'cardio';
     let displaySeconds = seconds;
-    
+
     if (isCardio && nextWorkout?.targetDuration) {
       const targetSeconds = nextWorkout.targetDuration * 60;
       const remainingSeconds = Math.max(0, targetSeconds - seconds);
@@ -324,7 +331,7 @@ export const useHomeLogic = () => {
       }
       displaySeconds = remainingSeconds;
     }
-    
+
     const h = Math.floor(displaySeconds / 3600);
     const m = Math.floor((displaySeconds % 3600) / 60);
     const s = displaySeconds % 60;
@@ -334,21 +341,21 @@ export const useHomeLogic = () => {
 
   const getFirstUncompletedExercise = useCallback(() => {
     if (!nextWorkout || !sessionId || !exercises || exercises.length === 0) return null;
-    
+
     // Find first uncompleted exercise from session data
     for (const sessionExercise of exercises) {
       if (sessionExercise.status === 'COMPLETED') continue;
-      
+
       // Match template exercise for display info (name, target sets/reps)
       const exerciseId = sessionExercise.exercise_id;
       const templateExercise = nextWorkout.exercises?.find((ex: any) => {
         const templateId = ex.id || ex.name.toLowerCase().replace(/\s+/g, '-');
         return templateId === exerciseId;
       });
-      
+
       const completedSets = sessionExercise.sets?.filter(s => s.is_completed).length || 0;
       const lastSet = sessionExercise.sets?.[sessionExercise.sets?.length - 1];
-      
+
       return {
         name: sessionExercise.exercise_name || templateExercise?.name || 'Exercise',
         sets: sessionExercise.target_sets || templateExercise?.sets || 0,
@@ -385,19 +392,25 @@ export const useHomeLogic = () => {
     try {
       useWorkoutCacheStore.getState().setManualWorkout(null);
       completeWorkout();
-      await activeWorkoutSessionService.delete(user.id);
-      
+
+      // Cancel any active workout session in NEW system
+      if (sessionId) {
+        console.log('🛑 [Home] Cancelling active workout session on skip:', sessionId);
+        await cancelWorkoutInContext();
+      }
+
       const nextWorkoutType = updateWorkoutProgression(userProgressData.currentWorkout);
       const updated = await userProgressService.update(userProgressData.id, {
         currentWorkout: nextWorkoutType,
       });
-      
+
       if (updated) {
         setUserProgressData(updated);
         useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
       }
       setTimeout(() => setIsSkipping(false), 150);
     } catch (error) {
+      console.error('❌ [Home] Failed to skip workout:', error);
       Alert.alert('Error', 'Failed to skip workout.');
       setIsSkipping(false);
     }
@@ -409,19 +422,25 @@ export const useHomeLogic = () => {
     try {
       useWorkoutCacheStore.getState().setManualWorkout(null);
       completeWorkout();
-      await activeWorkoutSessionService.delete(user.id);
-      
+
+      // Cancel any active workout session in NEW system
+      if (sessionId) {
+        console.log('🛑 [Home] Cancelling active workout session on regenerate:', sessionId);
+        await cancelWorkoutInContext();
+      }
+
       const alternate = getAlternateWorkout(userProgressData.currentWorkout);
       const updated = await userProgressService.update(userProgressData.id, {
         currentWorkout: alternate.type,
       });
-      
+
       if (updated) {
         setUserProgressData(updated);
         useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
       }
       setTimeout(() => setIsRegenerating(false), 150);
     } catch (error) {
+      console.error('❌ [Home] Failed to regenerate workout:', error);
       Alert.alert('Error', 'Failed to regenerate.');
       setIsRegenerating(false);
     }
@@ -435,7 +454,7 @@ export const useHomeLogic = () => {
     nextWorkout,
     workoutAvailability,
     currentTime,
-    
+
     // Flags
     loadingProgram,
     loadingProgress,
@@ -444,13 +463,13 @@ export const useHomeLogic = () => {
     isRefreshingWorkout,
     isWorkoutActive,
     isRunning,
-    
+
     // Modals
     showWorkoutModal, setShowWorkoutModal,
     showVideoModal, setShowVideoModal,
     showComingSoonModal, setShowComingSoonModal,
     showUnavailableModal, setShowUnavailableModal,
-    
+
     // Handlers
     handleStartWorkoutPress,
     handleSkipWorkout,

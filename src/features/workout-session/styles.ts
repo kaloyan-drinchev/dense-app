@@ -81,8 +81,15 @@ export const styles = StyleSheet.create({
     textAlignVertical: 'center',
     lineHeight: 52,
   },
+  timerTextInactive: {
+    color: colors.lightGray,
+  },
   timerTextComplete: {
     color: colors.success,
+  },
+  timerContainerInactive: {
+    borderColor: colors.darkGray,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
   },
   timerContainerComplete: {
     borderColor: colors.success,
@@ -441,6 +448,30 @@ export const styles = StyleSheet.create({
     flex: 0,
     minWidth: 120,
     maxWidth: 140,
+  },
+  startingWorkoutOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  startingWorkoutContent: {
+    backgroundColor: colors.darkGray,
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    gap: 16,
+  },
+  startingWorkoutText: {
+    ...typography.body,
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: '600',
   },
   finishingOverlay: {
     flex: 1,

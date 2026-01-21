@@ -18,6 +18,7 @@ export default function FinishedWorkoutsDetailScreen() {
     date,
     dateKey,
     exerciseLogs,
+    sessionExercises, // NEW: From workout_sessions table
     customExercises,
     cardioEntries,
     handleBack,
@@ -100,12 +101,35 @@ export default function FinishedWorkoutsDetailScreen() {
           {/* Standard Exercises */}
           {workout?.exercises?.map((ex: any, i: number) => {
             const exId = ex.id || ex.name.replace(/\s+/g, "-").toLowerCase();
-            const sessions = exerciseLogs[exId] || [];
-            const sessionForDay = sessions.find((s: any) => s.date === dateKey);
-            const isCompleted =
-              !!sessionForDay &&
-              sessionForDay.sets &&
-              sessionForDay.sets.some((set: any) => set.isCompleted);
+            
+            // NEW: Check completion from workout_sessions (session_exercises)
+            let isCompleted = false;
+            let sessionData = null;
+            
+            if (sessionExercises && sessionExercises.length > 0) {
+              // Use NEW system - check session_exercises status
+              const sessionExercise = sessionExercises.find((se: any) => se.exercise_id === exId);
+              
+              // DEBUG: Log ALL exercises to see their statuses
+              if (i === 0) {
+                console.log('🔍 [FinishedWorkoutDetail] === ALL EXERCISES STATUS ===');
+                sessionExercises.forEach((se: any) => {
+                  console.log(`  ${se.exercise_id}: ${se.status} (${se.sets?.filter((s: any) => s.is_completed).length || 0}/${se.sets?.length || 0} sets)`);
+                });
+                console.log('🔍 [FinishedWorkoutDetail] ==============================');
+              }
+              
+              if (sessionExercise) {
+                isCompleted = sessionExercise.status === 'COMPLETED';
+                sessionData = sessionExercise;
+              }
+            } else {
+              // Fallback to OLD system - check exerciseLogs
+              const sessions = exerciseLogs[exId] || [];
+              const sessionForDay = sessions.find((s: any) => s.date === dateKey);
+              isCompleted = !!sessionForDay && sessionForDay.sets && sessionForDay.sets.some((set: any) => set.isCompleted);
+              sessionData = sessionForDay;
+            }
 
             return (
               <View key={i} style={{ marginTop: 8 }}>
@@ -140,11 +164,23 @@ export default function FinishedWorkoutsDetailScreen() {
                   exerciseKey={exId}
                   readOnly
                   presetSession={
-                    sessionForDay
-                      ? {
-                          unit: sessionForDay.unit || "kg",
-                          sets: sessionForDay.sets || [],
-                        }
+                    sessionData
+                      ? sessionData.sets
+                        ? {
+                            // NEW system: session_sets
+                            unit: "kg",
+                            sets: sessionData.sets.map((s: any) => ({
+                              setNumber: s.set_number || 0,
+                              weightKg: s.weight_kg || 0,
+                              reps: s.reps || 0,
+                              isCompleted: s.is_completed || false,
+                            })),
+                          }
+                        : {
+                            // OLD system: exerciseLogs
+                            unit: sessionData.unit || "kg",
+                            sets: sessionData.sets || [],
+                          }
                       : undefined
                   }
                 />

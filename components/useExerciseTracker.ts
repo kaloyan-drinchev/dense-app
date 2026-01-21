@@ -6,8 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { Exercise, ExerciseSet } from '@/types/workout';
 import { useWorkoutStore } from '@/store/workout-store';
 import { useAuthStore } from '@/store/auth-store';
-import { useWorkoutCacheStore } from '@/store/workout-cache-store';
-import { userProgressService, activeWorkoutSessionService } from '@/db/services';
+import { useActiveWorkout } from '@/context/ActiveWorkoutContext';
 import { generateId } from '@/utils/helpers';
 import {
     analyzeExercisePRs,
@@ -40,6 +39,14 @@ export const useExerciseTracker = ({
     const router = useRouter();
     const { updateExerciseSet } = useWorkoutStore();
     const { user } = useAuthStore();
+    const {
+        sessionId,
+        exercises: sessionExercises,
+        updateSetCompletion,
+        updateExerciseStatus,
+        refreshSession,
+        getExerciseById
+    } = useActiveWorkout();
 
     // Constants
     const MAX_SETS = 8;
@@ -134,42 +141,12 @@ export const useExerciseTracker = ({
     };
 
     const loadPRData = async () => {
-        if (!user?.id) return;
-        if (exerciseKey.startsWith('manual-')) {
-            setExerciseLogs({});
-            setExercisePRs({});
-            setBeatLastSuggestions([]);
-            setIsPRDataLoaded(true);
-            return;
-        }
-
-        try {
-            const cache = useWorkoutCacheStore.getState();
-            let progress = cache.userProgressData;
-
-            if (!progress || !cache.isCacheValid()) {
-                progress = await userProgressService.getByUserId(user.id);
-            }
-
-            if (progress?.weeklyWeights) {
-                const weeklyWeights = typeof progress.weeklyWeights === 'string'
-                    ? JSON.parse(progress.weeklyWeights)
-                    : progress.weeklyWeights;
-                const logs = weeklyWeights?.exerciseLogs || {};
-
-                setExerciseLogs(logs);
-                const currentExerciseLogs = logs[exerciseKey] || [];
-                const singleExerciseLog: ExerciseLogs = { [exerciseKey]: currentExerciseLogs };
-                const currentExercisePRs = analyzeExercisePRs(singleExerciseLog);
-                setExercisePRs(currentExercisePRs);
-                const suggestions = getBeatLastWorkoutSuggestions(exerciseKey, currentExercisePRs);
-                setBeatLastSuggestions(suggestions);
-            }
-            setIsPRDataLoaded(true);
-        } catch (error) {
-            console.error('Failed to load PR data:', error);
-            setIsPRDataLoaded(true);
-        }
+        // TODO: Implement PR tracking from workout_sessions history
+        // For now, disable PR suggestions until we migrate the PR system
+        setExerciseLogs({});
+        setExercisePRs({});
+        setBeatLastSuggestions([]);
+        setIsPRDataLoaded(true);
     };
 
     const loadSessionData = async () => {
@@ -190,29 +167,29 @@ export const useExerciseTracker = ({
             return;
         }
 
-        if (!user?.id || !exerciseKey) {
+        if (!user?.id || !exerciseKey || !sessionId) {
             setIsLoadingSets(false);
             return;
         }
 
         try {
-            const activeSession = await activeWorkoutSessionService.getActive(user.id);
-            if (activeSession?.session_data?.exercises?.[exerciseKey]) {
-                const exerciseData = activeSession.session_data.exercises[exerciseKey];
-                const activeSets = exerciseData.sets || [];
+            // Get exercise data from NEW system (session_exercises + session_sets)
+            const exerciseData = getExerciseById(exerciseKey);
 
-                if (activeSets.length > 0) {
-                    setUnit('kg');
-                    const limitedSets = activeSets.slice(0, MAX_SETS);
-                    const hydrated: ExerciseSet[] = limitedSets.map((s: any) => ({
-                        id: generateId(),
-                        reps: s.reps || 0,
-                        weight: s.weightKg || 0,
-                        isCompleted: !!s.isCompleted
-                    }));
-                    setSets(hydrated);
-                    setIsLoadingSets(false);
-                    return;
+            if (exerciseData && exerciseData.sets && exerciseData.sets.length > 0) {
+                setUnit('kg');
+                const limitedSets = exerciseData.sets.slice(0, MAX_SETS);
+                const hydrated: ExerciseSet[] = limitedSets.map((s: any) => ({
+                    id: s.id || generateId(),
+                    reps: s.reps || 10,
+                    weight: s.weight_kg || 10,
+                    isCompleted: !!s.is_completed
+                }));
+                setSets(hydrated);
+
+                // Check if exercise is already completed
+                if (exerciseData.status === 'COMPLETED') {
+                    setIsExerciseFinalized(true);
                 }
             }
             setIsLoadingSets(false);
@@ -223,24 +200,37 @@ export const useExerciseTracker = ({
     };
 
     const handleSaveSession = async () => {
-        if (readOnly || !user?.id) return;
+        if (readOnly || !user?.id || !sessionId) return;
         if (isSavingRef.current) {
             pendingSaveRef.current = true;
             return;
         }
         isSavingRef.current = true;
         setSaveStatus('saving');
-        const payload = {
-            unit,
-            sets: sets.map((s, idx) => ({
-                setNumber: idx + 1,
-                weightKg: s.weight ?? 0,
-                reps: s.reps ?? 0,
-                isCompleted: !!s.isCompleted,
-            })),
-        };
+
         try {
-            await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
+            // Save all sets to NEW system using updateSetCompletion
+            const exerciseData = getExerciseById(exerciseKey);
+            if (exerciseData && exerciseData.sets) {
+                for (let i = 0; i < sets.length && i < exerciseData.sets.length; i++) {
+                    const localSet = sets[i];
+                    const dbSet = exerciseData.sets[i];
+
+                    // Only update if changed
+                    if (
+                        dbSet.weight_kg !== localSet.weight ||
+                        dbSet.reps !== localSet.reps ||
+                        dbSet.is_completed !== localSet.isCompleted
+                    ) {
+                        updateSetCompletion(
+                            dbSet.id,
+                            localSet.isCompleted,
+                            localSet.weight,
+                            localSet.reps
+                        );
+                    }
+                }
+            }
             setSaveStatus('saved');
         } catch (e) {
             console.error(`❌ Failed to save ${exerciseKey}:`, e);
@@ -270,10 +260,16 @@ export const useExerciseTracker = ({
         const rawWeight = fromDisplayWeightToKg(weight);
         const numWeight = Math.max(0, Math.min(MAX_WEIGHT_KG, rawWeight));
 
-        setSets(prev => prev.map(set => set.id === setId ? { ...set, weight: numWeight } : set));
+        const set = sets.find(s => s.id === setId);
+        if (!set) return;
+
+        // Update local state
+        setSets(prev => prev.map(s => s.id === setId ? { ...s, weight: numWeight } : s));
         updateExerciseSet(exerciseKey, setId, { weight: numWeight });
+
+        // Save to database immediately
+        updateSetCompletion(setId, set.isCompleted, numWeight, set.reps);
         hasUserEditedRef.current = true;
-        scheduleAutoSave();
     };
 
     const handleRepsChange = (setId: string, reps: string) => {
@@ -281,10 +277,16 @@ export const useExerciseTracker = ({
         const rawReps = parseInt(reps) || 0;
         const numReps = Math.max(0, Math.min(MAX_REPS, rawReps));
 
-        setSets(prev => prev.map(set => set.id === setId ? { ...set, reps: numReps } : set));
+        const set = sets.find(s => s.id === setId);
+        if (!set) return;
+
+        // Update local state
+        setSets(prev => prev.map(s => s.id === setId ? { ...s, reps: numReps } : s));
         updateExerciseSet(exerciseKey, setId, { reps: numReps });
+
+        // Save to database immediately
+        updateSetCompletion(setId, set.isCompleted, set.weight, numReps);
         hasUserEditedRef.current = true;
-        scheduleAutoSave();
     };
 
     const handleToggleSetComplete = (setId: string) => {
@@ -295,8 +297,13 @@ export const useExerciseTracker = ({
         if (!set) return;
 
         const newCompleted = !set.isCompleted;
+
+        // Update local state immediately
         setSets(prev => prev.map(s => s.id === setId ? { ...s, isCompleted: newCompleted } : s));
         updateExerciseSet(exerciseKey, setId, { isCompleted: newCompleted });
+
+        // Update database immediately via context
+        updateSetCompletion(setId, newCompleted, set.weight, set.reps);
 
         if (newCompleted && set.weight > 0 && set.reps > 0) {
             startRestTimer();
@@ -307,7 +314,6 @@ export const useExerciseTracker = ({
             }
             setRestTimerActive(false);
         }
-        scheduleAutoSave();
     };
 
     const handleAdjustWeight = (setId: string, deltaDisplayUnits: number) => {
@@ -356,172 +362,57 @@ export const useExerciseTracker = ({
     };
 
     const completeExercise = async () => {
-        if (!user?.id) {
-            console.error('❌ No user ID available');
+        if (!user?.id || !sessionId) {
+            console.error('❌ No user ID or session ID available');
+            Alert.alert('Error', 'No active workout session found');
             return;
         }
 
         setIsCompletingExercise(true);
 
-        const updatedSets = sets.map((set) => ({
-            ...set,
-            reps: set.reps > 0 ? set.reps : 1,
-            weight: set.weight > 0 ? set.weight : 0,
-        }));
-
-        setSets(updatedSets);
-
-        const payload = {
-            unit,
-            sets: updatedSets.map((s, idx) => ({
-                setNumber: idx + 1,
-                weightKg: s.weight ?? 0,
-                reps: s.reps ?? 0,
-                isCompleted: s.isCompleted,
-            })),
-        };
-
-        const today = new Date().toISOString().slice(0, 10);
-        const isManualExercise = exerciseKey.startsWith('manual-');
-
-        // --- MANUAL EXERCISE FLOW ---
-        if (isManualExercise) {
-            try {
-                await userProgressService.upsertTodayExerciseSession(user.id, exerciseKey, payload);
-                const freshProgress = await userProgressService.getByUserId(user.id);
-                if (freshProgress) {
-                    useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: freshProgress });
-                }
-
-                // Update new DB
-                try {
-                    const { workoutSessionService } = await import('@/db/services');
-                    const activeSession = await workoutSessionService.getActiveSession(user.id);
-                    if (activeSession) {
-                        const sessionData = await workoutSessionService.getSessionWithExercises(activeSession.id);
-                        const exerciseData = sessionData?.exercises.find((ex: any) => ex.exercise_id === exerciseKey);
-                        if (exerciseData) {
-                            for (const dbSet of exerciseData.sets || []) {
-                                const localSet = sets.find((s) => s.id === dbSet.id);
-                                if (localSet && localSet.isCompleted) {
-                                    await workoutSessionService.updateSet(dbSet.id, {
-                                        is_completed: true,
-                                        weight_kg: localSet.weight || 0,
-                                        reps: localSet.reps || 0,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.warn('⚠️ Failed to update new database system:', err);
-                }
-
-                setIsExerciseFinalized(true);
-                router.back();
-                return;
-            } catch (error) {
-                console.error('❌ Failed to save manual exercise:', error);
-                Alert.alert('Error', 'Failed to save exercise progress');
-                setIsCompletingExercise(false);
-                return;
-            }
-        }
-
-        // --- NORMAL WORKOUT FLOW ---
-        const currentProgress = useWorkoutCacheStore.getState().userProgressData;
-        let originalProgress: any = null;
-
-        if (currentProgress) {
-            originalProgress = JSON.parse(JSON.stringify(currentProgress));
-            let weeklyWeights = currentProgress.weeklyWeights;
-            if (typeof weeklyWeights === 'string') weeklyWeights = JSON.parse(weeklyWeights);
-            weeklyWeights = JSON.parse(JSON.stringify(weeklyWeights || {}));
-
-            if (!weeklyWeights.exerciseLogs) weeklyWeights.exerciseLogs = {};
-            if (!weeklyWeights.exerciseLogs[exerciseKey]) weeklyWeights.exerciseLogs[exerciseKey] = [];
-
-            const sessions = weeklyWeights.exerciseLogs[exerciseKey];
-            const todaySessionIndex = sessions.findIndex((s: any) => s.date === today);
-
-            const completedSession = { date: today, unit: payload.unit, sets: payload.sets };
-
-            if (todaySessionIndex >= 0) {
-                sessions[todaySessionIndex] = completedSession;
-            } else {
-                sessions.push(completedSession);
-            }
-
-            const optimisticProgress = { ...currentProgress, weeklyWeights: weeklyWeights };
-            useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: optimisticProgress });
-        }
-
         try {
-            let session = await activeWorkoutSessionService.getActive(user.id);
-            if (!session) {
-                const workoutType = currentProgress?.currentWorkout || 'push-a';
-                session = await activeWorkoutSessionService.create(user.id, workoutType, exercise.name);
+            // Step 1: Get current exercise data from context
+            const exerciseData = getExerciseById(exerciseKey);
+            if (!exerciseData) {
+                throw new Error('Exercise not found in session');
             }
 
-            const sessionData = session.session_data || { exercises: {}, startTime: new Date().toISOString(), lastUpdated: new Date().toISOString() };
-            if (!sessionData.exercises) sessionData.exercises = {};
+            // Step 2: Update React state IMMEDIATELY (optimistic UI)
+            console.log(`✅ Completing exercise: ${exerciseKey}`);
 
-            sessionData.exercises[exerciseKey] = { completed: true, sets: payload.sets };
-            await activeWorkoutSessionService.updateSessionData(session.id, sessionData);
-
-            // Update new DB
-            try {
-                const { workoutSessionService } = await import('@/db/services');
-                const activeSession = await workoutSessionService.getActiveSession(user.id);
-                if (activeSession) {
-                    const sessionData = await workoutSessionService.getSessionWithExercises(activeSession.id);
-                    const exerciseData = sessionData?.exercises.find((ex: any) => ex.exercise_id === exerciseKey);
-                    if (exerciseData) {
-                        for (const dbSet of exerciseData.sets || []) {
-                            const localSet = sets.find((s) => s.id === dbSet.id);
-                            if (localSet && localSet.isCompleted) {
-                                await workoutSessionService.updateSet(dbSet.id, {
-                                    is_completed: true,
-                                    weight_kg: localSet.weight || 0,
-                                    reps: localSet.reps || 0,
-                                });
-                            }
-                        }
-                    }
-                }
-            } catch (err) {
-                console.warn('⚠️ Failed to update new database system:', err);
+            // Step 3: Update all sets in memory + DB (optimistic)
+            // Do this first, as it will trigger the DB trigger
+            const setUpdatePromises: Promise<void>[] = [];
+            for (let i = 0; i < sets.length && i < exerciseData.sets.length; i++) {
+                const localSet = sets[i];
+                const dbSet = exerciseData.sets[i];
+                updateSetCompletion(
+                    dbSet.id,
+                    localSet.isCompleted,
+                    localSet.weight || 0,
+                    localSet.reps || 0
+                );
             }
 
+            // Step 4: Wait a moment for set updates to process (so DB trigger fires first)
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // Step 5: Mark exercise as COMPLETED in React state + DB (this is the FINAL status)
+            // This MUST come AFTER set updates, so it overrides the DB trigger's automatic status calculation
+            console.log(`📝 Marking exercise ${exerciseKey} as COMPLETED (final override)`);
+            await updateExerciseStatus(exerciseKey, 'COMPLETED');
+
+            // Step 6: Mark exercise as finalized in local component state
             setIsExerciseFinalized(true);
 
-            // Optimistic cache update for navigation
-            try {
-                const { workoutSessionService } = await import('@/db/services');
-                const activeSession = await workoutSessionService.getActiveSession(user.id);
-                if (activeSession) {
-                    const sessionData = await workoutSessionService.getSessionWithExercises(activeSession.id);
-                    if (sessionData?.exercises) {
-                        const exerciseIndex = sessionData.exercises.findIndex((ex: any) => ex.exercise_id === exerciseKey);
-                        if (exerciseIndex !== -1) {
-                            sessionData.exercises[exerciseIndex].status = 'COMPLETED';
-                            if (typeof window !== 'undefined') {
-                                (window as any).__optimisticSessionUpdate = sessionData;
-                            }
-                        }
-                    }
-                }
-            } catch (err) {
-                console.warn('⚠️ Failed to create optimistic update:', err);
-            }
-
+            // Step 7: Navigate back IMMEDIATELY - UI already updated!
+            console.log(`✅ Exercise ${exerciseKey} completed - navigating back`);
             router.back();
+
+            // Database writes happen in background - no need to wait or refresh!
 
         } catch (e) {
             console.error('❌ Failed to complete exercise:', e);
-            if (originalProgress) {
-                useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: originalProgress });
-            }
             setSets(prev => prev.map(s => ({ ...s, isCompleted: false })));
             setIsCompletingExercise(false);
             Alert.alert('Failed to Save', 'Please check your connection and try again.');
@@ -529,13 +420,30 @@ export const useExerciseTracker = ({
     };
 
     const handleCompleteRequest = () => {
-        const allSetsChecked = sets.some(s => s.isCompleted && s.weight > 0 && s.reps > 0);
-        if (readOnly || isExerciseFinalized || !allSetsChecked) return;
+        console.log('🎯 Complete Exercise button clicked!');
+        console.log('📊 Current state:', {
+            readOnly,
+            isExerciseFinalized,
+            sessionId,
+            setsCount: sets.length,
+            completedSets: sets.filter(s => s.isCompleted).length
+        });
+
+        if (readOnly) {
+            console.log('❌ Blocked: Exercise is read-only');
+            return;
+        }
+
+        if (isExerciseFinalized) {
+            console.log('❌ Blocked: Exercise already finalized');
+            return;
+        }
 
         const completedSets = sets.filter(s => s.isCompleted).length;
         const totalSets = sets.length;
         const percentage = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
 
+        console.log('✅ Opening confirmation modal:', { completedSets, totalSets, percentage });
         setCompletionData({ percentage, completed: completedSets, total: totalSets });
         setShowConfirmModal(true);
     };
@@ -551,7 +459,7 @@ export const useExerciseTracker = ({
     useEffect(() => {
         loadSessionData();
         loadPRData();
-    }, [user?.id, exerciseKey, presetSession?.unit, JSON.stringify(presetSession?.sets)]);
+    }, [user?.id, exerciseKey, sessionId, presetSession?.unit, JSON.stringify(presetSession?.sets)]);
 
     useFocusEffect(
         useCallback(() => {
@@ -559,7 +467,7 @@ export const useExerciseTracker = ({
                 setIsLoadingSets(true);
                 loadSessionData();
             }
-        }, [user?.id, exerciseKey, readOnly])
+        }, [user?.id, exerciseKey, sessionId, readOnly])
     );
 
     useEffect(() => {
@@ -571,7 +479,7 @@ export const useExerciseTracker = ({
             }
             if (!readOnly) await handleSaveSession();
         });
-    }, [registerSave, unit, sets, readOnly]);
+    }, [registerSave, unit, sets, readOnly, user?.id, exerciseKey]);
 
     useFocusEffect(
         useCallback(() => {

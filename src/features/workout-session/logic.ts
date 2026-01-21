@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutCacheStore } from '@/store/workout-cache-store';
 import { useActiveWorkout } from '@/context/ActiveWorkoutContext';
-import { wizardResultsService, userProgressService, activeWorkoutSessionService, workoutSessionService } from '@/db/services';
+import { wizardResultsService, userProgressService, workoutSessionService } from '@/db/services';
 import { useWorkoutTimer } from '@/hooks/useWorkoutTimer';
 import { useTimerStore } from '@/store/timer-store';
 import { markTodayWorkoutCompleted } from '@/utils/workout-completion-tracker';
@@ -30,6 +30,7 @@ export const useWorkoutSessionLogic = () => {
   const [workoutCompletionData, setWorkoutCompletionData] = useState<{percentage: number, completed: number, total: number} | null>(null);
   const [workoutStarted, setWorkoutStarted] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [isStartingWorkout, setIsStartingWorkout] = useState(false);
   
   const [customExercises, setCustomExercises] = useState<any[]>([]);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
@@ -48,8 +49,12 @@ export const useWorkoutSessionLogic = () => {
   // --- CONTEXT & HOOKS ---
   const {
     sessionId: currentSessionId,
+    session: currentSession,
     exercises: sessionExercises,
     startWorkout: startWorkoutSession,
+    completeWorkout: completeWorkoutInContext,
+    cancelWorkout: cancelWorkoutInContext,
+    refreshSession,
   } = useActiveWorkout();
 
   const { 
@@ -205,11 +210,33 @@ export const useWorkoutSessionLogic = () => {
   // --- COMPUTED VALUES ---
 
   const todaysWorkout = useMemo(() => {
+    // If there's an active session (manual/cardio), derive workout from it
+    if (currentSessionId && currentSession && sessionExercises.length > 0) {
+      const workoutType = currentSession.workout_type || 'manual';
+      return {
+        id: currentSessionId,
+        name: currentSession.workout_name || 'Workout',
+        type: workoutType,
+        category: workoutType === 'cardio' ? 'cardio' : 'manual',
+        estimatedDuration: sessionExercises.length * 10,
+        exercises: sessionExercises.map((ex: any) => ({
+          id: ex.exercise_id,
+          name: ex.exercise_name,
+          sets: ex.target_sets || 3,
+          reps: ex.target_reps || '10',
+          restTime: ex.rest_seconds || 60,
+        })),
+      };
+    }
+    
+    // Fallback to cached manual workout (legacy support)
     if (manualWorkout) return manualWorkout;
+    
+    // Default: template-based workout (PPL)
     if (!userProgressData) return null;
     const currentWorkoutType = userProgressData.currentWorkout || 'push-a';
     return getWorkoutTemplate(currentWorkoutType);
-  }, [manualWorkout, userProgressData]);
+  }, [currentSessionId, currentSession, sessionExercises, manualWorkout, userProgressData]);
 
   const isCardioWorkout = todaysWorkout?.type === 'cardio' || todaysWorkout?.category === 'cardio';
 
@@ -284,6 +311,7 @@ export const useWorkoutSessionLogic = () => {
   const getExerciseStatus = useCallback((exerciseId: string, plannedSets: number) => {
     if (sessionExercises.length > 0) {
       const exerciseData = sessionExercises.find((ex: any) => ex.exercise_id === exerciseId);
+      
       if (exerciseData) {
         if (exerciseData.status === 'NOT_STARTED') return 'pending';
         if (exerciseData.status === 'IN_PROGRESS') return 'in-progress';
@@ -300,6 +328,7 @@ export const useWorkoutSessionLogic = () => {
 
   const calculateWorkoutProgress = () => {
     if (!todaysWorkout?.exercises) return { percentage: 0, completed: 0, total: 0 };
+    
     const exercises = todaysWorkout.exercises;
     const regularCompletedCount = exercises.filter((ex: any) => {
       const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
@@ -312,6 +341,21 @@ export const useWorkoutSessionLogic = () => {
   };
 
   const workoutProgress = calculateWorkoutProgress();
+
+  // Log workout status once when exercises change
+  useEffect(() => {
+    if (sessionExercises.length > 0 && todaysWorkout?.exercises) {
+      console.log('📊 [WorkoutSession] ===== WORKOUT STATUS =====');
+      console.log('📋 [WorkoutSession] Total exercises:', todaysWorkout.exercises.length);
+      todaysWorkout.exercises.forEach((ex: any) => {
+        const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
+        const exerciseData = sessionExercises.find((e: any) => e.exercise_id === exId);
+        console.log(`  - ${ex.name}: ${exerciseData?.status || 'NOT_FOUND'} (${exerciseData?.sets?.filter((s: any) => s.is_completed).length || 0}/${exerciseData?.sets?.length || 0} sets)`);
+      });
+      console.log('🎯 [WorkoutSession] Progress:', workoutProgress.percentage + '%', `(${workoutProgress.completed}/${workoutProgress.total})`);
+      console.log('📊 [WorkoutSession] =========================');
+    }
+  }, [sessionExercises.length, todaysWorkout?.exercises?.length]);
   
   const hasPRPotential = useCallback((exerciseId: string): boolean => {
     const suggestions = getBeatLastWorkoutSuggestions(exerciseId, exercisePRs);
@@ -325,17 +369,41 @@ export const useWorkoutSessionLogic = () => {
     if (!user?.id || !todaysWorkout) return Alert.alert('Error', 'Unable to start workout.');
 
     try {
+      setIsStartingWorkout(true);
+      
+      // Check if there's already an active session (for manual/cardio workouts)
+      const activeSession = await workoutSessionService.getActiveSession(user.id);
+      
+      if (activeSession) {
+        // Session already exists (manual/cardio workout) - just load it
+        console.log('✅ [WorkoutSession] Active session already exists:', activeSession.id);
+        await refreshSession();
+        setWorkoutStarted(true);
+        setIsStartingWorkout(false);
+        startWorkoutTimer(activeSession.id, activeSession.workout_name);
+        return;
+      }
+      
+      // No active session - start a new template-based workout (PPL workouts)
+      const workoutType = todaysWorkout.type || todaysWorkout.id;
+      console.log('🏋️ [WorkoutSession] Starting template-based workout:', workoutType);
+      
       const templates = await workoutSessionService.getTemplates(user.id);
-      const template = templates.find(t => t.type === todaysWorkout.type);
-      if (!template) return Alert.alert('Error', 'Workout template not found.');
+      const template = templates.find(t => t.type === workoutType);
+      
+      if (!template) {
+        setIsStartingWorkout(false);
+        return Alert.alert('Error', 'Workout template not found.');
+      }
 
       await startWorkoutSession(template.id);
-      await activeWorkoutSessionService.create(user.id, todaysWorkout.type || 'workout', todaysWorkout.name);
 
       setWorkoutStarted(true);
+      setIsStartingWorkout(false);
       startWorkoutTimer(todaysWorkout?.id || 'today-workout', todaysWorkout?.name || "Today's Workout");
     } catch (error) {
       console.error('❌ Failed to start workout:', error);
+      setIsStartingWorkout(false);
     }
   };
 
@@ -344,8 +412,11 @@ export const useWorkoutSessionLogic = () => {
       if (!user?.id || !userProgressData) return;
       completeWorkoutTimer();
       
-      if (currentSessionId) await workoutSessionService.cancelSession(currentSessionId);
-      await activeWorkoutSessionService.delete(user.id);
+      // Cancel workout in NEW system (clears context AND database)
+      if (currentSessionId) {
+        console.log('🛑 [WorkoutSession] Cancelling workout session:', currentSessionId);
+        await cancelWorkoutInContext();
+      }
       
       let weeklyWeights: any = {};
       try { weeklyWeights = JSON.parse(userProgressData.weeklyWeights || '{}'); } catch {}
@@ -366,6 +437,7 @@ export const useWorkoutSessionLogic = () => {
         setShowNotStartedModal(false);
       }
     } catch (error) {
+      console.error('❌ [WorkoutSession] Failed to reset workout:', error);
       Alert.alert("Reset Failed", "Something went wrong.");
     }
   };
@@ -394,30 +466,110 @@ export const useWorkoutSessionLogic = () => {
         
         const updated = await userProgressService.update(userProgressData.id, { completedWorkouts: JSON.stringify(completedArr) });
         useWorkoutCacheStore.getState().setManualWorkout(null);
-        if (currentSessionId) await workoutSessionService.completeSession(currentSessionId, duration, 0);
-        await activeWorkoutSessionService.delete(user.id);
+        
+        // Complete session in NEW system AND clear context
+        if (currentSessionId) {
+          await workoutSessionService.completeSession(currentSessionId, duration, 0);
+          await completeWorkoutInContext(); // Clear ActiveWorkoutContext
+        }
         
         if (updated) {
           setUserProgressData(updated);
+          useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
           setIsFinishing(false);
           setTimeout(() => router.push({ pathname: '/workout-overview', params: { workoutName: todaysWorkout.name, duration: duration.toString(), caloriesBurned: calories.toString() } }), 100);
         }
       } else {
+        // Regular workout completion (resistance training)
         const { calculateWorkoutVolume } = await import('@/utils/volume-calculator');
-        // Logic for handling regular workouts, calculating volume, updating session, PPL progression...
-        // (Abbreviated for brevity, assuming original logic is copied here)
+        const today = new Date().toISOString().split('T')[0];
         
-        // This part needs the full volume calculation logic from your original file
-        // I will simplify the transfer logic for the sake of this refactor structure display
-        // but YOU SHOULD COPY THE FULL LOGIC from your original file for `completeWorkoutWithPercentage`
+        // Get completed exercise data from NEW system (session_exercises + session_sets)
+        // Transform to format expected by volume/calorie calculators
+        const completedExercisesData = sessionExercises
+          .filter((ex: any) => ex.status === 'COMPLETED' || ex.sets?.some((s: any) => s.is_completed))
+          .map((ex: any) => {
+            const transformedSets = (ex.sets || []).map((s: any) => ({
+              reps: s.reps || 0,
+              weightKg: s.weight_kg || 0,
+              isCompleted: s.is_completed || false,
+            }));
+            
+            return {
+              name: ex.exercise_name,
+              sets: transformedSets,
+            };
+          });
         
-        // ... [Insert Logic for saving PPL/Manual Workout] ...
-        // Ensure manual workout cache is cleared if isManualWorkout
-        // Update user progress with next workout type
+        const volumeData = calculateWorkoutVolume(completedExercisesData);
         
-        setIsFinishing(false);
-        // Navigate
-        router.push({ pathname: '/workout-overview', params: { workoutName: todaysWorkout.name } });
+        // For calories, we need a slightly different structure
+        const caloriesData = completedExercisesData.map((ex: any) => ({
+          name: ex.name,
+          sets: ex.sets.length,
+          setsData: ex.sets,
+        }));
+        const calories = calculateWorkoutCalories(caloriesData, userWeight);
+        
+        completedArr.push({
+          date: finishTime,
+          workoutIndex: -1,
+          workoutName: todaysWorkout.name,
+          duration,
+          percentageSuccess: workoutProgress.percentage,
+          startTime: startTimeToSave,
+          finishTime,
+          totalVolume: volumeData.totalVolume,
+          caloriesBurned: calories,
+          exercises: volumeData.exerciseBreakdown,
+          sessionId: currentSessionId, // Store session ID for later reference
+        });
+        
+        // Update currentWorkout to next workout in PPL rotation
+        const nextWorkoutType = updateWorkoutProgression(userProgressData.currentWorkout);
+        
+        console.log('📊 [CompleteWorkout] Saving to database:', {
+          nextWorkoutType,
+          completedWorkoutsCount: completedArr.length,
+          lastWorkout: completedArr[completedArr.length - 1]
+        });
+        
+        const updated = await userProgressService.update(userProgressData.id, {
+          currentWorkout: nextWorkoutType,
+          completedWorkouts: JSON.stringify(completedArr),
+        });
+        
+        console.log('✅ [CompleteWorkout] Database updated:', {
+          success: !!updated,
+          newCurrentWorkout: updated?.currentWorkout,
+          completedWorkoutsLength: updated?.completedWorkouts ? (Array.isArray(updated.completedWorkouts) ? updated.completedWorkouts.length : JSON.parse(updated.completedWorkouts).length) : 0
+        });
+        
+        // Complete session in NEW system AND clear context
+        if (currentSessionId) {
+          console.log('🏋️ [CompleteWorkout] Completing session:', currentSessionId);
+          await workoutSessionService.completeSession(currentSessionId, duration, volumeData.totalVolume);
+          await completeWorkoutInContext(); // Clear ActiveWorkoutContext
+          console.log('✅ [CompleteWorkout] Session completed and context cleared');
+        }
+        
+        // Clear manual workout cache if this was a manual workout
+        useWorkoutCacheStore.getState().setManualWorkout(null);
+        
+        if (updated) {
+          setUserProgressData(updated);
+          useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
+          setIsFinishing(false);
+          setTimeout(() => router.push({ 
+            pathname: '/workout-overview', 
+            params: { 
+              workoutName: todaysWorkout.name, 
+              duration: duration.toString(), 
+              caloriesBurned: calories.toString(),
+              totalVolume: volumeData.totalVolume.toString()
+            } 
+          }), 100);
+        }
       }
     } catch (e) {
       setIsFinishing(false);
@@ -440,7 +592,7 @@ export const useWorkoutSessionLogic = () => {
     showAddExerciseModal, setShowAddExerciseModal,
     showCardioModal, setShowCardioModal,
     showWorkoutConfirmModal, setShowWorkoutConfirmModal,
-    workoutCompletionData, isFinishing,
+    workoutCompletionData, isFinishing, isStartingWorkout,
     userWeight, updatingExerciseId,
     isRunning, pauseTimer, resumeTimer,
 

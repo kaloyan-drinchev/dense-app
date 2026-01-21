@@ -93,7 +93,7 @@ export const workoutSessionService = {
   async startWorkoutSession(userId: string, templateId: string): Promise<string | null> {
     console.log(`🏋️ Starting workout session from template ${templateId}`);
 
-    const { data, error } = await supabase
+    const { data, error} = await supabase
       .rpc('start_workout_session', {
         p_user_id: userId,
         p_template_id: templateId,
@@ -106,6 +106,106 @@ export const workoutSessionService = {
 
     console.log(`✅ Workout session created: ${data}`);
     return data; // Returns session ID
+  },
+
+  /**
+   * Start a manual or cardio workout session (no template)
+   * Creates session + exercises + default sets
+   */
+  async startManualWorkoutSession(
+    userId: string, 
+    workoutName: string, 
+    workoutType: string, // 'manual' or 'cardio'
+    exercises: Array<{
+      id: string;
+      name: string;
+      targetSets?: number;
+      targetReps?: string;
+      restSeconds?: number;
+      isCardio?: boolean;
+    }>
+  ): Promise<string | null> {
+    console.log(`🏋️ Starting ${workoutType} workout session:`, workoutName);
+
+    try {
+      // 1. Create workout session (no template)
+      const { data: session, error: sessionError } = await supabase
+        .from('workout_sessions')
+        .insert({
+          user_id: userId,
+          template_id: null, // NULL for manual/cardio
+          workout_name: workoutName,
+          workout_type: workoutType,
+          status: 'IN_PROGRESS',
+          started_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (sessionError || !session) {
+        console.error('❌ Failed to create workout session:', sessionError);
+        throw sessionError;
+      }
+
+      console.log('✅ Workout session created:', session.id);
+
+      // 2. Create session exercises
+      const sessionExercises = exercises.map((ex, index) => ({
+        session_id: session.id,
+        exercise_id: ex.id,
+        exercise_name: ex.name,
+        sort_order: index + 1,
+        status: 'NOT_STARTED' as const,
+        target_sets: ex.targetSets || 3,
+        target_reps: ex.targetReps || '10',
+        rest_seconds: ex.restSeconds || 60,
+        notes: ex.isCardio ? 'Cardio exercise' : null,
+      }));
+
+      const { data: insertedExercises, error: exercisesError } = await supabase
+        .from('session_exercises')
+        .insert(sessionExercises)
+        .select();
+
+      if (exercisesError || !insertedExercises) {
+        console.error('❌ Failed to create session exercises:', exercisesError);
+        throw exercisesError;
+      }
+
+      console.log('✅ Created exercises:', insertedExercises.length);
+
+      // 3. Create default sets for each exercise (3 sets with default values)
+      const defaultSets: any[] = [];
+      insertedExercises.forEach((exercise) => {
+        const targetSets = exercise.target_sets || 3;
+        for (let i = 1; i <= targetSets; i++) {
+          defaultSets.push({
+            session_exercise_id: exercise.id,
+            set_number: i,
+            weight_kg: 10, // Default weight
+            reps: 10, // Default reps
+            is_completed: false,
+          });
+        }
+      });
+
+      const { error: setsError } = await supabase
+        .from('session_sets')
+        .insert(defaultSets);
+
+      if (setsError) {
+        console.error('❌ Failed to create default sets:', setsError);
+        throw setsError;
+      }
+
+      console.log('✅ Created default sets:', defaultSets.length);
+      console.log('✅ Manual workout session fully initialized:', session.id);
+
+      return session.id;
+    } catch (error) {
+      console.error('❌ Failed to start manual workout session:', error);
+      throw error;
+    }
   },
 
   /**
@@ -193,6 +293,25 @@ export const workoutSessionService = {
       return false;
     }
 
+    return true;
+  },
+
+  /**
+   * Update session exercise status
+   */
+  async updateExerciseStatus(sessionId: string, exerciseId: string, status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'): Promise<boolean> {
+    const { error } = await supabase
+      .from('session_exercises')
+      .update({ status })
+      .eq('session_id', sessionId)
+      .eq('exercise_id', exerciseId);
+
+    if (error) {
+      console.error('❌ Failed to update exercise status:', error);
+      return false;
+    }
+
+    console.log(`✅ Exercise ${exerciseId} status updated to ${status}`);
     return true;
   },
 

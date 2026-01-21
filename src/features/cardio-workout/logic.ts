@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/auth-store';
-import { useWorkoutCacheStore } from '@/store/workout-cache-store';
+import { useActiveWorkout } from '@/context/ActiveWorkoutContext';
+import { workoutSessionService } from '@/db/services';
 import { CARDIO_TYPES } from '@/utils/cardio-calories';
 import { getCardioIcon } from './cardio-ui-data';
 
 export const useCardioWorkoutLogic = () => {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { refreshSession } = useActiveWorkout();
   
   // Form state
   const [selectedType, setSelectedType] = useState<string>('');
@@ -35,35 +37,40 @@ export const useCardioWorkoutLogic = () => {
     setStarting(true);
 
     try {
-      const cardioType = CARDIO_TYPES.find(c => c.id === selectedType);
+      console.log('🏃 [CardioWorkout] Starting cardio workout session using NEW system');
       
-      // Create cardio workout structure compatible with workout-session
-      // We'll create it as a single "exercise" that's just cardio
-      const cardioWorkoutData = {
-        id: 'cardio-workout',
-        name: cardioType?.name || 'Cardio',
-        type: 'cardio',
-        category: 'cardio',
-        estimatedDuration: targetMinutes, // User's target duration
-        targetDuration: targetMinutes, // Store target for countdown
-        cardioType: selectedType, // Store cardio type for later use
-        exercises: [
-          {
-            id: `cardio-${selectedType}`,
-            name: cardioType?.name || 'Cardio',
-            targetMuscle: 'Cardio',
-            sets: 1, // Single "set" representing the cardio session
-            reps: '1', // Not used for cardio
-            restTime: 0, // No rest for cardio
-            notes: '',
-            isCardio: true, // Flag to identify cardio exercises
-          }
-        ],
-      };
+      const cardioType = CARDIO_TYPES.find(c => c.id === selectedType);
+      const workoutName = cardioType?.name || 'Cardio';
+      
+      // Prepare cardio exercise data for NEW system
+      // Create it as a single "exercise" that represents the cardio session
+      const exercisesData = [
+        {
+          id: `cardio-${selectedType}`,
+          name: workoutName,
+          targetSets: 1, // Single "set" representing the cardio session
+          targetReps: `${targetMinutes} min`, // Display target duration as reps
+          restSeconds: 0, // No rest for cardio
+          isCardio: true,
+        }
+      ];
 
-      // Save workout data to cache store for workout-session to use
-      const { setManualWorkout } = useWorkoutCacheStore.getState();
-      setManualWorkout(cardioWorkoutData);
+      // Create workout session in NEW system (workout_sessions + session_exercises + session_sets)
+      const sessionId = await workoutSessionService.startManualWorkoutSession(
+        user.id,
+        workoutName,
+        'cardio',
+        exercisesData
+      );
+
+      if (!sessionId) {
+        throw new Error('Failed to create cardio session');
+      }
+
+      console.log('✅ [CardioWorkout] Session created:', sessionId);
+
+      // Refresh ActiveWorkoutContext to load the new session
+      await refreshSession();
 
       // Navigate to workout session - use replace so back button works correctly
       router.replace('/workout-session');

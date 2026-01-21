@@ -3,12 +3,16 @@ import { Alert, Keyboard } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkoutCacheStore } from '@/store/workout-cache-store';
+import { useActiveWorkout } from '@/context/ActiveWorkoutContext';
+import { useTimerStore } from '@/store/timer-store';
 import { wizardResultsService, userProgressService } from '@/db/services';
 
 export const useWorkoutExerciseTrackerLogic = () => {
   const router = useRouter();
   const { exerciseId } = useLocalSearchParams<{ exerciseId: string }>();
   const { user } = useAuthStore();
+  const { sessionId, exercises: sessionExercises, getExerciseById } = useActiveWorkout();
+  const { isWorkoutActive, timeElapsed, updateTimeElapsed } = useTimerStore();
   
   // --- STATE ---
   const [exercise, setExercise] = useState<any>(null);
@@ -30,8 +34,22 @@ export const useWorkoutExerciseTrackerLogic = () => {
   // --- EFFECTS ---
 
   useEffect(() => {
+    console.log('🔄 [WorkoutExerciseTracker] Component mounted/updated');
+    console.log('📋 [WorkoutExerciseTracker] exerciseId:', exerciseId);
+    console.log('📋 [WorkoutExerciseTracker] sessionId:', sessionId);
+    console.log('📋 [WorkoutExerciseTracker] sessionExercises count:', sessionExercises?.length);
     loadExerciseData();
-  }, [exerciseId, user]);
+  }, [exerciseId, user, sessionId]);
+
+  // Update timer every second when workout is active
+  useEffect(() => {
+    if (isWorkoutActive) {
+      const interval = setInterval(() => {
+        updateTimeElapsed();
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isWorkoutActive, updateTimeElapsed]);
 
   useEffect(() => {
     // Only show loading overlay if exercise is completed
@@ -90,20 +108,45 @@ export const useWorkoutExerciseTrackerLogic = () => {
         progress = await userProgressService.getByUserId(user.id);
       }
       
-      // 3. Check completion status for today
+      // 3. Check completion status from NEW system
+      console.log('🔍 [WorkoutExerciseTracker] Checking exercise completion status...');
+      console.log('📊 [WorkoutExerciseTracker] Looking for exerciseId:', exerciseId);
+      
       let isCompleted = false;
-      if (progress?.weeklyWeights) {
-        const weeklyWeights = typeof progress.weeklyWeights === 'string'
-          ? JSON.parse(progress.weeklyWeights)
-          : progress.weeklyWeights;
-        const today = new Date().toISOString().split('T')[0];
-        const exerciseLogs = weeklyWeights?.exerciseLogs || {};
-        const todaySession = exerciseLogs[exerciseId]?.find((session: any) => session.date === today);
+      if (sessionId && exerciseId) {
+        // Check NEW system (workout_sessions)
+        const exerciseData = getExerciseById(exerciseId);
+        console.log('🗄️ [WorkoutExerciseTracker] Exercise data from NEW system:', {
+          found: !!exerciseData,
+          status: exerciseData?.status,
+          setsCount: exerciseData?.sets?.length,
+          completedSets: exerciseData?.sets?.filter((s: any) => s.is_completed).length
+        });
         
-        if (todaySession?.sets) {
-          isCompleted = todaySession.sets.every((set: any) => set.isCompleted);
+        if (exerciseData) {
+          isCompleted = exerciseData.status === 'COMPLETED';
+          console.log('✅ [WorkoutExerciseTracker] Exercise completion from NEW system:', isCompleted);
+        }
+      } else {
+        console.log('⚠️ [WorkoutExerciseTracker] No sessionId - cannot check NEW system');
+        
+        // Fallback to OLD system (for legacy data)
+        if (progress?.weeklyWeights) {
+          const weeklyWeights = typeof progress.weeklyWeights === 'string'
+            ? JSON.parse(progress.weeklyWeights)
+            : progress.weeklyWeights;
+          const today = new Date().toISOString().split('T')[0];
+          const exerciseLogs = weeklyWeights?.exerciseLogs || {};
+          const todaySession = exerciseLogs[exerciseId]?.find((session: any) => session.date === today);
+          
+          if (todaySession?.sets) {
+            isCompleted = todaySession.sets.every((set: any) => set.isCompleted);
+            console.log('📦 [WorkoutExerciseTracker] Exercise completion from OLD system:', isCompleted);
+          }
         }
       }
+      
+      console.log('🎯 [WorkoutExerciseTracker] Final isCompleted status:', isCompleted);
       setIsExerciseCompleted(isCompleted);
       
       // 4. Find the Exercise Object
@@ -232,6 +275,14 @@ export const useWorkoutExerciseTrackerLogic = () => {
 
   const handleBackPress = () => router.back();
 
+  const formatTime = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   return {
     exercise,
     loading,
@@ -241,6 +292,9 @@ export const useWorkoutExerciseTrackerLogic = () => {
     setCompleteButtonState, // Exposed for child component
     isCustomExercise,
     handleDeleteCustomExercise,
-    handleBackPress
+    handleBackPress,
+    // Timer
+    formattedTime: formatTime(timeElapsed),
+    isWorkoutActive,
   };
 };

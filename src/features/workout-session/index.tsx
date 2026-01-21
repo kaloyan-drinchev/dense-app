@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { Feather as Icon } from "@expo/vector-icons";
 import { colors } from "@/constants/colors";
 
@@ -51,6 +52,7 @@ export default function WorkoutSessionScreen() {
     setShowWorkoutConfirmModal,
     workoutCompletionData,
     isFinishing,
+    isStartingWorkout,
     userWeight,
     updatingExerciseId,
 
@@ -95,6 +97,19 @@ export default function WorkoutSessionScreen() {
   return (
     <LinearGradient colors={["#000000", "#0A0A0A"]} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
+        {/* Starting Workout Loading Overlay */}
+        {isStartingWorkout && (
+          <BlurView intensity={20} style={styles.startingWorkoutOverlay}>
+            <View style={styles.startingWorkoutContent}>
+              <ActivityIndicator
+                size="large"
+                color={colors.primary}
+                style={styles.loadingSpinner}
+              />
+              <Text style={styles.startingWorkoutText}>Starting workout...</Text>
+            </View>
+          </BlurView>
+        )}
         <View style={styles.header}>
           <TouchableOpacity
             onPress={handleBackPress}
@@ -113,33 +128,36 @@ export default function WorkoutSessionScreen() {
           <View style={styles.workoutHeader}>
             <Text style={styles.workoutName}>{todaysWorkout?.name}</Text>
 
-            {workoutStarted && (
-              <View
-                style={[
-                  styles.timerContainer,
-                  isCardioWorkout &&
-                    cardioTimer.isComplete &&
-                    styles.timerContainerComplete,
-                ]}
-              >
-                {isCardioWorkout ? (
-                  <View style={styles.cardioTimerContent}>
-                    <Text
-                      style={[
-                        styles.timerText,
-                        cardioTimer.isComplete && styles.timerTextComplete,
-                      ]}
-                    >
-                      {cardioTimer.display}
-                    </Text>
-                    <Text style={styles.timerLabel}>
-                      {cardioTimer.isComplete ? "overtime 🎯" : "remaining"}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.timerText}>{formattedTime}</Text>
-                )}
+            <View
+              style={[
+                styles.timerContainer,
+                !workoutStarted && styles.timerContainerInactive,
+                isCardioWorkout &&
+                  cardioTimer.isComplete &&
+                  styles.timerContainerComplete,
+              ]}
+            >
+              {isCardioWorkout && workoutStarted ? (
+                <View style={styles.cardioTimerContent}>
+                  <Text
+                    style={[
+                      styles.timerText,
+                      cardioTimer.isComplete && styles.timerTextComplete,
+                    ]}
+                  >
+                    {cardioTimer.display}
+                  </Text>
+                  <Text style={styles.timerLabel}>
+                    {cardioTimer.isComplete ? "overtime 🎯" : "remaining"}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[styles.timerText, !workoutStarted && styles.timerTextInactive]}>
+                  {workoutStarted ? formattedTime : "00:00"}
+                </Text>
+              )}
 
+              {workoutStarted && (
                 <View style={styles.timerControls}>
                   <TouchableOpacity
                     style={[styles.timerButton, styles.resetButton]}
@@ -167,8 +185,8 @@ export default function WorkoutSessionScreen() {
                     <Icon name="x" size={16} color={colors.white} />
                   </TouchableOpacity>
                 </View>
-              </View>
-            )}
+              )}
+            </View>
 
             <View style={styles.workoutMeta}>
               <View style={styles.metaItem}>

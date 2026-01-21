@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/store/auth-store';
-import { wizardResultsService, userProgressService } from '@/db/services';
+import { wizardResultsService, userProgressService, workoutSessionService } from '@/db/services';
 import { calculateWorkoutCalories } from '@/utils/exercise-calories';
 
 export const useFinishedWorkoutDetailLogic = () => {
@@ -11,6 +11,7 @@ export const useFinishedWorkoutDetailLogic = () => {
   
   const [workout, setWorkout] = useState<any>(null);
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, any[]>>({});
+  const [sessionExercises, setSessionExercises] = useState<any[]>([]); // NEW: From workout_sessions
   const [customExercises, setCustomExercises] = useState<any[]>([]);
   const [cardioEntries, setCardioEntries] = useState<any[]>([]);
   const [workoutPercentage, setWorkoutPercentage] = useState<number | null>(null);
@@ -126,6 +127,21 @@ export const useFinishedWorkoutDetailLogic = () => {
           if (workoutEntry.percentageSuccess !== undefined) {
             setWorkoutPercentage(workoutEntry.percentageSuccess);
           }
+          
+          // NEW: Load actual session data from workout_sessions if sessionId exists
+          if (workoutEntry.sessionId) {
+            try {
+              console.log('📊 [FinishedWorkoutDetail] Loading session data:', workoutEntry.sessionId);
+              const sessionData = await workoutSessionService.getSessionWithExercises(workoutEntry.sessionId);
+              if (sessionData?.exercises) {
+                setSessionExercises(sessionData.exercises);
+                console.log('✅ [FinishedWorkoutDetail] Loaded exercises:', sessionData.exercises.length);
+              }
+            } catch (err) {
+              console.error('❌ Failed to load session data:', err);
+              // Fallback to old system if session not found
+            }
+          }
         }
       } finally {
         setLoading(false);
@@ -203,6 +219,7 @@ export const useFinishedWorkoutDetailLogic = () => {
     date,
     dateKey,
     exerciseLogs,
+    sessionExercises, // NEW: From workout_sessions table
     customExercises,
     cardioEntries,
     handleBack

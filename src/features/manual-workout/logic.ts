@@ -2,8 +2,8 @@ import { useState, useMemo } from 'react';
 import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/auth-store';
-import { activeWorkoutSessionService } from '@/db/services';
-import { useWorkoutCacheStore } from '@/store/workout-cache-store';
+import { useActiveWorkout } from '@/context/ActiveWorkoutContext';
+import { workoutSessionService } from '@/db/services';
 import { ExerciseData } from '@/constants/exercise-database';
 import { AVAILABLE_EXERCISES, CATEGORIES } from './manual-data';
 
@@ -15,6 +15,7 @@ export interface ManualExercise {
 export const useManualWorkoutLogic = () => {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { refreshSession } = useActiveWorkout();
   
   const [workoutName, setWorkoutName] = useState<string>('');
   const [exercises, setExercises] = useState<ManualExercise[]>([]);
@@ -115,44 +116,34 @@ export const useManualWorkoutLogic = () => {
     setSaving(true);
 
     try {
-      // Generate unique workout ID for this manual workout session
-      const workoutSessionId = `manual-${Date.now()}`;
+      console.log('🏋️ [ManualWorkout] Starting manual workout session using NEW system');
       
-      // Prepare workout structure compatible with workout-session
-      const manualWorkoutData = {
-        id: 'manual-workout',
-        name: workoutName.trim(),
-        type: 'manual',
-        category: 'manual',
-        estimatedDuration: exercises.length * 10, // Rough estimate
-        exercises: exercises.map((ex) => {
-          // Find original exercise data to get media URLs
-          const originalEx = AVAILABLE_EXERCISES.find(e => e.id === ex.id);
-          
-          return {
-            id: `${workoutSessionId}-${ex.id}`, // Prefix with session ID for uniqueness
-            name: ex.name,
-            targetMuscle: 'General',
-            sets: 3, // Default number of sets
-            reps: '10', // Default reps per set
-            restTime: 60, // Default rest time
-            notes: '',
-            thumbnail_url: originalEx?.thumbnail_url || '', 
-            video_url: originalEx?.video_url || '',
-          };
-        }),
-      };
+      // Prepare exercises data for NEW system
+      const exercisesData = exercises.map((ex) => ({
+        id: ex.id,
+        name: ex.name,
+        targetSets: 3, // Default number of sets
+        targetReps: '10', // Default reps per set
+        restSeconds: 60, // Default rest time
+        isCardio: false,
+      }));
 
-      // Create active session for manual workout
-      await activeWorkoutSessionService.create(
+      // Create workout session in NEW system (workout_sessions + session_exercises + session_sets)
+      const sessionId = await workoutSessionService.startManualWorkoutSession(
         user.id,
+        workoutName.trim(),
         'manual',
-        workoutName.trim()
+        exercisesData
       );
 
-      // Save workout data to cache store for workout-session to use
-      const { setManualWorkout } = useWorkoutCacheStore.getState();
-      setManualWorkout(manualWorkoutData);
+      if (!sessionId) {
+        throw new Error('Failed to create workout session');
+      }
+
+      console.log('✅ [ManualWorkout] Session created:', sessionId);
+
+      // Refresh ActiveWorkoutContext to load the new session
+      await refreshSession();
 
       // Navigate to workout session - use replace so back button works correctly
       router.replace('/workout-session');

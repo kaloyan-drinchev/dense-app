@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { colors } from '@/constants/colors';
-import { typography } from '@/constants/typography';
+import { typography, fonts } from '@/constants/typography';
 
 export const styles = StyleSheet.create({
   container: {
@@ -32,6 +32,28 @@ export const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 20,
+  },
+  timerBadge: {
+    flexDirection: 'row' as 'row',
+    alignItems: 'center' as 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  timerBadgeInactive: {
+    borderColor: colors.darkGray,
+  },
+  timerText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.white,
+    fontFamily: fonts.mono,
+  },
+  timerTextInactive: {
+    color: colors.lightGray,
   },
   header: {
     flexDirection: 'row',

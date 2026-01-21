@@ -29,6 +29,8 @@ export default function WorkoutExerciseTrackerScreen() {
     isCustomExercise,
     handleDeleteCustomExercise,
     handleBackPress,
+    formattedTime,
+    isWorkoutActive,
   } = useWorkoutExerciseTrackerLogic();
 
   // Show loading or error state
@@ -86,6 +88,15 @@ export default function WorkoutExerciseTrackerScreen() {
           >
             <Icon name="arrow-left" size={24} color={colors.white} />
           </TouchableOpacity>
+          
+          {/* Timer Display */}
+          <View style={[styles.timerBadge, !isWorkoutActive && styles.timerBadgeInactive]}>
+            <Icon name="clock" size={14} color={isWorkoutActive ? colors.primary : colors.lightGray} style={{ marginRight: 6 }} />
+            <Text style={[styles.timerText, !isWorkoutActive && styles.timerTextInactive]}>
+              {formattedTime}
+            </Text>
+          </View>
+          
           {isCustomExercise && exercise && (
             <TouchableOpacity
               onPress={handleDeleteCustomExercise}

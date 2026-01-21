@@ -3,7 +3,6 @@ import {
   Text,
   View,
   ScrollView,
-  TouchableOpacity,
   SafeAreaView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -12,6 +11,7 @@ import { colors } from "@/constants/colors";
 
 import { styles } from "./styles";
 import { useWorkoutOverviewLogic, ExerciseVolume } from "./logic";
+import { FloatingButton } from "@/components/FloatingButton";
 
 export default function WorkoutOverviewScreen() {
   const {
@@ -159,17 +159,14 @@ export default function WorkoutOverviewScreen() {
             ))}
           </View>
 
-          {/* Action Button */}
-          <TouchableOpacity style={styles.homeButton} onPress={handleHomePress}>
-            <LinearGradient
-              colors={[colors.primary, colors.secondary]}
-              style={styles.homeButtonGradient}
-            >
-              <Text style={styles.homeButtonText}>Back to Home</Text>
-              <Icon name="home" size={20} color={colors.black} />
-            </LinearGradient>
-          </TouchableOpacity>
         </ScrollView>
+
+        {/* Floating Action Button */}
+        <FloatingButton
+          text="Back to Home"
+          onPress={handleHomePress}
+          icon="home"
+        />
       </SafeAreaView>
     </LinearGradient>
   );

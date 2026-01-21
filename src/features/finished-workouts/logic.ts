@@ -11,6 +11,7 @@ export type CompletedEntry = {
   percentageSuccess?: number; // completion percentage
   totalVolume?: number; // total volume lifted in kg
   caloriesBurned?: number; // calories burned (for cardio workouts)
+  sessionId?: string; // NEW: Reference to workout_sessions table
   exercises?: Array<{
     name: string;
     sets: number;
