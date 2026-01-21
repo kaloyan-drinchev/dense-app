@@ -8,7 +8,7 @@
     "start-tunnel": "cross-env EXPO_USERNAME=dense expo start --tunnel",
     "start-web": "expo start --web",
     "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
-    "web-proxy": "node proxy-server.js",
+    "web-proxy": "node scripts/proxy-server.js",
     "db:generate": "drizzle-kit generate",
     "db:generate:postgres": "drizzle-kit generate --config=drizzle.config.postgres.ts",
     "db:backup": "tsx scripts/backup-sqlite-data-node.ts",
