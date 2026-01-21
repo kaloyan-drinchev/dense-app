@@ -193,10 +193,9 @@ const ConnectionTest: React.FC = () => {
       if (wizardResults) {
         Alert.alert(
           '🧙 Your Wizard Results',
-          `🎯 Primary Goal: ${wizardResults.primaryGoal || 'Not set'}\n` +
-          `💪 Fitness Level: ${wizardResults.fitnessLevel || 'Not set'}\n` +
-          `📅 Workout Frequency: ${wizardResults.workoutFrequency || 'Not set'}\n` +
-          `🏠 Location: ${wizardResults.workoutLocation || 'Not set'}\n` +
+          `🎯 Primary Goal: ${wizardResults.goal || 'Not set'}\n` +
+          `💪 Fitness Level: ${wizardResults.trainingExperience || 'Not set'}\n` +
+          `📅 Workout Frequency: ${wizardResults.activityLevel || 'Not set'}\n` +
           `✅ Completed: ${wizardResults.completedAt || 'Not completed'}`
         );
       } else {
