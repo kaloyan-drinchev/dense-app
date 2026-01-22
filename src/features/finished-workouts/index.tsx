@@ -135,7 +135,7 @@ export default function FinishedWorkoutsScreen() {
                                   color={colors.primary}
                                 />
                                 <Text style={styles.volumeBadgeText}>
-                                  {item.duration} min
+                                  {Math.floor(item.duration / 60)} min
                                 </Text>
                               </View>
                             )}

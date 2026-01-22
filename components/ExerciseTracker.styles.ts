@@ -29,6 +29,22 @@ export const styles = StyleSheet.create({
         padding: 16,
         marginBottom: 16,
     },
+    exerciseNameHeader: {
+        marginBottom: 12,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.lightGray + '30',
+    },
+    exerciseName: {
+        ...typography.h4,
+        color: colors.white,
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    exerciseTarget: {
+        ...typography.bodySmall,
+        color: colors.lightGray,
+    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',

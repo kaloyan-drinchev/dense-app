@@ -23,6 +23,7 @@ interface WorkoutTimerState {
   updateTimeElapsed: () => void;
   setTimeElapsed: (seconds: number) => void;
   stopWorkoutOnExpiration: () => void;
+  cleanupStaleTimerData: () => void;
 }
 
 export const useTimerStore = create<WorkoutTimerState>()(
@@ -38,7 +39,22 @@ export const useTimerStore = create<WorkoutTimerState>()(
       workoutName: null,
 
       startWorkout: (workoutId: string, workoutName: string) => {
+        const state = get();
         const now = new Date().toISOString();
+        
+        // SAFETY CHECK: If there's an old workout that was started more than 1 hour ago,
+        // it's stale data - log a warning
+        if (state.workoutStartTime) {
+          const oldStartTime = new Date(state.workoutStartTime);
+          const nowDate = new Date(now);
+          const hoursSinceOldStart = (nowDate.getTime() - oldStartTime.getTime()) / (1000 * 60 * 60);
+          
+          if (hoursSinceOldStart > 1) {
+            console.warn('⚠️ [Timer] Starting new workout - clearing stale timer from', oldStartTime.toLocaleString());
+          }
+        }
+        
+        // Always set fresh start time
         set({
           isWorkoutActive: true,
           isRunning: true,
@@ -48,6 +64,8 @@ export const useTimerStore = create<WorkoutTimerState>()(
           currentWorkoutId: workoutId,
           workoutName,
         });
+        
+        console.log('✅ [Timer] Started fresh timer at', now);
       },
 
       pauseTimer: () => {
@@ -98,12 +116,38 @@ export const useTimerStore = create<WorkoutTimerState>()(
         const state = get();
         let finalDuration = state.timeElapsed;
         
+        console.log('🏁 [Timer] Completing workout:', {
+          isRunning: state.isRunning,
+          timeElapsed: state.timeElapsed,
+          workoutStartTime: state.workoutStartTime,
+          workoutName: state.workoutName
+        });
+        
         // If timer is still running, calculate final elapsed time
         if (state.isRunning && state.workoutStartTime) {
           const now = new Date();
           const startTime = new Date(state.workoutStartTime);
-          finalDuration = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+          const calculatedDuration = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+          
+          console.log('⏱️ [Timer] Calculated duration:', {
+            startTime: startTime.toISOString(),
+            now: now.toISOString(),
+            calculatedSeconds: calculatedDuration,
+            calculatedMinutes: Math.floor(calculatedDuration / 60)
+          });
+          
+          // SAFETY CHECK: Prevent crazy durations from stale persisted data
+          // If duration > 24 hours (86400 seconds), it's likely stale data
+          const MAX_REASONABLE_DURATION = 86400; // 24 hours
+          if (calculatedDuration > MAX_REASONABLE_DURATION) {
+            console.warn('⚠️ [Timer] Detected stale timer data (duration > 24h). Resetting to 0.');
+            finalDuration = 0;
+          } else {
+            finalDuration = calculatedDuration;
+          }
         }
+        
+        console.log('✅ [Timer] Final duration:', finalDuration, 'seconds (', Math.floor(finalDuration / 60), 'minutes)');
         
         // Reset timer state
         set({
@@ -151,6 +195,30 @@ export const useTimerStore = create<WorkoutTimerState>()(
             currentWorkoutId: null,
             workoutName: null,
           });
+        }
+      },
+
+      // Clean up stale timer data on app initialization
+      cleanupStaleTimerData: () => {
+        const state = get();
+        if (state.workoutStartTime) {
+          const now = new Date();
+          const startTime = new Date(state.workoutStartTime);
+          const hoursSinceStart = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+          
+          // If workout started more than 24 hours ago, clear it
+          if (hoursSinceStart > 24) {
+            console.log('🧹 [Timer] Cleaning up stale timer data from', startTime.toLocaleString());
+            set({
+              isWorkoutActive: false,
+              isRunning: false,
+              timeElapsed: 0,
+              workoutStartTime: null,
+              lastPauseTime: null,
+              currentWorkoutId: null,
+              workoutName: null,
+            });
+          }
         }
       },
 

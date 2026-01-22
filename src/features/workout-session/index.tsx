@@ -50,6 +50,8 @@ export default function WorkoutSessionScreen() {
     setShowCardioModal,
     showWorkoutConfirmModal,
     setShowWorkoutConfirmModal,
+    showComingSoonModal,
+    setShowComingSoonModal,
     workoutCompletionData,
     isFinishing,
     isStartingWorkout,
@@ -256,7 +258,7 @@ export default function WorkoutSessionScreen() {
                       {customExercises.length < 3 && (
                         <TouchableOpacity
                           style={styles.addExerciseButton}
-                          onPress={() => setShowAddExerciseModal(true)}
+                          onPress={() => setShowComingSoonModal(true)}
                         >
                           <Icon name="plus" size={20} color={colors.black} />
                           <Text style={styles.addExerciseButtonText}>
@@ -267,7 +269,7 @@ export default function WorkoutSessionScreen() {
                       {(cardioEntries?.length ?? 0) < 3 && (
                         <TouchableOpacity
                           style={styles.addCardioButton}
-                          onPress={() => setShowCardioModal(true)}
+                          onPress={() => setShowComingSoonModal(true)}
                         >
                           <Icon
                             name="activity"
@@ -288,6 +290,20 @@ export default function WorkoutSessionScreen() {
                     const exerciseId =
                       exercise.id ||
                       exercise.name.replace(/\s+/g, "-").toLowerCase();
+                    
+                    // DEBUG: Log exercise card rendering
+                    // if (index === 0) {
+                    //   console.log('🎴 [WorkoutSession] Rendering exercise cards:', {
+                    //     exercisesCount: todaysWorkout.exercises.length,
+                    //     cards: todaysWorkout.exercises.map((ex: any, idx: number) => ({
+                    //       index: idx,
+                    //       id: ex.id || ex.name.replace(/\s+/g, "-").toLowerCase(),
+                    //       name: ex.name,
+                    //       status: getExerciseStatus(ex.id || ex.name.replace(/\s+/g, "-").toLowerCase(), ex.sets)
+                    //     }))
+                    //   });
+                    // }
+                    
                     return (
                       <ExerciseCard
                         key={index}
@@ -508,6 +524,37 @@ export default function WorkoutSessionScreen() {
           </View>
         </Modal>
       )}
+
+      {/* Coming Soon Modal */}
+      <Modal
+        visible={showComingSoonModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowComingSoonModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <LinearGradient
+              colors={["#1A1A1A", "#0A0A0A"]}
+              style={styles.comingSoonModalContent}
+            >
+              <View style={styles.comingSoonIconContainer}>
+                <Icon name="star" size={48} color={colors.primary} />
+              </View>
+              <Text style={styles.comingSoonTitle}>Coming Soon!</Text>
+              <Text style={styles.comingSoonDescription}>
+                Custom exercise builder and cardio tracking are being developed.
+              </Text>
+              <TouchableOpacity
+                style={styles.comingSoonButton}
+                onPress={() => setShowComingSoonModal(false)}
+              >
+                <Text style={styles.comingSoonButtonText}>Got it!</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }

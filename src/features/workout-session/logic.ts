@@ -19,7 +19,7 @@ export const useWorkoutSessionLogic = () => {
   const router = useRouter();
   const { user } = useAuthStore();
   const { userProgressData: cachedProgress, userWeight: cachedWeight, manualWorkout, isCacheValid } = useWorkoutCacheStore();
-  
+
   // --- STATE ---
   const [userProgressData, setUserProgressData] = useState<any>(cachedProgress);
   const [loading, setLoading] = useState(!cachedProgress);
@@ -27,11 +27,12 @@ export const useWorkoutSessionLogic = () => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showNotStartedModal, setShowNotStartedModal] = useState(false);
   const [showWorkoutConfirmModal, setShowWorkoutConfirmModal] = useState(false);
-  const [workoutCompletionData, setWorkoutCompletionData] = useState<{percentage: number, completed: number, total: number} | null>(null);
+  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
+  const [workoutCompletionData, setWorkoutCompletionData] = useState<{ percentage: number, completed: number, total: number } | null>(null);
   const [workoutStarted, setWorkoutStarted] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [isStartingWorkout, setIsStartingWorkout] = useState(false);
-  
+
   const [customExercises, setCustomExercises] = useState<any[]>([]);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [cardioEntries, setCardioEntries] = useState<any[]>([]);
@@ -57,11 +58,11 @@ export const useWorkoutSessionLogic = () => {
     refreshSession,
   } = useActiveWorkout();
 
-  const { 
-    formattedTime, timeElapsed, isRunning, isWorkoutActive, 
-    startWorkout: startWorkoutTimer, pauseTimer, resumeTimer, resetTimer, completeWorkout: completeWorkoutTimer 
+  const {
+    formattedTime, timeElapsed, isRunning, isWorkoutActive,
+    startWorkout: startWorkoutTimer, pauseTimer, resumeTimer, resetTimer, completeWorkout: completeWorkoutTimer
   } = useWorkoutTimer();
-  
+
   const workoutStartTime = useTimerStore((state) => state.workoutStartTime);
 
   // --- EFFECTS ---
@@ -134,7 +135,7 @@ export const useWorkoutSessionLogic = () => {
     if (cacheIsValid) {
       setUserProgressData(cachedProgress);
       setUserWeight(cachedWeight || 70);
-      
+
       if (cachedProgress?.weeklyWeights) {
         let weeklyWeights = typeof cachedProgress.weeklyWeights === 'string'
           ? JSON.parse(cachedProgress.weeklyWeights)
@@ -144,7 +145,7 @@ export const useWorkoutSessionLogic = () => {
         setExercisePRs(analyzeExercisePRs(logs));
       }
       setLoading(false);
-      
+
       const lastUpdated = useWorkoutCacheStore.getState().lastUpdated;
       if ((lastUpdated ? Date.now() - lastUpdated : Infinity) < 60000) return;
     }
@@ -152,12 +153,12 @@ export const useWorkoutSessionLogic = () => {
     try {
       isLoadingRef.current = true;
       if (!cacheIsValid) setLoading(true);
-      
+
       const wizardResults = await wizardResultsService.getByUserId(user.id);
       if (wizardResults?.weight) setUserWeight(wizardResults.weight);
 
       let progress = await userProgressService.getByUserId(user.id);
-      
+
       if (!progress) {
         progress = await userProgressService.create({
           userId: user.id,
@@ -170,18 +171,18 @@ export const useWorkoutSessionLogic = () => {
           weeklyWeights: {}
         });
       }
-      
+
       if (!progress.currentWorkout) {
         progress = await userProgressService.update(progress.id, { currentWorkout: 'push-a' });
       }
-      
+
       setUserProgressData(progress);
-      
+
       if (progress?.weeklyWeights) {
         let weeklyWeights = typeof progress.weeklyWeights === 'string'
           ? JSON.parse(progress.weeklyWeights)
           : progress.weeklyWeights;
-        
+
         const today = new Date().toISOString().split('T')[0];
         const logs = weeklyWeights?.exerciseLogs || {};
         setExerciseLogs(logs);
@@ -189,12 +190,12 @@ export const useWorkoutSessionLogic = () => {
         setCustomExercises(weeklyWeights?.customExercises?.[today] || []);
         setCardioEntries(weeklyWeights?.cardioEntries?.[today] || []);
       }
-      
+
       useWorkoutCacheStore.getState().setWorkoutData({
         userProgressData: progress,
         userWeight: wizardResults?.weight || userWeight
       });
-      
+
     } catch (error) {
       console.error('❌ Failed to load workout data:', error);
     } finally {
@@ -213,6 +214,16 @@ export const useWorkoutSessionLogic = () => {
     // If there's an active session (manual/cardio), derive workout from it
     if (currentSessionId && currentSession && sessionExercises.length > 0) {
       const workoutType = currentSession.workout_type || 'manual';
+      // console.log('🏋️ [TodaysWorkout] Building from active session:', {
+      //   sessionId: currentSessionId,
+      //   exerciseCount: sessionExercises.length,
+      //   exercises: sessionExercises.map((ex: any) => ({
+      //     name: ex.exercise_name,
+      //     has_thumbnail: !!ex.thumbnail_url,
+      //     thumbnail_url: ex.thumbnail_url
+      //   }))
+      // });
+
       return {
         id: currentSessionId,
         name: currentSession.workout_name || 'Workout',
@@ -225,17 +236,33 @@ export const useWorkoutSessionLogic = () => {
           sets: ex.target_sets || 3,
           reps: ex.target_reps || '10',
           restTime: ex.rest_seconds || 60,
+          restSeconds: ex.rest_seconds || 60,
+          targetMuscle: ex.target_muscle || 'General',
+          thumbnail_url: ex.thumbnail_url || null, // FIXED: Include thumbnail from session data
         })),
       };
     }
-    
+
     // Fallback to cached manual workout (legacy support)
-    if (manualWorkout) return manualWorkout;
-    
+    if (manualWorkout) {
+      console.log('🏋️ [TodaysWorkout] Using manual workout cache');
+      return manualWorkout;
+    }
+
     // Default: template-based workout (PPL)
     if (!userProgressData) return null;
     const currentWorkoutType = userProgressData.currentWorkout || 'push-a';
-    return getWorkoutTemplate(currentWorkoutType);
+    const template = getWorkoutTemplate(currentWorkoutType);
+    console.log('🏋️ [TodaysWorkout] Using template:', {
+      type: currentWorkoutType,
+      exerciseCount: template?.exercises?.length,
+      exercises: template?.exercises?.map((ex: any) => ({
+        name: ex.name,
+        has_thumbnail: !!(ex as any).thumbnail_url,
+        thumbnail_url: (ex as any).thumbnail_url
+      }))
+    });
+    return template;
   }, [currentSessionId, currentSession, sessionExercises, manualWorkout, userProgressData]);
 
   const isCardioWorkout = todaysWorkout?.type === 'cardio' || todaysWorkout?.category === 'cardio';
@@ -253,11 +280,11 @@ export const useWorkoutSessionLogic = () => {
   const totalWorkoutCalories = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     const completedExercises: any[] = [];
-    
+
     (todaysWorkout?.exercises || []).forEach((ex: any) => {
       const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
       const sessions = weeklyWeightsData?.exerciseLogs?.[exId];
-      
+
       if (sessions) {
         const todaySession = (sessions as any[]).find((s) => s.date === today);
         if (todaySession?.sets) {
@@ -268,14 +295,14 @@ export const useWorkoutSessionLogic = () => {
         }
       }
     });
-    
-    const estimatedCalories = completedExercises.length > 0 
-      ? calculateWorkoutCalories(completedExercises, userWeight) 
+
+    const estimatedCalories = completedExercises.length > 0
+      ? calculateWorkoutCalories(completedExercises, userWeight)
       : 0;
-    
+
     const todayCardioEntries = weeklyWeightsData?.cardioEntries?.[today] || [];
     const cardioCalories = todayCardioEntries.reduce((sum: number, entry: any) => sum + (entry.calories || 0), 0);
-    
+
     return estimatedCalories + cardioCalories;
   }, [todaysWorkout, weeklyWeightsData, userWeight]);
 
@@ -287,11 +314,11 @@ export const useWorkoutSessionLogic = () => {
     const remainingSeconds = Math.max(0, targetSeconds - timeElapsed);
     const isComplete = remainingSeconds === 0;
     const progress = Math.min(100, (timeElapsed / targetSeconds) * 100);
-    
+
     const hours = Math.floor(remainingSeconds / 3600);
     const minutes = Math.floor((remainingSeconds % 3600) / 60);
     const secs = remainingSeconds % 60;
-    
+
     let display: string;
     if (isComplete) {
       const overtimeSeconds = timeElapsed - targetSeconds;
@@ -311,12 +338,12 @@ export const useWorkoutSessionLogic = () => {
   const getExerciseStatus = useCallback((exerciseId: string, plannedSets: number) => {
     if (sessionExercises.length > 0) {
       const exerciseData = sessionExercises.find((ex: any) => ex.exercise_id === exerciseId);
-      
+
       if (exerciseData) {
         if (exerciseData.status === 'NOT_STARTED') return 'pending';
         if (exerciseData.status === 'IN_PROGRESS') return 'in-progress';
         if (exerciseData.status === 'COMPLETED') return 'completed';
-        
+
         const sets = exerciseData.sets || [];
         const completedCount = sets.filter((s: any) => !!s.is_completed).length;
         if (completedCount >= Math.max(0, plannedSets || 0) && plannedSets > 0) return 'completed';
@@ -328,7 +355,7 @@ export const useWorkoutSessionLogic = () => {
 
   const calculateWorkoutProgress = () => {
     if (!todaysWorkout?.exercises) return { percentage: 0, completed: 0, total: 0 };
-    
+
     const exercises = todaysWorkout.exercises;
     const regularCompletedCount = exercises.filter((ex: any) => {
       const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
@@ -343,20 +370,20 @@ export const useWorkoutSessionLogic = () => {
   const workoutProgress = calculateWorkoutProgress();
 
   // Log workout status once when exercises change
-  useEffect(() => {
-    if (sessionExercises.length > 0 && todaysWorkout?.exercises) {
-      console.log('📊 [WorkoutSession] ===== WORKOUT STATUS =====');
-      console.log('📋 [WorkoutSession] Total exercises:', todaysWorkout.exercises.length);
-      todaysWorkout.exercises.forEach((ex: any) => {
-        const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
-        const exerciseData = sessionExercises.find((e: any) => e.exercise_id === exId);
-        console.log(`  - ${ex.name}: ${exerciseData?.status || 'NOT_FOUND'} (${exerciseData?.sets?.filter((s: any) => s.is_completed).length || 0}/${exerciseData?.sets?.length || 0} sets)`);
-      });
-      console.log('🎯 [WorkoutSession] Progress:', workoutProgress.percentage + '%', `(${workoutProgress.completed}/${workoutProgress.total})`);
-      console.log('📊 [WorkoutSession] =========================');
-    }
-  }, [sessionExercises.length, todaysWorkout?.exercises?.length]);
-  
+  // useEffect(() => {
+  //   if (sessionExercises.length > 0 && todaysWorkout?.exercises) {
+  //     console.log('📊 [WorkoutSession] ===== WORKOUT STATUS =====');
+  //     console.log('📋 [WorkoutSession] Total exercises:', todaysWorkout.exercises.length);
+  //     todaysWorkout.exercises.forEach((ex: any) => {
+  //       const exId = ex.id || ex.name.replace(/\s+/g, '-').toLowerCase();
+  //       const exerciseData = sessionExercises.find((e: any) => e.exercise_id === exId);
+  //       console.log(`  - ${ex.name}: ${exerciseData?.status || 'NOT_FOUND'} (${exerciseData?.sets?.filter((s: any) => s.is_completed).length || 0}/${exerciseData?.sets?.length || 0} sets)`);
+  //     });
+  //     console.log('🎯 [WorkoutSession] Progress:', workoutProgress.percentage + '%', `(${workoutProgress.completed}/${workoutProgress.total})`);
+  //     console.log('📊 [WorkoutSession] =========================');
+  //   }
+  // }, [sessionExercises.length, todaysWorkout?.exercises?.length]);
+
   const hasPRPotential = useCallback((exerciseId: string): boolean => {
     const suggestions = getBeatLastWorkoutSuggestions(exerciseId, exercisePRs);
     return suggestions.length > 0 && !suggestions[0].includes('First time');
@@ -370,33 +397,52 @@ export const useWorkoutSessionLogic = () => {
 
     try {
       setIsStartingWorkout(true);
-      
+
       // Check if there's already an active session (for manual/cardio workouts)
       const activeSession = await workoutSessionService.getActiveSession(user.id);
-      
+
       if (activeSession) {
         // Session already exists (manual/cardio workout) - just load it
-        console.log('✅ [WorkoutSession] Active session already exists:', activeSession.id);
+        // console.log('✅ [WorkoutSession] Active session already exists:', activeSession.id);
         await refreshSession();
         setWorkoutStarted(true);
         setIsStartingWorkout(false);
         startWorkoutTimer(activeSession.id, activeSession.workout_name);
         return;
       }
-      
+
       // No active session - start a new template-based workout (PPL workouts)
       const workoutType = todaysWorkout.type || todaysWorkout.id;
-      console.log('🏋️ [WorkoutSession] Starting template-based workout:', workoutType);
-      
+      // console.log('🏋️ [WorkoutSession] Starting template-based workout:', workoutType);
+      // console.log('🏋️ [WorkoutSession] Current todaysWorkout exercises BEFORE start:',
+      //   todaysWorkout.exercises?.map((ex: any) => ({
+      //     name: ex.name,
+      //     has_thumbnail: !!(ex as any).thumbnail_url,
+      //     thumbnail_url: (ex as any).thumbnail_url
+      //   }))
+      // );
+
       const templates = await workoutSessionService.getTemplates(user.id);
       const template = templates.find(t => t.type === workoutType);
-      
+
       if (!template) {
         setIsStartingWorkout(false);
         return Alert.alert('Error', 'Workout template not found.');
       }
 
+      // console.log('🏋️ [WorkoutSession] Starting workout with template:', template.id);
       await startWorkoutSession(template.id);
+
+      // console.log('🏋️ [WorkoutSession] Workout session started, refreshing...');
+      await refreshSession();
+
+      // console.log('🏋️ [WorkoutSession] Current todaysWorkout exercises AFTER start:',
+      //   todaysWorkout.exercises?.map((ex: any) => ({
+      //     name: ex.name,
+      //     has_thumbnail: !!(ex as any).thumbnail_url,
+      //     thumbnail_url: (ex as any).thumbnail_url
+      //   }))
+      // );
 
       setWorkoutStarted(true);
       setIsStartingWorkout(false);
@@ -411,15 +457,15 @@ export const useWorkoutSessionLogic = () => {
     try {
       if (!user?.id || !userProgressData) return;
       completeWorkoutTimer();
-      
+
       // Cancel workout in NEW system (clears context AND database)
       if (currentSessionId) {
-        console.log('🛑 [WorkoutSession] Cancelling workout session:', currentSessionId);
+        // console.log('🛑 [WorkoutSession] Cancelling workout session:', currentSessionId);
         await cancelWorkoutInContext();
       }
-      
+
       let weeklyWeights: any = {};
-      try { weeklyWeights = JSON.parse(userProgressData.weeklyWeights || '{}'); } catch {}
+      try { weeklyWeights = JSON.parse(userProgressData.weeklyWeights || '{}'); } catch { }
 
       if (todaysWorkout?.exercises) {
         todaysWorkout.exercises.forEach((ex: any) => {
@@ -452,38 +498,68 @@ export const useWorkoutSessionLogic = () => {
       const { duration } = completeWorkoutTimer();
       const finishTime = new Date().toISOString();
       let completedArr: any[] = [];
-      try { completedArr = typeof userProgressData.completedWorkouts === 'string' ? JSON.parse(userProgressData.completedWorkouts) : [...(userProgressData.completedWorkouts || [])]; } catch {}
+      try { completedArr = typeof userProgressData.completedWorkouts === 'string' ? JSON.parse(userProgressData.completedWorkouts) : [...(userProgressData.completedWorkouts || [])]; } catch { }
 
       if (isCardioWorkout) {
         const { calculateCardioCalories } = await import('@/utils/cardio-calories');
         const calories = calculateCardioCalories(todaysWorkout.cardioType || 'other', duration, userWeight);
-        
-        completedArr.push({
+
+        const workoutEntry = {
           date: finishTime, workoutIndex: -2, workoutName: todaysWorkout.name, duration, percentageSuccess: 100,
           startTime: startTimeToSave, finishTime, totalVolume: 0, caloriesBurned: calories,
-          exercises: [{ name: todaysWorkout.exercises[0]?.name || 'Cardio', duration, calories }]
+          exercises: [{ name: todaysWorkout.exercises[0]?.name || 'Cardio', duration, calories }],
+          sessionId: currentSessionId, // Store session ID for later reference
+        };
+
+        console.log('💾 [CompleteWorkout] Saving cardio workout entry:', {
+          workoutName: workoutEntry.workoutName,
+          hasSessionId: !!currentSessionId,
+          sessionId: currentSessionId,
+          duration: workoutEntry.duration,
+          calories: workoutEntry.caloriesBurned
         });
-        
+
+        completedArr.push(workoutEntry);
+
         const updated = await userProgressService.update(userProgressData.id, { completedWorkouts: JSON.stringify(completedArr) });
         useWorkoutCacheStore.getState().setManualWorkout(null);
-        
+
         // Complete session in NEW system AND clear context
         if (currentSessionId) {
           await workoutSessionService.completeSession(currentSessionId, duration, 0);
           await completeWorkoutInContext(); // Clear ActiveWorkoutContext
         }
-        
+
         if (updated) {
           setUserProgressData(updated);
           useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
           setIsFinishing(false);
-          setTimeout(() => router.push({ pathname: '/workout-overview', params: { workoutName: todaysWorkout.name, duration: duration.toString(), caloriesBurned: calories.toString() } }), 100);
+
+          // Create exercises breakdown for cardio (compatible with overview screen)
+          const cardioExerciseBreakdown = [{
+            name: todaysWorkout.exercises[0]?.name || 'Cardio',
+            sets: 1,
+            completedSets: 1,
+            totalReps: duration, // Use duration as "reps" for cardio
+            totalVolume: 0 // No volume for cardio
+          }];
+
+          setTimeout(() => router.push({
+            pathname: '/workout-overview',
+            params: {
+              workoutName: todaysWorkout.name,
+              duration: duration.toString(),
+              caloriesBurned: calories.toString(),
+              totalVolume: '0',
+              exercises: JSON.stringify(cardioExerciseBreakdown) // FIXED: Pass exercise data
+            }
+          }), 100);
         }
       } else {
         // Regular workout completion (resistance training)
         const { calculateWorkoutVolume } = await import('@/utils/volume-calculator');
         const today = new Date().toISOString().split('T')[0];
-        
+
         // Get completed exercise data from NEW system (session_exercises + session_sets)
         // Transform to format expected by volume/calorie calculators
         const completedExercisesData = sessionExercises
@@ -494,15 +570,15 @@ export const useWorkoutSessionLogic = () => {
               weightKg: s.weight_kg || 0,
               isCompleted: s.is_completed || false,
             }));
-            
+
             return {
               name: ex.exercise_name,
               sets: transformedSets,
             };
           });
-        
+
         const volumeData = calculateWorkoutVolume(completedExercisesData);
-        
+
         // For calories, we need a slightly different structure
         const caloriesData = completedExercisesData.map((ex: any) => ({
           name: ex.name,
@@ -510,8 +586,8 @@ export const useWorkoutSessionLogic = () => {
           setsData: ex.sets,
         }));
         const calories = calculateWorkoutCalories(caloriesData, userWeight);
-        
-        completedArr.push({
+
+        const workoutEntry = {
           date: finishTime,
           workoutIndex: -1,
           workoutName: todaysWorkout.name,
@@ -523,28 +599,39 @@ export const useWorkoutSessionLogic = () => {
           caloriesBurned: calories,
           exercises: volumeData.exerciseBreakdown,
           sessionId: currentSessionId, // Store session ID for later reference
+        };
+
+        console.log('💾 [CompleteWorkout] Saving workout entry:', {
+          workoutName: workoutEntry.workoutName,
+          hasSessionId: !!currentSessionId,
+          sessionId: currentSessionId,
+          duration: workoutEntry.duration,
+          totalVolume: workoutEntry.totalVolume,
+          exerciseCount: workoutEntry.exercises.length
         });
-        
+
+        completedArr.push(workoutEntry);
+
         // Update currentWorkout to next workout in PPL rotation
         const nextWorkoutType = updateWorkoutProgression(userProgressData.currentWorkout);
-        
+
         console.log('📊 [CompleteWorkout] Saving to database:', {
           nextWorkoutType,
           completedWorkoutsCount: completedArr.length,
           lastWorkout: completedArr[completedArr.length - 1]
         });
-        
+
         const updated = await userProgressService.update(userProgressData.id, {
           currentWorkout: nextWorkoutType,
           completedWorkouts: JSON.stringify(completedArr),
         });
-        
+
         console.log('✅ [CompleteWorkout] Database updated:', {
           success: !!updated,
           newCurrentWorkout: updated?.currentWorkout,
-          completedWorkoutsLength: updated?.completedWorkouts ? (Array.isArray(updated.completedWorkouts) ? updated.completedWorkouts.length : JSON.parse(updated.completedWorkouts).length) : 0
+          completedWorkoutsLength: updated?.completedWorkouts ? (Array.isArray(updated.completedWorkouts) ? updated.completedWorkouts.length : JSON.parse(updated.completedWorkouts as string).length) : 0
         });
-        
+
         // Complete session in NEW system AND clear context
         if (currentSessionId) {
           console.log('🏋️ [CompleteWorkout] Completing session:', currentSessionId);
@@ -552,22 +639,23 @@ export const useWorkoutSessionLogic = () => {
           await completeWorkoutInContext(); // Clear ActiveWorkoutContext
           console.log('✅ [CompleteWorkout] Session completed and context cleared');
         }
-        
+
         // Clear manual workout cache if this was a manual workout
         useWorkoutCacheStore.getState().setManualWorkout(null);
-        
+
         if (updated) {
           setUserProgressData(updated);
           useWorkoutCacheStore.getState().setWorkoutData({ userProgressData: updated });
           setIsFinishing(false);
-          setTimeout(() => router.push({ 
-            pathname: '/workout-overview', 
-            params: { 
-              workoutName: todaysWorkout.name, 
-              duration: duration.toString(), 
+          setTimeout(() => router.push({
+            pathname: '/workout-overview',
+            params: {
+              workoutName: todaysWorkout.name,
+              duration: duration.toString(),
               caloriesBurned: calories.toString(),
-              totalVolume: volumeData.totalVolume.toString()
-            } 
+              totalVolume: volumeData.totalVolume.toString(),
+              exercises: JSON.stringify(volumeData.exerciseBreakdown)
+            }
           }), 100);
         }
       }
@@ -592,6 +680,7 @@ export const useWorkoutSessionLogic = () => {
     showAddExerciseModal, setShowAddExerciseModal,
     showCardioModal, setShowCardioModal,
     showWorkoutConfirmModal, setShowWorkoutConfirmModal,
+    showComingSoonModal, setShowComingSoonModal,
     workoutCompletionData, isFinishing, isStartingWorkout,
     userWeight, updatingExerciseId,
     isRunning, pauseTimer, resumeTimer,
@@ -604,6 +693,15 @@ export const useWorkoutSessionLogic = () => {
     handleStopWorkout: () => Alert.alert("Reset Workout", "Are you sure?", [{ text: "Cancel" }, { text: "Reset", style: "destructive", onPress: confirmResetWorkout }]),
     handleExercisePress: (id: string) => {
       if (!workoutStarted) return setShowNotStartedModal(true);
+
+      console.log('🎯 [handleExercisePress] User clicked exercise:', {
+        exerciseId: id,
+        allExercises: todaysWorkout?.exercises?.map((ex: any) => ({
+          id: ex.id || ex.name.replace(/\s+/g, "-").toLowerCase(),
+          name: ex.name
+        }))
+      });
+
       setUpdatingExerciseId(id);
       router.push(`/workout-exercise-tracker?exerciseId=${id}`);
     },

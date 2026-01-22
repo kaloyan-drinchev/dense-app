@@ -29,7 +29,7 @@ interface ExerciseTrackerProps {
   onCompleteStateChange?: (state: any) => void;
 }
 
-export const ExerciseTracker: React.FC<ExerciseTrackerProps> = (props) => {
+const ExerciseTrackerComponent: React.FC<ExerciseTrackerProps> = (props) => {
   const {
     sets,
     unit,
@@ -72,6 +72,12 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = (props) => {
 
   return (
     <View style={styles.container}>
+      {/* Exercise Name Header */}
+      <View style={styles.exerciseNameHeader}>
+        <Text style={styles.exerciseName}>{exercise.name}</Text>
+        <Text style={styles.exerciseTarget}>{exercise.targetMuscle}</Text>
+      </View>
+      
       {isExerciseFinalized && (
         <View style={styles.completedBanner}>
           <Icon name="check-circle" size={20} color={colors.success} />
@@ -376,3 +382,6 @@ export const ExerciseTracker: React.FC<ExerciseTrackerProps> = (props) => {
     </View>
   );
 };
+
+// Memoize component to prevent re-renders when props don't change
+export const ExerciseTracker = React.memo(ExerciseTrackerComponent);

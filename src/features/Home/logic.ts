@@ -391,7 +391,11 @@ export const useHomeLogic = () => {
     setIsSkipping(true);
     try {
       useWorkoutCacheStore.getState().setManualWorkout(null);
-      completeWorkout();
+      
+      // Only complete timer if there's an active workout (prevents stale timer issues)
+      if (isWorkoutActive) {
+        completeWorkout();
+      }
 
       // Cancel any active workout session in NEW system
       if (sessionId) {
@@ -421,7 +425,11 @@ export const useHomeLogic = () => {
     setIsRegenerating(true);
     try {
       useWorkoutCacheStore.getState().setManualWorkout(null);
-      completeWorkout();
+      
+      // Only complete timer if there's an active workout (prevents stale timer issues)
+      if (isWorkoutActive) {
+        completeWorkout();
+      }
 
       // Cancel any active workout session in NEW system
       if (sessionId) {

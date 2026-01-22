@@ -3,6 +3,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useAuthStore } from '@/store/auth-store';
+import { useTimerStore } from '@/store/timer-store';
 import { subscriptionService } from '@/services/subscription';
 import { notificationService } from '@/services/notification-service';
 import { AppUpdateManager } from '@/utils/app-updates';
@@ -35,6 +36,10 @@ export function useAppInitialization() {
     const setup = async () => {
       try {
         console.log("🔄 Initializing app...");
+        
+        // 0. Clean up stale timer data
+        const { cleanupStaleTimerData } = useTimerStore.getState();
+        cleanupStaleTimerData();
         
         // 1. Auth & Subscriptions
         const { user, checkUserStatus, checkIfFirstTime } = useAuthStore.getState();

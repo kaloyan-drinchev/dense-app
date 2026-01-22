@@ -110,21 +110,43 @@ export default function FinishedWorkoutsDetailScreen() {
               // Use NEW system - check session_exercises status
               const sessionExercise = sessionExercises.find((se: any) => se.exercise_id === exId);
               
-              // DEBUG: Log ALL exercises to see their statuses
+              // DEBUG: Log ALL exercises to see their statuses (only once on first exercise)
               if (i === 0) {
-                console.log('🔍 [FinishedWorkoutDetail] === ALL EXERCISES STATUS ===');
-                sessionExercises.forEach((se: any) => {
-                  console.log(`  ${se.exercise_id}: ${se.status} (${se.sets?.filter((s: any) => s.is_completed).length || 0}/${se.sets?.length || 0} sets)`);
+                console.log('🔍 [FinishedWorkoutDetail] ======================================');
+                console.log('📋 [FinishedWorkoutDetail] TEMPLATE EXERCISES:');
+                workout.exercises.forEach((e: any) => {
+                  const id = e.id || e.name.replace(/\s+/g, "-").toLowerCase();
+                  console.log(`  - Template: ID="${id}" Name="${e.name}"`);
                 });
-                console.log('🔍 [FinishedWorkoutDetail] ==============================');
+                console.log('');
+                console.log('💾 [FinishedWorkoutDetail] SESSION EXERCISES (from database):');
+                sessionExercises.forEach((se: any) => {
+                  console.log(`  - Session: ID="${se.exercise_id}" Name="${se.exercise_name}" Status="${se.status}" Sets: ${se.sets?.filter((s: any) => s.is_completed).length}/${se.sets?.length}`);
+                });
+                console.log('🔍 [FinishedWorkoutDetail] ======================================');
               }
               
-              if (sessionExercise) {
+              // Try to match by exercise_id OR by exercise_name
+              if (!sessionExercise) {
+                // Try matching by name if ID didn't work
+                const sessionExerciseByName = sessionExercises.find((se: any) => 
+                  se.exercise_name.toLowerCase().trim() === ex.name.toLowerCase().trim()
+                );
+                
+                if (sessionExerciseByName) {
+                  console.log(`✅ [FinishedWorkoutDetail] Matched "${ex.name}" by NAME (ID mismatch: template="${exId}" vs session="${sessionExerciseByName.exercise_id}")`);
+                  isCompleted = sessionExerciseByName.status === 'COMPLETED';
+                  sessionData = sessionExerciseByName;
+                } else {
+                  console.warn(`⚠️ [FinishedWorkoutDetail] NO MATCH for "${ex.name}" (ID: "${exId}")`);
+                }
+              } else {
                 isCompleted = sessionExercise.status === 'COMPLETED';
                 sessionData = sessionExercise;
               }
             } else {
               // Fallback to OLD system - check exerciseLogs
+              console.log('📦 [FinishedWorkoutDetail] Using OLD system (exerciseLogs)');
               const sessions = exerciseLogs[exId] || [];
               const sessionForDay = sessions.find((s: any) => s.date === dateKey);
               isCompleted = !!sessionForDay && sessionForDay.sets && sessionForDay.sets.some((set: any) => set.isCompleted);

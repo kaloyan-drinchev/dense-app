@@ -92,13 +92,30 @@ export const exerciseMediaMap: Record<string, { thumbnail: string; video?: strin
 /**
  * Get media URLs for an exercise by name
  * Returns default image if exercise not found
+ * Performs case-insensitive matching
  */
 export function getExerciseMedia(exerciseName: string): { thumbnail: string; video?: string } {
-  const media = exerciseMediaMap[exerciseName];
+  // First, try exact match
+  let media = exerciseMediaMap[exerciseName];
   if (media) {
     return media;
   }
+
+  // Try case-insensitive match
+  const normalizedName = exerciseName.toLowerCase().trim();
+  const matchingKey = Object.keys(exerciseMediaMap).find(
+    key => key.toLowerCase().trim() === normalizedName
+  );
+
+  if (matchingKey) {
+    media = exerciseMediaMap[matchingKey];
+    if (media) {
+      return media;
+    }
+  }
+
   // Return default image for exercises without custom media
+  // console.warn(`⚠️ [ExerciseMedia] No media found for: "${exerciseName}"`);
   return {
     thumbnail: DEFAULT_IMAGE
   };

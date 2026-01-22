@@ -26,7 +26,12 @@ export const ProgramCard: React.FC<ProgramCardProps> = ({
   onPress,
 }) => {
   const colorScheme =
-    program.type === 'bulking' ? programColors.bulking : programColors.cutting;
+    program.type === 'chest-focus' ? programColors.bulking :
+    program.type === 'back-focus' ? programColors.bulking :
+    program.type === 'shoulders-focus' ? programColors.bulking :
+    program.type === 'leg-focus' ? programColors.bulking :
+    program.type === 'full-body' ? programColors.bulking :
+    programColors.cutting;
 
   return (
     <TouchableOpacity

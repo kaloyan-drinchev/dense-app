@@ -29,6 +29,7 @@ export default function WorkoutExerciseTrackerScreen() {
     isCustomExercise,
     handleDeleteCustomExercise,
     handleBackPress,
+    noopRegisterSave,
     formattedTime,
     isWorkoutActive,
   } = useWorkoutExerciseTrackerLogic();
@@ -141,7 +142,7 @@ export default function WorkoutExerciseTrackerScreen() {
               exercise={exercise}
               exerciseKey={exercise.id}
               userProgressData={userProgressData}
-              registerSave={() => {}}
+              registerSave={noopRegisterSave}
               hideCompleteButton={true}
               onCompleteStateChange={setCompleteButtonState}
             />

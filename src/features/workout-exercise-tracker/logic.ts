@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Alert, Keyboard } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/store/auth-store';
@@ -273,7 +273,7 @@ export const useWorkoutExerciseTrackerLogic = () => {
     ]);
   };
 
-  const handleBackPress = () => router.back();
+  const handleBackPress = useCallback(() => router.back(), []);
 
   const formatTime = (seconds: number): string => {
     const h = Math.floor(seconds / 3600);
@@ -282,6 +282,9 @@ export const useWorkoutExerciseTrackerLogic = () => {
     if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
+  
+  // Stable noop for registerSave
+  const noopRegisterSave = useCallback(() => {}, []);
 
   return {
     exercise,
@@ -293,6 +296,7 @@ export const useWorkoutExerciseTrackerLogic = () => {
     isCustomExercise,
     handleDeleteCustomExercise,
     handleBackPress,
+    noopRegisterSave,
     // Timer
     formattedTime: formatTime(timeElapsed),
     isWorkoutActive,

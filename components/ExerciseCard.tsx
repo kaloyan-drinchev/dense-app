@@ -36,6 +36,16 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
     setShowDemoModal(false);
   };
 
+  // Prioritize thumbnail_url from exercise object, fallback to helper
+  const thumbnailUrl = (exercise as any).thumbnail_url || getExerciseThumbnailUrl(exercise.name);
+  
+  // console.log(`🖼️ [ExerciseCard] "${exercise.name}"`, {
+  //   has_thumbnail_url: !!(exercise as any).thumbnail_url,
+  //   thumbnail_from_exercise: (exercise as any).thumbnail_url,
+  //   fallback_from_helper: getExerciseThumbnailUrl(exercise.name),
+  //   final_url: thumbnailUrl
+  // });
+
   return (
     <TouchableOpacity
       style={[
@@ -53,7 +63,7 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
           activeOpacity={0.8}
         >
           <Image
-            source={{ uri: getExerciseThumbnailUrl(exercise.name) }}
+            source={{ uri: thumbnailUrl }}
             style={styles.exerciseImage}
             contentFit="cover"
           />
@@ -119,7 +129,7 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
         exercise={{
           name: exercise.name,
           targetMuscle: exercise.targetMuscle,
-          imageUrl: getExerciseThumbnailUrl(exercise.name),
+          imageUrl: thumbnailUrl,
           videoUrl: exercise.videoUrl, // Will fall back to placeholder video
           notes: exercise.notes,
         }}
