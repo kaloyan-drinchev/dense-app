@@ -20,6 +20,7 @@ interface WeightEntry {
   date: string; // YYYY-MM-DD
   weight: number; // kg
   note?: string;
+  timestamp?: number; // Unix timestamp for conflict detection
 }
 
 interface WeightSettings {
@@ -134,25 +135,79 @@ export function WeightTracker({ targetWeight, initialWeight }: WeightTrackerProp
         updatedEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       }
 
-      // Save to database
+      // Save to database - use timestamp to prevent overwriting concurrent updates
       const progress = await userProgressService.getByUserId(user.id);
       if (progress) {
-        // Preserve the weeklyWeights structure (exerciseLogs, customExercises, etc.)
+        // Get latest weight entries from database
+        let latestWeightEntries: WeightEntry[] = [];
+        if (progress.weeklyWeights) {
+          let weeklyWeightsData = typeof progress.weeklyWeights === 'string'
+            ? JSON.parse(progress.weeklyWeights)
+            : progress.weeklyWeights;
+          
+          if (Array.isArray(weeklyWeightsData)) {
+            latestWeightEntries = weeklyWeightsData;
+          } else if (weeklyWeightsData?.weightEntries && Array.isArray(weeklyWeightsData.weightEntries)) {
+            latestWeightEntries = weeklyWeightsData.weightEntries;
+          }
+        }
+        
+        // Add timestamp to entry for conflict detection
+        const entryWithTimestamp = {
+          ...newEntry,
+          timestamp: Date.now(),
+        };
+        
+        // Check if entry for this date exists in DB entries
+        const existingDbIndex = latestWeightEntries.findIndex(entry => entry.date === selectedDate);
+        
+        let finalUpdatedEntries: WeightEntry[];
+        if (existingDbIndex >= 0) {
+          const existingEntry = latestWeightEntries[existingDbIndex];
+          // Only update if we're the latest edit (compare timestamps if available)
+          const canUpdate = !existingEntry.timestamp || existingEntry.timestamp < entryWithTimestamp.timestamp;
+          
+          if (!canUpdate) {
+            Alert.alert(
+              'Conflict Detected',
+              'This entry was updated by another device. Your changes will be saved as a new entry.',
+              [{ text: 'OK' }]
+            );
+            // Add as new entry instead of overwriting
+            finalUpdatedEntries = [entryWithTimestamp, ...latestWeightEntries];
+          } else {
+            // Safe to update
+            finalUpdatedEntries = [...latestWeightEntries];
+            finalUpdatedEntries[existingDbIndex] = entryWithTimestamp;
+          }
+        } else {
+          // Add new entry
+          finalUpdatedEntries = [entryWithTimestamp, ...latestWeightEntries];
+        }
+        
+        // Sort by date (newest first), then by timestamp
+        finalUpdatedEntries.sort((a, b) => {
+          const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+          if (dateCompare !== 0) return dateCompare;
+          // If same date, sort by timestamp (newest first)
+          return (b.timestamp || 0) - (a.timestamp || 0);
+        });
+        
+        // Preserve the weeklyWeights structure
         let weeklyWeights: any = {};
         if (progress.weeklyWeights) {
           weeklyWeights = typeof progress.weeklyWeights === 'string'
             ? JSON.parse(progress.weeklyWeights)
             : progress.weeklyWeights;
-          // Ensure it's an object (not array or null)
           if (!weeklyWeights || typeof weeklyWeights !== 'object' || Array.isArray(weeklyWeights)) {
             weeklyWeights = {};
           }
         }
         
-        // Preserve existing properties and only update weightEntries
+        // Update with new entries
         weeklyWeights = {
           ...weeklyWeights,
-          weightEntries: updatedEntries
+          weightEntries: finalUpdatedEntries
         };
         
         await userProgressService.update(progress.id, {
@@ -160,7 +215,9 @@ export function WeightTracker({ targetWeight, initialWeight }: WeightTrackerProp
         });
       }
 
-      setWeightEntries(updatedEntries);
+      // Reload from database to ensure state is in sync
+      await loadWeightHistory();
+      
       setShowAddModal(false);
       setNewWeight('');
       setNewNote('');
@@ -184,25 +241,37 @@ export function WeightTracker({ targetWeight, initialWeight }: WeightTrackerProp
           style: 'destructive',
           onPress: async () => {
             try {
-              const updatedEntries = Array.isArray(weightEntries) 
-                ? weightEntries.filter(entry => entry.date !== dateToDelete)
-                : [];
-              
               const progress = await userProgressService.getByUserId(user!.id);
               if (progress) {
-                // Preserve the weeklyWeights structure (exerciseLogs, customExercises, etc.)
+                // Get latest weight entries from database
+                let latestWeightEntries: WeightEntry[] = [];
+                if (progress.weeklyWeights) {
+                  let weeklyWeightsData = typeof progress.weeklyWeights === 'string'
+                    ? JSON.parse(progress.weeklyWeights)
+                    : progress.weeklyWeights;
+                  
+                  if (Array.isArray(weeklyWeightsData)) {
+                    latestWeightEntries = weeklyWeightsData;
+                  } else if (weeklyWeightsData?.weightEntries && Array.isArray(weeklyWeightsData.weightEntries)) {
+                    latestWeightEntries = weeklyWeightsData.weightEntries;
+                  }
+                }
+                
+                // Filter out the entry to delete
+                const updatedEntries = latestWeightEntries.filter(entry => entry.date !== dateToDelete);
+                
+                // Preserve the weeklyWeights structure
                 let weeklyWeights: any = {};
                 if (progress.weeklyWeights) {
                   weeklyWeights = typeof progress.weeklyWeights === 'string'
                     ? JSON.parse(progress.weeklyWeights)
                     : progress.weeklyWeights;
-                  // Ensure it's an object (not array or null)
                   if (!weeklyWeights || typeof weeklyWeights !== 'object' || Array.isArray(weeklyWeights)) {
                     weeklyWeights = {};
                   }
                 }
                 
-                // Preserve existing properties and only update weightEntries
+                // Update with filtered entries
                 weeklyWeights = {
                   ...weeklyWeights,
                   weightEntries: updatedEntries
@@ -213,7 +282,8 @@ export function WeightTracker({ targetWeight, initialWeight }: WeightTrackerProp
                 });
               }
               
-              setWeightEntries(updatedEntries);
+              // Reload from database to ensure state is in sync
+              await loadWeightHistory();
             } catch (error) {
               console.error('Failed to delete weight entry:', error);
               Alert.alert('Error', 'Failed to delete weight entry.');
@@ -226,25 +296,38 @@ export function WeightTracker({ targetWeight, initialWeight }: WeightTrackerProp
 
   const getCurrentWeight = () => {
     if (!Array.isArray(weightEntries) || weightEntries.length === 0) {
-      return initialWeight;
+      return initialWeight || undefined;
     }
     return weightEntries[0].weight;
   };
 
   const getWeightProgress = () => {
     const effectiveTargetWeight = currentTargetWeight || targetWeight;
-    if (!effectiveTargetWeight || !initialWeight || !Array.isArray(weightEntries) || weightEntries.length === 0) return null;
+    if (!effectiveTargetWeight || !Array.isArray(weightEntries) || weightEntries.length === 0) return null;
     
-    const currentWeight = getCurrentWeight()!;
-    const totalChange = Math.abs(effectiveTargetWeight - initialWeight);
-    const currentChange = Math.abs(currentWeight - initialWeight);
-    const progressPercentage = Math.min((currentChange / totalChange) * 100, 100);
+    const currentWeight = getCurrentWeight();
+    if (!currentWeight) return null;
+    
+    // Use first logged weight as initial if initialWeight not provided
+    const startingWeight = initialWeight || weightEntries[weightEntries.length - 1]?.weight;
+    if (!startingWeight) return null;
+    
+    const totalChange = effectiveTargetWeight - startingWeight;
+    const currentChange = currentWeight - startingWeight;
+    
+    // Calculate progress based on direction
+    let progressPercentage = 0;
+    if (totalChange !== 0) {
+      // Progress is how far we've moved toward the goal
+      // Clamp between 0 and 100 to handle overshooting or moving backwards
+      progressPercentage = Math.min(Math.max((currentChange / totalChange) * 100, 0), 100);
+    }
     
     return {
       current: currentWeight,
       target: effectiveTargetWeight,
-      initial: initialWeight,
-      change: currentWeight - initialWeight,
+      initial: startingWeight,
+      change: currentWeight - startingWeight,
       progressPercentage,
     };
   };

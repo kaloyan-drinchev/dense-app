@@ -106,8 +106,6 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Progress Tracking</Text>
-      
       {/* Volume Over Time Chart */}
       <View style={styles.chartSection}>
         <Text style={styles.chartTitle}>Volume Over Time</Text>
@@ -183,6 +181,8 @@ export const WorkoutProgressCharts: React.FC<WorkoutProgressChartsProps> = ({
             withVerticalLabels={true}
             fromZero={true}
             showValuesOnTopOfBars={true}
+            yAxisLabel=""  
+            yAxisSuffix=""
           />
         ) : (
           <View style={styles.emptyChart}>

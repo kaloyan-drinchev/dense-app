@@ -36,6 +36,9 @@ export default function LTwinsPointsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Twin Icon */}
+        <View>
+          <Text style={styles.headerTitle}>Coming Soon</Text>
+        </View>
         <View style={styles.iconContainer}>
           <Text style={styles.twinEmoji}>👯‍♂️</Text>
         </View>

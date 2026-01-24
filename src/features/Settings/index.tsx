@@ -77,7 +77,7 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>About</Text>
           {[
             { title: 'My Achievements', icon: 'award', color: colors.secondary, path: '/my-achievements' },
-            { title: 'Help & Support', icon: 'help-circle', color: colors.secondary, path: null },
+            // { title: 'Help & Support', icon: 'help-circle', color: colors.secondary, path: null },
             { title: 'About DENSE', icon: 'info', color: colors.warning, path: '/about-us' },
             { title: 'My Goals', icon: 'target', color: colors.primary, path: '/my-goals' },
             { title: 'Check Our Progress!', icon: 'play-circle', color: colors.secondary, path: '/check-our-progress' },
@@ -136,7 +136,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Developer Testing */}
-        <View style={styles.section}>
+        {/* <View style={styles.section}>
           <Text style={styles.sectionTitle}>Developer Testing</Text>
           {/* <TouchableOpacity style={styles.settingItem} onPress={handleResetApp}>
             <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
@@ -148,7 +148,7 @@ export default function SettingsScreen() {
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity> */}
 
-          <TouchableOpacity style={styles.settingItem} onPress={handleStartTrial}>
+          {/* <TouchableOpacity style={styles.settingItem} onPress={handleStartTrial}>
             <View style={[styles.settingIcon, { backgroundColor: colors.success }]}>
               <Icon name="play" size={20} color={colors.white} />
             </View>
@@ -167,7 +167,7 @@ export default function SettingsScreen() {
             </View>
             <Icon name="chevron-right" size={20} color={colors.lightGray} />
           </TouchableOpacity>
-        </View>
+        </View>  */}
 
       </ScrollView>
     </SafeAreaView>

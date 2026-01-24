@@ -126,7 +126,7 @@ export default function ProfileEditScreen() {
         )}
 
         {/* Physical Measurements */}
-        {renderSection(
+        {/* {renderSection(
           "Physical Measurements",
           <>
             {renderInput(
@@ -153,7 +153,7 @@ export default function ProfileEditScreen() {
               <Icon name="arrow-right" size={20} color={colors.primary} />
             </TouchableOpacity>
           </>
-        )}
+        )} */}
 
         <View style={styles.bottomPadding} />
       </ScrollView>

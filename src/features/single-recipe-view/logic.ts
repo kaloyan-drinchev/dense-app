@@ -5,16 +5,25 @@ import { useNutritionStore } from '@/store/nutrition-store';
 import { MealType } from '@/types/nutrition';
 import { colors } from '@/constants/colors';
 import { getRecipeDetails } from './recipe-data';
+import { getRecipeNutrition } from '../add-food-page/nutrition-data';
 
 export const useRecipeDetailLogic = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { addFoodEntry } = useNutritionStore();
-  
+
   const recipeId = params.recipeId as string;
   const mealType = params.mealType as MealType;
-  
+  const recipeName = params.recipeName as string;
+
   const recipe = getRecipeDetails(recipeId);
+  const correctNutrition = getRecipeNutrition(recipeId);
+
+  // Override recipe nutrition with correct values from nutrition database
+  const recipeWithCorrectNutrition = {
+    ...recipe,
+    nutrition: correctNutrition
+  };
 
   const handleAddToMeal = async () => {
     try {
@@ -22,16 +31,16 @@ export const useRecipeDetailLogic = () => {
       const nutritionEntry = {
         id: `entry_${Date.now()}`,
         foodId: `recipe_${recipe.id}`,
-        name: recipe.name,
+        name: recipeName || recipe.name,
         amount: 1, // 1 serving
-        unit: '1 meal',
+        unit: 'serving',
         mealType: mealType,
         timestamp: new Date().toISOString(),
         nutrition: {
-          calories: recipe.nutrition.calories,
-          protein: recipe.nutrition.protein,
-          carbs: recipe.nutrition.carbs,
-          fat: recipe.nutrition.fat,
+          calories: correctNutrition.calories,
+          protein: correctNutrition.protein,
+          carbs: correctNutrition.carbs,
+          fat: correctNutrition.fat,
           fiber: 0,
           sugar: 0,
         },
@@ -50,13 +59,13 @@ export const useRecipeDetailLogic = () => {
       // Show success message
       Alert.alert(
         '✅ Meal Added!',
-        `${recipe.name} has been added to your ${mealType} log.`,
+        `${recipeName || recipe.name} has been added to your ${mealType} log.`,
         [
           {
             text: 'OK',
             onPress: () => {
               // Navigate back to nutrition tab
-              router.push('/(tabs)/Nutrition');
+              router.push('/(tabs)/nutrition');
             },
           },
         ]
@@ -79,7 +88,7 @@ export const useRecipeDetailLogic = () => {
 
   return {
     router,
-    recipe,
+    recipe: recipeWithCorrectNutrition,
     mealType,
     handleAddToMeal,
     getDifficultyColor,

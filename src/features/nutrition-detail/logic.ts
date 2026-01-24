@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNutritionStore } from "@/store/nutrition-store";
 import { MealType, FoodEntry } from "@/types/nutrition";
+import { getRecipeNutrition } from "@/src/features/add-food-page/nutrition-data";
 
 export const useNutritionDetailLogic = () => {
   const router = useRouter();
@@ -13,7 +14,42 @@ export const useNutritionDetailLogic = () => {
     (session) => session.id === sessionId
   );
 
-  const dailyLog = mealSession || {
+  // Fix nutrition values for recipe entries
+  const fixedEntries = (mealSession?.entries || []).map(entry => {
+    // Check if this is a recipe entry
+    if (entry.foodId.startsWith('recipe_')) {
+      const recipeId = entry.foodId.replace('recipe_', '');
+      const correctNutrition = getRecipeNutrition(recipeId);
+      return {
+        ...entry,
+        nutrition: {
+          ...entry.nutrition,
+          calories: correctNutrition.calories,
+          protein: correctNutrition.protein,
+          carbs: correctNutrition.carbs,
+          fat: correctNutrition.fat,
+        }
+      };
+    }
+    return entry;
+  });
+
+  // Recalculate total nutrition with corrected values
+  const recalculatedTotalNutrition = fixedEntries.reduce(
+    (totals, entry) => ({
+      calories: totals.calories + entry.nutrition.calories,
+      protein: totals.protein + entry.nutrition.protein,
+      carbs: totals.carbs + entry.nutrition.carbs,
+      fat: totals.fat + entry.nutrition.fat,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  );
+
+  const dailyLog = mealSession ? {
+    ...mealSession,
+    entries: fixedEntries,
+    totalNutrition: recalculatedTotalNutrition,
+  } : {
     date: "",
     entries: [],
     totalNutrition: {

@@ -131,67 +131,6 @@ export const useSettingsLogic = () => {
     }
   };
 
-  const handleStartTrial = async () => {
-    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('🧪 Testing: Start 7-Day Trial', 'Start a fresh 7-day trial?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Start Trial',
-        style: 'default',
-        onPress: async () => {
-          try {
-            const subscriptionModule = await import('@/services/subscription-service');
-            const serviceInfo = subscriptionModule.getServiceInfo ? subscriptionModule.getServiceInfo() : null;
-            if (serviceInfo && serviceInfo.service !== 'legacy') {
-              Alert.alert('⚠️ Not Available', 'Only available in Legacy System.');
-              return;
-            }
-            const legacyModule = await import('@/services/subscription-service-legacy');
-            const legacyService = legacyModule.subscriptionService;
-            if (legacyService?.clearTrialData) await legacyService.clearTrialData();
-            
-            let result: any = { success: true, message: 'Trial started!' };
-            if (legacyService?.startFreeTrial) result = await legacyService.startFreeTrial();
-            
-            if (result.success) {
-              await refreshSubscriptionStatus();
-              triggerNavigationRefresh();
-              Alert.alert('✅ Trial Started', result.message);
-            }
-          } catch (error) {
-            Alert.alert('Error', 'Failed to start trial.');
-          }
-        },
-      },
-    ]);
-  };
-
-  const handleExpireTrial = async () => {
-    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('🧪 Testing: Expire Trial', 'Expire trial immediately?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Expire Trial',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const legacyModule = await import('@/services/subscription-service-legacy');
-            const legacyService = legacyModule.subscriptionService;
-            let result = { success: true, message: 'Trial expired!' };
-            if (legacyService?.expireTrial) result = await legacyService.expireTrial();
-            
-            if (result.success) {
-              await refreshSubscriptionStatus();
-              triggerNavigationRefresh();
-              Alert.alert('✅ Trial Expired', result.message);
-            }
-          } catch (error) {
-            Alert.alert('Error', 'Failed to expire trial.');
-          }
-        },
-      },
-    ]);
-  };
 
   const handleResetSubscriptionData = async () => {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -278,8 +217,7 @@ export const useSettingsLogic = () => {
   return {
     router, user, userProfile, notifications, trialDaysLeft,
     hasActiveSubscription, getSubscriptionInfo, isTrialActive, getTrialInfo, getDaysUntilExpiry,
-    handleNotificationsToggle, handleManageSubscription, handleStartTrial, handleExpireTrial,
+    handleNotificationsToggle, handleManageSubscription,
     handleResetSubscriptionData, handleSubscriptionPress 
-    // handleResetApp,
   };
 };

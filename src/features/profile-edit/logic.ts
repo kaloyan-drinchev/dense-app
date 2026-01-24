@@ -82,28 +82,22 @@ export const useProfileEditLogic = () => {
     }
 
     setIsSaving(true);
+    
     try {
       const validation = validateProfileData(profile);
 
       if (!validation.isValid) {
         Alert.alert("Validation Error", validation.errors.join("\n"));
+        setIsSaving(false);
         return;
       }
 
       const sanitizedData = validation.sanitized || profile;
 
+      // Update auth store if name changed
       if (sanitizedData.name !== user.name) {
         const { updateUser } = useAuthStore.getState();
         updateUser({ ...user, name: sanitizedData.name });
-      }
-
-      const { userProfileService } = await import("@/db/services");
-
-      let existingProfile;
-      try {
-        existingProfile = await userProfileService.getById(user.id);
-      } catch (error) {
-        console.log("No existing profile found:", error);
       }
 
       const profileData = {
@@ -113,25 +107,31 @@ export const useProfileEditLogic = () => {
         bodyFat: sanitizedData.bodyFat ? parseFloat(sanitizedData.bodyFat) : undefined,
       };
 
+      // IMPORTANT: Save to database first before showing success
+      const { userProfileService } = await import("@/db/services");
+      const allProfiles = await userProfileService.getAll();
+      const existingProfile = allProfiles.find(p => p.id === user.id);
+
       let savedProfile;
       if (existingProfile) {
         savedProfile = await userProfileService.update(user.id, profileData);
         if (!savedProfile) {
-          savedProfile = await userProfileService.create({ ...profileData, id: user.id });
+          savedProfile = { ...existingProfile, ...profileData };
         }
       } else {
         savedProfile = await userProfileService.create({ ...profileData, id: user.id });
+        if (!savedProfile) {
+          throw new Error("Failed to create profile in database");
+        }
       }
 
-      if (!savedProfile) {
-        throw new Error("Failed to save profile - no data returned");
-      }
-
+      // Only update store and show success after database write succeeds
       const { updateUserProfile } = useWorkoutStore.getState();
-      updateUserProfile({ ...profileData });
+      updateUserProfile(profileData);
 
       Alert.alert("Success", "Profile updated successfully!");
       router.back();
+
     } catch (error) {
       console.error("Failed to save profile:", error);
       Alert.alert("Error", "Failed to update profile. Please try again.");

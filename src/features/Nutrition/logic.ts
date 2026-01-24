@@ -10,6 +10,7 @@ import { startMidnightLogger, checkForUnloggedMeals } from '@/utils/midnight-log
 import { calculateWorkoutCalories } from '@/utils/exercise-calories';
 import { wizardResultsService, userProgressService } from '@/db/services';
 import { MealType } from '@/types/nutrition';
+import { getRecipeNutrition } from '@/src/features/add-food-page/nutrition-data';
 
 export const useNutritionLogic = () => {
   const router = useRouter();
@@ -164,13 +165,49 @@ export const useNutritionLogic = () => {
 
   // --- DERIVED STATE ---
 
-  const dailyLog = dailyLogs[selectedDate] || {
+  const rawDailyLog = dailyLogs[selectedDate] || {
     date: selectedDate,
     entries: [],
     totalNutrition: { calories: 0, protein: 0, carbs: 0, fat: 0 },
     calorieGoal: nutritionGoals.calories,
   };
-  dailyLog.calorieGoal = nutritionGoals.calories;
+
+  // Fix nutrition values for recipe entries
+  const fixedEntries = rawDailyLog.entries.map(entry => {
+    if (entry.foodId.startsWith('recipe_')) {
+      const recipeId = entry.foodId.replace('recipe_', '');
+      const correctNutrition = getRecipeNutrition(recipeId);
+      return {
+        ...entry,
+        nutrition: {
+          ...entry.nutrition,
+          calories: correctNutrition.calories,
+          protein: correctNutrition.protein,
+          carbs: correctNutrition.carbs,
+          fat: correctNutrition.fat,
+        }
+      };
+    }
+    return entry;
+  });
+
+  // Recalculate total nutrition with corrected values
+  const recalculatedTotalNutrition = fixedEntries.reduce(
+    (totals, entry) => ({
+      calories: totals.calories + entry.nutrition.calories,
+      protein: totals.protein + entry.nutrition.protein,
+      carbs: totals.carbs + entry.nutrition.carbs,
+      fat: totals.fat + entry.nutrition.fat,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  );
+
+  const dailyLog = {
+    ...rawDailyLog,
+    entries: fixedEntries,
+    totalNutrition: recalculatedTotalNutrition,
+    calorieGoal: nutritionGoals.calories,
+  };
 
   const entriesByMeal = dailyLog.entries.reduce((acc, entry) => {
     if (!acc[entry.mealType]) {

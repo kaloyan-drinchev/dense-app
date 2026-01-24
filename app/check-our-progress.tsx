@@ -1,6 +1,6 @@
 import React from "react";
-import ErrorBoundaryTestScreen from "@/src/features/error-boundary";
+import CheckOurProgressScreen from "@/src/features/check-our-progress";
 
 export default function Page() {
-  return <ErrorBoundaryTestScreen />;
+  return <CheckOurProgressScreen />;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useNutritionStore } from '@/store/nutrition-store';
+import { getRecipeNutrition } from '@/src/features/add-food-page/nutrition-data';
 
 export type NutritionEntry = {
   id: string;
@@ -25,17 +26,40 @@ export const useNutritionHistoryLogic = () => {
       try {
         // Convert logged meal sessions to sorted array of entries
         const nutritionEntries: NutritionEntry[] = loggedMealSessions
-          .map((session) => ({
-            id: session.id,
-            date: session.date,
-            timestamp: session.timestamp,
-            totalCalories: session.totalNutrition.calories,
-            totalProtein: session.totalNutrition.protein,
-            totalCarbs: session.totalNutrition.carbs,
-            totalFat: session.totalNutrition.fat,
-            entryCount: session.entries.length,
-            calorieGoal: session.calorieGoal,
-          }))
+          .map((session) => {
+            // Recalculate nutrition totals with correct recipe values
+            const correctedTotals = session.entries.reduce(
+              (totals, entry) => {
+                let nutrition = entry.nutrition;
+                
+                // If this is a recipe entry, get correct nutrition values
+                if (entry.foodId.startsWith('recipe_')) {
+                  const recipeId = entry.foodId.replace('recipe_', '');
+                  nutrition = getRecipeNutrition(recipeId);
+                }
+                
+                return {
+                  calories: totals.calories + nutrition.calories,
+                  protein: totals.protein + nutrition.protein,
+                  carbs: totals.carbs + nutrition.carbs,
+                  fat: totals.fat + nutrition.fat,
+                };
+              },
+              { calories: 0, protein: 0, carbs: 0, fat: 0 }
+            );
+
+            return {
+              id: session.id,
+              date: session.date,
+              timestamp: session.timestamp,
+              totalCalories: correctedTotals.calories,
+              totalProtein: correctedTotals.protein,
+              totalCarbs: correctedTotals.carbs,
+              totalFat: correctedTotals.fat,
+              entryCount: session.entries.length,
+              calorieGoal: session.calorieGoal,
+            };
+          })
           .sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1)); // Sort by timestamp (newest first)
 
         setEntries(nutritionEntries);
