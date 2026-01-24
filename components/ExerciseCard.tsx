@@ -38,13 +38,6 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
 
   // Prioritize thumbnail_url from exercise object, fallback to helper
   const thumbnailUrl = (exercise as any).thumbnail_url || getExerciseThumbnailUrl(exercise.name);
-  
-  // console.log(`🖼️ [ExerciseCard] "${exercise.name}"`, {
-  //   has_thumbnail_url: !!(exercise as any).thumbnail_url,
-  //   thumbnail_from_exercise: (exercise as any).thumbnail_url,
-  //   fallback_from_helper: getExerciseThumbnailUrl(exercise.name),
-  //   final_url: thumbnailUrl
-  // });
 
   return (
     <TouchableOpacity

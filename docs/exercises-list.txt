@@ -1,241 +1,143 @@
-================================
-DENSE FITNESS APP - ALL EXERCISES
-================================
+PUSH – VARIATION A
+Chest priority
+Barbell Bench Press
+ 2 sets, 5–8 reps, RIR 0–1
 
-Total: 46 exercises (36 strength + 10 cardio)
 
-================================
-STRENGTH TRAINING EXERCISES (36)
-================================
+DB Incline Chest Press
+ 2 sets, 8–10 reps, RIR 1
 
-PUSH DAY - Chest Focus (6 exercises)
--------------------------------------
-1. Barbell Bench Press
-2. Incline Dumbbell Press
-3. Dumbbell Flyes
-4. Overhead Press
-5. Lateral Raises
-6. Tricep Pushdowns
 
-PUSH DAY - Shoulder Focus (6 exercises)
-----------------------------------------
-1. Incline Barbell Bench Press
-2. Dumbbell Shoulder Press
-3. Cable Flyes
-4. Arnold Press
-5. Front Raises
-6. Overhead Tricep Extension
+Cable Chest Fly
+ 2 sets, 12–15 reps, RIR 1–2
 
-PULL DAY - Back Width Focus (6 exercises)
-------------------------------------------
-1. Deadlift
-2. Pull-Ups
-3. Barbell Rows
-4. Lat Pulldowns
-5. Face Pulls
-6. Barbell Curls
 
-PULL DAY - Back Thickness Focus (6 exercises)
-----------------------------------------------
-1. Rack Pulls
-2. Weighted Chin-Ups
-3. Dumbbell Rows
-4. Seated Cable Rows
-5. Rear Delt Flyes
-6. Hammer Curls
+DB Shoulder Press
+ 2 sets, 8–10 reps, RIR 1
 
-LEG DAY - Quad Focus (6 exercises)
------------------------------------
-1. Barbell Squats
-2. Leg Press
-3. Walking Lunges
-4. Romanian Deadlift
-5. Leg Curls
-6. Calf Raises
 
-LEG DAY - Hamstring Focus (6 exercises)
-----------------------------------------
-1. Front Squats
-2. Bulgarian Split Squats
-3. Hack Squats
-4. Stiff-Leg Deadlift
-5. Seated Leg Curls
-6. Seated Calf Raises
+Lateral Raises Machine
+ 2 sets, 12–15 reps, RIR 1–2
 
-================================
-CARDIO EXERCISES (10)
-================================
 
-1. Treadmill
-2. Bicycle
-3. Stair Master
-4. Rowing Machine
-5. Elliptical
-6. Jumping Rope
-7. Running (Outdoor)
-8. Walking
-9. Swimming
-10. Other
+Cable Triceps Pushdown
+ 2 sets, 10–15 reps, RIR 1–2
 
-================================
-ALPHABETICAL LIST - ALL EXERCISES
-================================
 
-A
-- Arnold Press
 
-B
-- Barbell Bench Press
-- Barbell Curls
-- Barbell Rows
-- Barbell Squats
-- Bicycle
-- Bulgarian Split Squats
+PUSH – VARIATION B
+Shoulder priority
+DB Shoulder Press
+ 2 sets, 6–9 reps, RIR 0–1
 
-C
-- Cable Flyes
-- Calf Raises
 
-D
-- Deadlift
-- Dumbbell Flyes
-- Dumbbell Rows
-- Dumbbell Shoulder Press
+Arnold Press
+ 2 sets, 8–10 reps, RIR 1
 
-E
-- Elliptical
 
-F
-- Face Pulls
-- Front Raises
-- Front Squats
+Cable Lateral Raise
+ 2 sets, 12–15 reps, RIR 1–2
 
-H
-- Hack Squats
-- Hammer Curls
 
-I
-- Incline Barbell Bench Press
-- Incline Dumbbell Press
+DB Bench Press
+ 2 sets, 8–10 reps, RIR 1
 
-J
-- Jumping Rope
 
-L
-- Lat Pulldowns
-- Lateral Raises
-- Leg Curls
-- Leg Press
+Cable Chest Fly
+ 2 sets, 12–15 reps, RIR 1–2
 
-O
-- Other
-- Overhead Press
-- Overhead Tricep Extension
 
-P
-- Pull-Ups
+Cable Triceps Overhead Extension
+ 2 sets, 10–15 reps, RIR 1–2
 
-R
-- Rack Pulls
-- Rear Delt Flyes
-- Romanian Deadlift
-- Rowing Machine
-- Running (Outdoor)
 
-S
-- Seated Cable Rows
-- Seated Calf Raises
-- Seated Leg Curls
-- Stair Master
-- Stiff-Leg Deadlift
-- Swimming
 
-T
-- Treadmill
-- Tricep Pushdowns
+PULL – VARIATION A
+Back priority
+Deadlift BB
+ 2 sets, 4–6 reps, RIR 0–1
 
-W
-- Walking
-- Walking Lunges
-- Weighted Chin-Ups
 
-================================
-EXERCISE COUNT BY MUSCLE GROUP
-================================
+Cable Face Pulls
+ 2 sets, 12–15 reps, RIR 1–2
 
-Chest: 6 exercises
-- Barbell Bench Press
-- Incline Dumbbell Press
-- Dumbbell Flyes
-- Incline Barbell Bench Press
-- Dumbbell Shoulder Press
-- Cable Flyes
 
-Shoulders: 7 exercises
-- Overhead Press
-- Lateral Raises
-- Dumbbell Shoulder Press
-- Arnold Press
-- Front Raises
-- Face Pulls
-- Rear Delt Flyes
+DB Rear Delt Fly Prone
+ 2 sets, 12–15 reps, RIR 1–2
 
-Triceps: 2 exercises
-- Tricep Pushdowns
-- Overhead Tricep Extension
 
-Back: 11 exercises
-- Deadlift
-- Pull-Ups
-- Barbell Rows
-- Lat Pulldowns
-- Rack Pulls
-- Weighted Chin-Ups
-- Dumbbell Rows
-- Seated Cable Rows
-- Face Pulls
-- Rear Delt Flyes
-- Romanian Deadlift
+Z Bar Bicep Curls
+ 2 sets, 8–12 reps, RIR 1
 
-Biceps: 2 exercises
-- Barbell Curls
-- Hammer Curls
 
-Quads: 7 exercises
-- Barbell Squats
-- Leg Press
-- Walking Lunges
-- Front Squats
-- Bulgarian Split Squats
-- Hack Squats
+DB Bicep Curls
+ 2 sets, 10–12 reps, RIR 1–2
 
-Hamstrings: 5 exercises
-- Romanian Deadlift
-- Leg Curls
-- Stiff-Leg Deadlift
-- Seated Leg Curls
 
-Calves: 2 exercises
-- Calf Raises
-- Seated Calf Raises
 
-Cardio: 10 exercises
-- Treadmill
-- Bicycle
-- Stair Master
-- Rowing Machine
-- Elliptical
-- Jumping Rope
-- Running (Outdoor)
-- Walking
-- Swimming
-- Other
+PULL – VARIATION B
+Biceps emphasis
+Deadlift BB
+ 2 sets, 5–7 reps, RIR 1
 
-================================
-SOURCE FILES
-================================
 
-Strength Exercises: lib/workout-templates.ts
-Cardio Exercises: utils/cardio-calories.ts
+Cable Face Pulls
+ 2 sets, 10–12 reps, RIR 1–2
 
-Generated: December 17, 2025
+
+DB Rear Delt Fly Prone
+ 2 sets, 12–15 reps, RIR 1–2
+
+
+Preacher Curls Z Bar
+ 2 sets, 8–12 reps, RIR 0–1
+
+
+Hammer Curls
+ 2 sets, 10–12 reps, RIR 1
+
+
+
+LEGS – VARIATION A
+Quad priority
+Bulgarian Split Squat Smith Machine
+ 2 sets per leg, 6–10 reps, RIR 0–1
+
+
+Leg Extension Machine
+ 2 sets, 10–15 reps, RIR 1
+
+
+Hamstring Curls Machine
+ 2 sets, 10–15 reps, RIR 1–2
+
+
+Legs DB Walking Lunges
+ 2 sets per leg, 10–12 steps, RIR 1–2
+
+
+Calve Raises Smith Machine
+ 2 sets, 10–15 reps, RIR 1–2
+
+
+
+LEGS – VARIATION B
+Hamstring / glute priority
+Hamstring Curls Machine
+ 2 sets, 8–12 reps, RIR 0–1
+
+
+Legs DB Walking Lunges
+ 2 sets per leg, 10–12 steps, RIR 1
+
+
+Bulgarian Split Squat Smith Machine
+ 2 sets per leg, 8–10 reps, RIR 1
+
+
+Leg Extension Machine
+ 2 sets, 12–15 reps, RIR 1–2
+
+
+Calve Raises Smith Machine
+ 2 sets, 12–15 reps, RIR 1–2

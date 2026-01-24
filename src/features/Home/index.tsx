@@ -232,7 +232,7 @@ export default function HomeScreen() {
 
                   <TouchableOpacity
                     style={styles.actionButton}
-                    onPress={handleAdjustDuration}
+                    onPress={() => setShowComingSoonModal(true)}
                   >
                     <Icon name="clock" size={20} color={colors.white} />
                     <Text style={styles.actionButtonText}>Duration</Text>
@@ -240,7 +240,7 @@ export default function HomeScreen() {
 
                   <TouchableOpacity
                     style={styles.actionButton}
-                    onPress={handleShareWorkout}
+                    onPress={() => setShowComingSoonModal(true)}
                   >
                     <Icon name="send" size={20} color={colors.white} />
                     <Text style={styles.actionButtonText}>Share</Text>
@@ -450,9 +450,9 @@ export default function HomeScreen() {
                 <Icon name="star" size={48} color={colors.primary} />
               </View>
               <Text style={styles.comingSoonTitle}>Coming Soon!</Text>
-              <Text style={styles.comingSoonDescription}>
+              {/* <Text style={styles.comingSoonDescription}>
                 Our AI-powered custom workout builder is on its way.
-              </Text>
+              </Text> */}
               <TouchableOpacity
                 style={styles.comingSoonButton}
                 onPress={() => setShowComingSoonModal(false)}
