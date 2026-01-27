@@ -20,11 +20,11 @@ export const steps: WizardStep[] = [
     title: 'What\'s Your Name?',
     subtitle: 'Let\'s personalize your fitness journey'
   },
-  // {
-  //   id: 'current-strength',
-  //   title: 'What\'s Your Starting Point?',
-  //   subtitle: 'Tell us your current strength levels (optional)'
-  // },
+  {
+    id: 'current-strength',
+    title: 'Your Powerlifting Stats',
+    subtitle: 'Enter your 1-Rep Max for the Big 3 lifts (optional, enter 0 if unknown)'
+  },
   {
     id: 'training-experience',
     title: 'Training Experience',

@@ -11,12 +11,12 @@ export interface WizardPreferences {
   // Step 2: Name
   name: string;
 
-  // Step 3: Current Strength (commented out - can be restored later)
-  // squatKg: string;
-  // benchKg: string;
-  // deadliftKg: string;
+  // Step 3: Current Strength (Big 3 lifts)
+  squatKg: string;
+  benchKg: string;
+  deadliftKg: string;
 
-  // Step 3: Training Experience
+  // Step 4: Training Experience
   trainingExperience: string;
 
   // Step 4: TDEE Calculation

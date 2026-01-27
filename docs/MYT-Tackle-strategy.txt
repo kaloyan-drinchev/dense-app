@@ -1,0 +1,230 @@
+The "Meet Your Twin" Protocol: Architectural Synthesis and Automated Implementation Strategy
+1. Executive Technical Overview
+The conceptualization and execution of "Meet Your Twin"—a cross-platform mobile application designed to match powerlifting athletes based on relative strength metrics—presents a multifaceted engineering challenge. It requires the harmonization of rigorous statistical methodology (DOTS scoring) with high-frequency real-time user interaction (swipe-based matching) and strict temporal business logic (the 28-day partnership lock). Furthermore, the requirement for seamless operation across both Android mobile devices and Windows desktop environments necessitates a frontend architecture that is not only responsive but deeply adaptive to varying input modalities and screen densities.
+This research report serves two primary functions. First, it provides an exhaustive architectural analysis of the system's components, dissecting the mathematical, database, and interface engineering decisions required to build a robust application. This analysis extends beyond mere functionality to consider performance optimization at scale, data integrity under high concurrency, and the nuances of cross-platform React Native development. Second, it synthesizes these technical requirements into a definitive "Master Prompt" optimized for Cursor Composer. This prompt is engineered to leverage the capabilities of Large Language Models (LLMs) in an Integrated Development Environment (IDE) context, providing the AI with the precise context, constraints, and instructions necessary to generate production-grade code.
+The architecture proposed herein utilizes a Supabase (PostgreSQL) backend to handle the heavy computational lifting of DOTS scoring and the complex set-theory operations required for "anti-join" filtering. The frontend relies on React Native with Expo, leveraging Reanimated 3 for native-thread gesture handling—a critical requirement for maintaining 60fps performance on lower-end Android devices and diverse Windows hardware. By enforcing NativeWind for styling, the system achieves a unified design system that compiles to native style sheets, ensuring visual consistency across platforms.
+2. The Mathematics of Relative Strength: DOTS Scoring Architecture
+The core value proposition of "Meet Your Twin" differs from standard dating applications, which rely primarily on geospatial or psychographic heuristics. Instead, this system utilizes a deterministic physiological metric: the DOTS score. Understanding the mathematical derivation and proper SQL implementation of this metric is paramount to the application's integrity.
+2.1 Historical Context and Algorithmic Selection
+In the domain of powerlifting, comparing the strength of athletes across different body weights requires a normalization coefficient. Historically, the Wilks coefficient was the standard. However, statistical analysis of competition data revealed inherent biases in the Wilks formula; it tended to favor middle-heavyweight lifters while penalizing very light and super-heavyweight athletes. This bias led to the development of the DOTS (Dynamic Objective Team Scoring) system.
+The DOTS formula improves upon Wilks by utilizing a more refined polynomial regression model derived from a broader, modern dataset of raw (unequipped) lifting performances. For the "Meet Your Twin" feature, the use of DOTS is not merely a preference but a functional requirement to ensure that a 60kg lifter can be accurately matched with a 100kg lifter of comparable relative strength capability. This normalization is what allows the "Twin" concept to function—matching users not by absolute numbers, but by their strength proficiency relative to their mass.
+2.2 Mathematical Structure of the DOTS Formula
+The calculation of a DOTS score is a function of the total weight lifted (Sum of Squat, Bench Press, and Deadlift) and the athlete's body weight (BW). It is expressed as a ratio where the denominator is a fifth-degree polynomial function of the body weight.
+The general formula is defined as:
+$$\text{DOTS} = \frac{\text{Total Lifted} \times 500}{A x^0 + B x^1 + C x^2 + D x^3 + E x^4 + F x^5}$$
+Where:
+$x$ represents the athlete's body weight in kilograms.
+$A, B, C, D, E, F$ are gender-specific coefficients derived from statistical modeling.
+It is crucial to note that while some simplified implementations use a 4th-degree polynomial, the most precise standard—and the one required for accurate competition-grade scoring—utilizes coefficients up to the 5th power. This prevents rounding errors at the extremes of the bodyweight spectrum.
+2.3 Coefficient Precision and Gender Segregation
+One of the most critical aspects of implementing DOTS in a database environment is the handling of floating-point precision. The coefficients used in the formula extend to over fifteen decimal places. Truncating these values can lead to significant scoring drift, potentially altering the ranking of users and the quality of matches.
+The following table details the precise coefficients required for the SQL implementation, as derived from the International Powerlifting Federation (IPF) and verifyied against multiple sources.
+Term
+Coefficient (Male)
+Coefficient (Female)
+A (Constant, $x^0$)
+47.46178854
+-125.4255398
+B (Linear, $x^1$)
+8.472061379
+13.71219419
+C (Quadratic, $x^2$)
+0.07369410346
+-0.03307250631
+D (Cubic, $x^3$)
+-0.001395833811
+-0.001050400051
+E (Quartic, $x^4$)
+7.07665973070743e-6
+9.38773881462799e-6
+F (Quintic, $x^5$)
+-1.20804336482315e-8
+-2.3334613884954e-8
+
+2.4 SQL Implementation Strategy: Deterministic Functions
+Calculating this score at the application layer (frontend) is an architectural anti-pattern for this use case. It would require transmitting raw lift data to the client, performing the calculation in JavaScript (which has known issues with floating-point math), and then sending the score back or using it for client-side filtering. This approach fails to leverage the database's ability to index and sort by the score efficiently.
+Instead, the "Meet Your Twin" architecture necessitates a PostgreSQL-native implementation using a stored function.
+2.4.1 The calculate_dots Function
+The function must be defined as IMMUTABLE. In PostgreSQL, an immutable function cannot modify the database and is guaranteed to return the same result given the same arguments forever. This property allows the database optimizer to pre-calculate values when used in generated columns or functional indexes.
+The implementation logic within the function must:
+Accept body_weight, total_lifted, and gender as inputs.
+Use a CASE statement to select the appropriate set of coefficients based on the gender string.
+Perform the polynomial arithmetic using NUMERIC types rather than FLOAT to maximize precision.
+Handle division-by-zero errors (though body weight should never be zero).
+By encapsulating this logic in the database, we enable queries such as ORDER BY ABS(user.dots - target.dots) ASC, which is the fundamental query for finding a "Twin".
+3. Database Engineering: High-Performance Matching & Concurrency
+The database schema must support two conflicting requirements: the rapid ingestion of user interactions (swipes) and the complex filtering of potential matches (finding users not yet seen). This section details the schema design and the "Anti-Join" optimization.
+3.1 Schema Design and Normalization
+The data model requires three primary entities: profiles (User Data), swipes (Interactions), and partnerships (Matches).
+3.1.1 Table Definitions
+profiles: This table acts as the source of truth for user attributes. It must contain the raw lift numbers (squat, bench, deadlift) alongside the computed dots_score.
+Design Insight: While dots_score could be calculated on the fly, storing it as a generated column (Postgres 12+) is superior for read-heavy workloads like a dating feed.
+Constraint: gender must be restricted to specific values ('male', 'female') via an ENUM or check constraint to ensure the DOTS function receives valid inputs.
+swipes: This is a high-volume interaction table.
+Structure: from_id (User), to_id (Target), direction (Enum: 'left', 'right'), created_at.
+Indexing: A composite unique index on (from_id, to_id) is mandatory to prevent duplicate swipes on the same person.
+partnerships: This table manages the state of a match.
+The 28-Day Lock: A column locked_until (Timestamp) is the critical control mechanism.
+Status Management: A status column ('active', 'archived') allows for historical data retention without polluting the active query set.
+3.2 The "Anti-Join" Optimization: Scaling the Feed
+The most expensive operation in a dating app is generating the feed of potential matches. The query must return users who exist in the profiles table but do not exist in the swipes table for the current user. As the swipes table grows into the millions, naive SQL approaches crumble.
+3.2.1 NOT IN vs. LEFT JOIN vs. NOT EXISTS
+The Naive Approach (NOT IN):
+SQL
+SELECT * FROM profiles WHERE id NOT IN (SELECT to_id FROM swipes WHERE from_id = current_user)
+
+
+Analysis: This is performant only on small datasets. On large datasets, if the subquery returns any NULL values (though unlikely here with constraints), the entire query can fail or degrade to a full table scan. The list of IDs in memory becomes a bottleneck.
+The Join Approach (LEFT JOIN... IS NULL):
+SQL
+SELECT p.* FROM profiles p
+LEFT JOIN swipes s ON p.id = s.to_id AND s.from_id = current_user
+WHERE s.id IS NULL
+
+
+Analysis: The LEFT JOIN forces the database to conceptually join the tables before filtering. While Postgres is smart enough to optimize this, it often results in a "Hash Anti-Join" that requires significant memory for the hash table of the larger set.
+The Optimal Approach (NOT EXISTS):
+SQL
+SELECT p.* FROM profiles p
+WHERE NOT EXISTS (
+    SELECT 1 FROM swipes s
+    WHERE s.to_id = p.id AND s.from_id = current_user
+)
+
+
+Analysis: This utilizes a "Semi-Join" mechanism. The database engine scans the profiles table and, for each candidate, performs a check against the swipes index. Crucially, the check "short-circuits"—it stops searching the index the moment it finds a single matching swipe. For a user who has swiped on thousands of profiles, identifying that a profile has been swiped is instantaneous. Benchmarks consistently show NOT EXISTS outperforms LEFT JOIN in high-cardinality exclusion scenarios.
+The Master Prompt will explicitly instruct the use of NOT EXISTS to ensure O(1) checking per candidate profile.
+3.3 Concurrency Control: The 28-Day Lock
+The requirement for a 28-day exclusive partnership introduces a race condition risk. If a user has two devices open and swipes right on two different "Twins" simultaneously, standard application logic might allow both matches to proceed before the "Lock" state is written.
+To prevent this, the logic must be enforced at the database level using strict Transaction Isolation or, more efficiently, Trigger-based constraints.
+3.3.1 Trigger Architecture
+We define a BEFORE INSERT trigger on the swipes table. Before any swipe is recorded, the trigger executes a check:
+Query the partnerships table for the from_id.
+Check if any row exists where locked_until > NOW().
+If a row exists, the trigger raises an exception (RAISE EXCEPTION 'User is locked in a partnership').
+This ensures data integrity regardless of frontend glitches or API exploits. The lock is absolute and enforced by the database engine itself.
+4. Frontend Architecture: React Native on Windows and Android
+The choice of React Native with Expo allows for a "Write Once, Run Everywhere" strategy, but supporting Windows (UWP) alongside Android introduces specific challenges in gesture handling and styling.
+4.1 Reanimated 3 and the UI Thread
+The "Swipe Deck" is a physics-based interaction. The user drags a card, and the card must follow the finger/mouse 1:1. When released, the card must calculate its velocity and "throw" itself off-screen or spring back.
+In standard React Native (using the JS Bridge), touch events cross from the Native thread to the JS thread, the position is updated in React state, and the new layout is sent back to the Native thread. This round-trip takes time. If the device is busy (e.g., garbage collection), the animation stutters (drops frames).
+Reanimated 3 solves this with Worklets. A Worklet is a small piece of JavaScript code that is moved to a separate VM running synchronously on the UI thread.
+Shared Values: Variables like translateX are stored on the UI thread.
+Gesture Handlers: The react-native-gesture-handler library captures the touch event directly on the UI thread and updates the Shared Value via the Worklet.
+Result: The card moves instantly with the input, guaranteeing 60fps (or 120fps on high-refresh displays) performance regardless of the main JS thread's load.
+4.2 Cross-Platform Gesture Handling (Windows vs. Android)
+Android relies on touch events (MotionEvent). Windows relies on mouse and pointer events. Historically, React Native's PanResponder struggled to unify these.
+The architecture uses react-native-gesture-handler (RNGH) specifically because it abstracts these differences.
+Android: RNGH wraps the native ViewGroup and intercepts touch streams.
+Windows: RNGH maps mouse clicks (left down -> drag -> left up) to the same "Pan" gesture state machine used for touch.
+The Master Prompt explicitly requests the use of GestureDetector (the new API in RNGH v2/v3) which provides a composable, declarative API that is more robust across these platforms than the legacy implementations.
+4.3 Styling with NativeWind
+NativeWind (a Tailwind CSS compiler for React Native) is selected to handle the "Responsive Density" problem.
+Problem: A button with padding: 10 might look fine on a phone but tiny on a 4K Windows monitor.
+Solution: NativeWind allows the use of platform modifiers. The prompt will instruct styling patterns like className="p-4 windows:p-6" to automatically adjust spacing based on the target platform. This ensures the "Twin" cards are legible and interactive on a Surface Pro as well as a Pixel phone.
+5. Master Prompt Construction
+The following text is the synthesized output of the research, designed to be pasted directly into Cursor Composer. It embeds the coefficients, the architectural decisions (Anti-Join, Reanimated Worklets), and the platform constraints.
+
+MASTER PROMPT: "Meet Your Twin" Implementation
+Role: You are a Principal Full-Stack Engineer specializing in React Native (Expo), TypeScript, and PostgreSQL.
+Objective: Build the complete source code for "Meet Your Twin", a feature for a powerlifting matching app.
+Target Platforms: Android and Windows (Universal Windows Platform via React Native).
+Core Requirements:
+Database: PostgreSQL (Supabase) with strict DOTS scoring logic and concurrency locking.
+Frontend: React Native (Expo) with Reanimated 3 for the Swipe Deck.
+Styling: NativeWind (Tailwind CSS).
+
+Section 1: Database Engineering (PostgreSQL)
+Generate a robust SQL migration file (schema.sql) implementing the following:
+1.1 Tables & Schema
+profiles:
+id (UUID, Primary Key, references auth.users).
+gender (Text: 'male' | 'female') - Constraint: Check constraint to enforce these two values only.
+body_weight_kg (Numeric, Non-null).
+total_lifted_kg (Numeric) - Sum of squat/bench/deadlift maxes.
+dots_score (Numeric) - Generated Column calling the calculate_dots function.
+swipes:
+from_id (UUID), to_id (UUID), direction (Text: 'left' | 'right').
+Index: Composite Unique Index on (from_id, to_id) to prevent duplicate swipes.
+partnerships:
+id (UUID), user_a (UUID), user_b (UUID).
+locked_until (Timestamp) - Defaults to NOW() + INTERVAL '28 days'.
+status (Text: 'active' | 'archived').
+1.2 The DOTS Algorithm (Stored Function)
+Create an IMMUTABLE function calculate_dots(bw numeric, total numeric, gender text) returning numeric.
+Formula: (total * 500) / (A*x^0 + B*x^1 + C*x^2 + D*x^3 + E*x^4 + F*x^5) where x is body weight.
+Coefficients (Use EXACT values):
+Male:
+A ($x^0$): 47.46178854
+B ($x^1$): 8.472061379
+C ($x^2$): 0.07369410346
+D ($x^3$): -0.001395833811
+E ($x^4$): 0.00000707665973070743
+F ($x^5$): -0.0000000120804336482315
+Female:
+A ($x^0$): -125.4255398
+B ($x^1$): 13.71219419
+C ($x^2$): -0.03307250631
+D ($x^3$): -0.001050400051
+E ($x^4$): 0.00000938773881462799
+F ($x^5$): -0.000000023334613884954
+Logic: Use a CASE statement on gender to select coefficients.
+1.3 The "Anti-Join" Feed (RPC)
+Create a PL/pgSQL function get_potential_matches(viewer_id uuid):
+Input: The ID of the user swiping.
+Query Logic: Select from profiles.
+Filtering: Use NOT EXISTS (Anti-Semi Join) to exclude:
+Profiles in swipes where from_id is viewer_id.
+The viewer_id itself.
+Profiles already in an active partnership.
+Ordering: ORDER BY ABS(profiles.dots_score - viewer_dots_score) ASC (Find the closest strength match).
+Limit: 10.
+1.4 The 28-Day Lock (Triggers)
+check_lock_status Trigger: Before inserting into swipes, check partnerships. If from_id or to_id is in a partnership where locked_until > NOW(), raise an exception.
+handle_match Trigger: After insert on swipes (where direction='right'), check if the reciprocal right swipe exists. If yes:
+Insert into partnerships.
+Set locked_until to 28 days from now.
+
+Section 2: Frontend Architecture (React Native)
+Generate the following components using TypeScript and Functional Components.
+2.1 SwipeDeck.tsx (Reanimated 3)
+Architecture: Use useSharedValue for X/Y translation and rotation.
+Gesture: Use GestureDetector.Pan() from react-native-gesture-handler.
+Windows Compat: Ensure the gesture logic works with mouse dragging (standard Pan behavior).
+Animation Logic:
+Interpolate rotation based on X translation (tilt the card).
+On onFinalize (release): If velocity > 800 or translation > threshold, trigger swipe animation (spring off-screen). Else, spring back to center.
+Worklets: Ensure all animation logic is marked as worklets to run on the UI thread.
+Rendering: Render a stack of TwinCard components. Only render the top 2 cards for performance (Lazy loading).
+2.2 TwinCard.tsx (NativeWind)
+Styling: Use Tailwind classes (className).
+Layout:
+Container: w-full h-3/4 rounded-xl bg-slate-800 shadow-xl overflow-hidden.
+Content: Display Username, Total Lifted, and DOTS Score (highlighted).
+Windows Adjustment: Add windows:p-8 to inner padding to accommodate mouse usage, vs android:p-4.
+2.3 ChatScreen.tsx (Locked Interface)
+Logic: This screen is ONLY accessible if a partnership exists.
+UI: Simple message list using FlatList.
+Realtime: Use supabase.channel to subscribe to new messages for the partnership ID.
+
+Section 3: Implementation Directives
+Strict Typing: All database types must be inferred or defined in a types/supabase.ts file.
+Error Handling: RPC calls must be wrapped in try/catch with user-friendly alerts on failure (e.g., "You are locked!").
+Output: Provide the full code for:
+supabase/migrations/20240101_init.sql
+components/SwipeDeck.tsx
+app/index.tsx (Main Feed)
+
+6. Prompt Engineering Analysis
+The construction of the Master Prompt is not arbitrary; it is a calculated application of "Chain-of-Thought" engineering designed to guide the LLM through the specific constraints of the system.
+6.1 Avoiding the "Hallucination" of Coefficients
+LLMs are notoriously unreliable with specific numerical constants. They often approximate values or invent them based on training data patterns. By explicitly listing the DOTS coefficients A through F for both genders in the prompt itself, we force the model to use the provided truth rather than retrieving potentially hallucinated or outdated values (like the older Wilks constants) from its latent space. This ensures the mathematical integrity of the feature.
+6.2 Enforcing the NOT EXISTS Pattern
+The prompt explicitly dictates the use of NOT EXISTS over NOT IN. Without this specific instruction, an LLM trained on general SQL tutorials might default to NOT IN due to its syntactic simplicity. However, as established in Section 3.2, NOT IN is catastrophic for performance at scale. The prompt acts as a senior engineer doing a code review before the code is even written, preemptively optimizing the query plan.
+6.3 Windows Compatibility via Abstraction
+The prompt does not ask for separate "Windows code" and "Android code." Instead, it enforces the use of libraries (react-native-gesture-handler, NativeWind) that handle the abstraction layer. This is a critical distinction. Asking an LLM to "make it work on Windows" might result in it writing complex if (Platform.OS === 'windows') logic, which is brittle. Asking it to "use GestureDetector" ensures it uses the correct API that naturally compiles to the UWP input system, adhering to best practices for cross-platform development.
+6.4 The "Lock" as a First-Class Citizen
+By instructing the creation of a database trigger for the lock, the prompt moves business logic from the fragile frontend to the durable backend. This is an intentional architectural decision to prevent "client-side hacking." If the lock logic were only in the React Native code, a user could modify the local JS bundle to bypass the check. Placing it in the SQL BEFORE INSERT trigger makes the rule immutable, a nuance that simple prompts often overlook.
+7. Conclusion
+The "Meet Your Twin" feature represents a sophisticated synthesis of data science and user interface design. By rooting the matching algorithm in the mathematically rigorous DOTS formula and enforcing strict database constraints for the "28-day lock," the application ensures fair, high-quality connections. The architectural choice of Supabase for backend logic and React Native Reanimated for the frontend provides a scalable, high-performance foundation capable of running smoothly across the fragmented Android ecosystem and the desktop-oriented Windows environment. The Master Prompt provided in this report encapsulates these decisions, offering a ready-to-use blueprint for automated implementation.
+

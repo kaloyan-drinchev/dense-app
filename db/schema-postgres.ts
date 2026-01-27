@@ -13,6 +13,11 @@ export const userProfiles = pgTable('user_profiles', {
   targetWeight: real('target_weight'),
   bodyFat: real('body_fat'),
   goal: text('goal'),
+  // Powerlifting Stats (Big 3)
+  squatKg: real('squat_kg').default(0), // 1RM Squat in kg
+  benchKg: real('bench_kg').default(0), // 1RM Bench Press in kg
+  deadliftKg: real('deadlift_kg').default(0), // 1RM Deadlift in kg
+  totalLiftedKg: real('total_lifted_kg'), // Computed column (squat + bench + deadlift)
   // L Twins Game Points
   ltwinsPoints: integer('ltwins_points').default(0), // Points from L Twins guessing game
   ltwinsPointsHistory: jsonb('ltwins_points_history'), // JSON array of point gains with timestamps
@@ -137,14 +142,31 @@ export const userWizardResults = pgTable('user_wizard_results', {
   activityLevel: text('activity_level'), // 'sedentary', 'lightly_active', etc.
   goal: text('goal'), // 'lose_weight', 'maintain_weight', 'gain_weight'
   
-  // Simplified: Only fitness goal matters for PPL program
-  fitnessGoal: text('fitness_goal'), // 'strength', 'hypertrophy', 'endurance', 'weight_loss'
+  // Training schedule and preferences
+  trainingDaysPerWeek: integer('training_days_per_week'),
+  preferredTrainingDays: jsonb('preferred_training_days'),
+  musclePriorities: jsonb('muscle_priorities'),
+  pumpWorkPreference: text('pump_work_preference'),
+  recoveryProfile: text('recovery_profile'),
+  programDurationWeeks: integer('program_duration_weeks'),
   
-  // Legacy fields (removed for new system)
-  // - No more training days per week
-  // - No more equipment selection  
-  // - No more program generation
-  // User simply follows PPL rotation based on their goal
+  // Additional legacy fields
+  primaryGoal: text('primary_goal'),
+  targetWeight: real('target_weight'),
+  timeframe: text('timeframe'),
+  fitnessLevel: text('fitness_level'),
+  workoutFrequency: text('workout_frequency'),
+  preferredWorkoutLength: text('preferred_workout_length'),
+  preferredWorkoutTypes: jsonb('preferred_workout_types'),
+  availableEquipment: jsonb('available_equipment'),
+  workoutLocation: text('workout_location'),
+  weaknesses: jsonb('weaknesses'),
+  injuries: jsonb('injuries'),
+  focusMuscle: text('focus_muscle'),
+  
+  // Generated program data
+  suggestedPrograms: jsonb('suggested_programs'),
+  generatedSplit: jsonb('generated_split'),
   
   completedAt: timestamp('completed_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()

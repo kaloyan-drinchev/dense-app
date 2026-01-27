@@ -158,40 +158,90 @@ export const useSettingsLogic = () => {
     ]);
   };
 
-//   const handleResetApp = async () => {
-//     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-//     Alert.alert('🚨 RESET APP', 'Delete ALL data and restart?', [
-//       { text: 'Cancel', style: 'cancel' },
-//       {
-//         text: 'DELETE EVERYTHING',
-//         style: 'destructive',
-//         onPress: async () => {
-//           try {
-//             if (!user?.id) return;
-//             const { userProfileService } = await import('@/db/services');
-//             await userProfileService.delete(user.id).catch(e => console.warn('Failed to delete profile:', e));
-            
-//             const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-//             const keys = ['auth-storage', 'subscription-storage', 'workout-timer-storage', 'workout-storage', 'workout-cache-storage', 'nutrition-storage'];
-//             await AsyncStorage.multiRemove(keys);
-            
-//             const { useTimerStore } = await import('@/store/timer-store');
-//             useTimerStore.getState().resetTimer();
-//             const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
-//             useWorkoutCacheStore.getState().clearCache();
-//             const { useAuthStore } = await import('@/store/auth-store');
-//             useAuthStore.setState({ hasCompletedWizard: false, isFirstTime: true });
-            
-//             logout();
-//             if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-//             Alert.alert('✅ Reset Complete', 'Restarting app.', [{ text: 'OK', onPress: () => router.replace('/') }]);
-//           } catch (error) {
-//             Alert.alert('Error', 'Failed to reset app completely.');
-//           }
-//         },
-//       },
-//     ]);
-//   };
+  const handleDeleteAccount = async () => {
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    // Show the compliance-critical warning modal
+    Alert.alert(
+      'Delete Account & Reset?',
+      'This permanently deletes your profile, stats, and match history.\n\nNOTE: This does NOT cancel your subscription. You must manage subscriptions in your Device Settings.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete & Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (!user?.id) {
+                Alert.alert('Error', 'No user found to delete.');
+                return;
+              }
+
+              // Step 1: Call the database RPC function to delete user profile
+              const { supabase } = await import('@/config/supabase');
+              const { data, error } = await supabase.rpc('delete_user_profile_by_id', {
+                target_user_id: user.id
+              });
+
+              if (error) {
+                console.error('Failed to delete user profile:', error);
+                Alert.alert('Error', 'Failed to delete account. Please try again.');
+                return;
+              }
+
+              console.log('✅ User profile deleted:', data);
+
+              // Step 2: Clear local storage
+              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+              await AsyncStorage.clear();
+              console.log('✅ Local storage cleared');
+
+              // Step 3: Clear all stores
+              const { useTimerStore } = await import('@/store/timer-store');
+              useTimerStore.getState().resetTimer();
+              
+              const { useWorkoutCacheStore } = await import('@/store/workout-cache-store');
+              useWorkoutCacheStore.getState().clearCache();
+              
+              const { useWorkoutStore } = await import('@/store/workout-store');
+              useWorkoutStore.getState().clearUserProfile();
+
+              const { useSubscriptionStore } = await import('@/store/subscription-store.js');
+              useSubscriptionStore.setState({ 
+                subscriptionStatus: null, 
+                trialStatus: null, 
+                hasCheckedStatus: false,
+                isLoading: false,
+                error: null
+              });
+
+              // Step 4: Reset auth store
+              const { useAuthStore } = await import('@/store/auth-store');
+              useAuthStore.setState({ 
+                user: null,
+                hasCompletedWizard: false, 
+                isFirstTime: true,
+                error: null,
+                isLoading: false
+              });
+
+              // Step 5: Haptic feedback and redirect
+              if (Platform.OS !== 'web') {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+
+              // Redirect to onboarding
+              router.replace('/');
+              
+            } catch (error: any) {
+              console.error('Error during account deletion:', error);
+              Alert.alert('Error', `Failed to delete account: ${error.message || 'Unknown error'}`);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleSubscriptionPress = async () => {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -218,6 +268,6 @@ export const useSettingsLogic = () => {
     router, user, userProfile, notifications, trialDaysLeft,
     hasActiveSubscription, getSubscriptionInfo, isTrialActive, getTrialInfo, getDaysUntilExpiry,
     handleNotificationsToggle, handleManageSubscription,
-    handleResetSubscriptionData, handleSubscriptionPress 
+    handleResetSubscriptionData, handleSubscriptionPress, handleDeleteAccount
   };
 };

@@ -8,6 +8,20 @@
       "when": 1763461484567,
       "tag": "0000_old_the_captain",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1737003600000,
+      "tag": "0025_add_account_deletion",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1737004800000,
+      "tag": "0026_add_sbd_to_profiles",
+      "breakpoints": true
     }
   ]
 }

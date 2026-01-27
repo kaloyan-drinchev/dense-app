@@ -11,9 +11,8 @@ export default function SettingsScreen() {
   const {
     router, user, userProfile, notifications, trialDaysLeft,
     hasActiveSubscription, getSubscriptionInfo, isTrialActive, getTrialInfo, getDaysUntilExpiry,
-    handleNotificationsToggle, handleManageSubscription, handleStartTrial, handleExpireTrial,
-    handleResetSubscriptionData, handleSubscriptionPress
-    // handleResetApp,
+    handleNotificationsToggle, handleManageSubscription,
+    handleResetSubscriptionData, handleSubscriptionPress, handleDeleteAccount
   } = useSettingsLogic();
 
   return (
@@ -100,6 +99,31 @@ export default function SettingsScreen() {
           ))}
         </View>
 
+        {/* Strength Profile */}
+        {userProfile && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Strength Profile</Text>
+            <TouchableOpacity 
+              style={styles.settingItem} 
+              onPress={() => router.push('/strength-stats' as any)}
+              activeOpacity={1}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.primary }]}>
+                <Text style={{ fontSize: 20 }}>🏋️</Text>
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingTitle}>Big 3 Lifts (1RM)</Text>
+                <Text style={styles.settingDescription}>
+                  {userProfile.squatKg || userProfile.benchKg || userProfile.deadliftKg
+                    ? `Total: ${((userProfile.squatKg || 0) + (userProfile.benchKg || 0) + (userProfile.deadliftKg || 0)).toFixed(1)} kg`
+                    : 'Tap to add your powerlifting stats'}
+                </Text>
+              </View>
+              <Icon name="chevron-right" size={20} color={colors.lightGray} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Subscription */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Subscription</Text>
@@ -135,39 +159,20 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        {/* Developer Testing */}
-        {/* <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Developer Testing</Text>
-          {/* <TouchableOpacity style={styles.settingItem} onPress={handleResetApp}>
+        {/* Account Management */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.error }]}>Danger Zone</Text>
+          <TouchableOpacity style={styles.settingItem} onPress={handleDeleteAccount}>
             <View style={[styles.settingIcon, { backgroundColor: colors.error }]}>
               <Icon name="trash-2" size={20} color={colors.white} />
             </View>
             <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Reset Entire App</Text>
+              <Text style={[styles.settingTitle, { color: colors.error }]}>Delete Data & Reset App</Text>
+              <Text style={styles.settingDescription}>Permanently delete all your data</Text>
             </View>
-            <Icon name="chevron-right" size={20} color={colors.lightGray} />
-          </TouchableOpacity> */}
-
-          {/* <TouchableOpacity style={styles.settingItem} onPress={handleStartTrial}>
-            <View style={[styles.settingIcon, { backgroundColor: colors.success }]}>
-              <Icon name="play" size={20} color={colors.white} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Start 7-Day Trial</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={colors.lightGray} />
+            <Icon name="chevron-right" size={20} color={colors.error} />
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingItem} onPress={handleExpireTrial}>
-            <View style={[styles.settingIcon, { backgroundColor: colors.secondary }]}>
-              <Icon name="clock" size={20} color={colors.black} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Expire Trial</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color={colors.lightGray} />
-          </TouchableOpacity>
-        </View>  */}
+        </View>
 
       </ScrollView>
     </SafeAreaView>

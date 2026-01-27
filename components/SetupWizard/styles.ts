@@ -27,7 +27,7 @@ export const styles = StyleSheet.create({
   },
   progressContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 30, // Reduced from 60
+    paddingBottom: 10, // Reduced from 60
   },
   progressBar: {
     height: 4,
@@ -664,6 +664,27 @@ export const styles = StyleSheet.create({
     color: colors.lightGray,
     marginTop: 4,
     textAlign: 'center',
+  },
+  // Strength stats styles (Big 3)
+  strengthStatsGrid: {
+    gap: 16,
+  },
+  strengthStatItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.dark,
+    borderRadius: 8,
+    padding: 12,
+  },
+  strengthStatLabel: {
+    ...typography.body,
+    color: colors.lightGray,
+  },
+  strengthStatValue: {
+    ...typography.h4,
+    color: colors.white,
+    fontWeight: '600',
   },
   // Goal display styles
   goalDisplay: {
