@@ -15,6 +15,11 @@ export const useMyGoalsLogic = () => {
         if (user?.id) {
           const data = await wizardResultsService.getByUserId(user.id);
           console.log('🎯 Loaded wizard data:', data);
+          console.log('🏋️ Big 3 Stats:', {
+            squatKg: data?.squatKg,
+            benchKg: data?.benchKg,
+            deadliftKg: data?.deadliftKg
+          });
           setWizardData(data);
         }
       } catch (error) {

@@ -90,7 +90,7 @@ export default function MyGoalsScreen() {
               <View style={styles.motivationTags}>
                 {motivations.map((motivationId: string) => {
                   const motivation = motivationOptions.find(
-                    (o) => o.id === motivationId
+                    (o) => o.id === motivationId,
                   );
                   return motivation ? (
                     <View key={motivationId} style={styles.motivationTag}>
@@ -199,7 +199,7 @@ export default function MyGoalsScreen() {
                   <Text style={styles.experienceValue}>
                     {
                       trainingExperienceOptions.find(
-                        (o) => o.id === wizardData.trainingExperience
+                        (o) => o.id === wizardData.trainingExperience,
                       )?.label
                     }
                   </Text>
@@ -209,7 +209,7 @@ export default function MyGoalsScreen() {
                   <View style={styles.muscleTagsContainer}>
                     {musclePriorities.map((priority: string) => {
                       const muscle = musclePriorityOptions.find(
-                        (o) => o.id === priority
+                        (o) => o.id === priority,
                       );
                       return muscle ? (
                         <View key={priority} style={styles.muscleTag}>
@@ -253,6 +253,60 @@ export default function MyGoalsScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Big 3 Lifts Card - Only show if any lift data exists */}
+            {(wizardData.squatKg > 0 ||
+              wizardData.benchKg > 0 ||
+              wizardData.deadliftKg > 0) && (
+              <View style={styles.preferenceCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardIcon}>🏋️</Text>
+                  <Text style={styles.cardTitle}>Powerlifting Stats (1RM)</Text>
+                </View>
+                <View style={styles.strengthStatsGrid}>
+                  <View style={styles.strengthStatItem}>
+                    <Text style={styles.strengthStatLabel}>Squat</Text>
+                    <Text style={styles.strengthStatValue}>
+                      {wizardData.squatKg > 0
+                        ? `${wizardData.squatKg} kg`
+                        : "Not set"}
+                    </Text>
+                  </View>
+                  <View style={styles.strengthStatItem}>
+                    <Text style={styles.strengthStatLabel}>Bench Press</Text>
+                    <Text style={styles.strengthStatValue}>
+                      {wizardData.benchKg > 0
+                        ? `${wizardData.benchKg} kg`
+                        : "Not set"}
+                    </Text>
+                  </View>
+                  <View style={styles.strengthStatItem}>
+                    <Text style={styles.strengthStatLabel}>Deadlift</Text>
+                    <Text style={styles.strengthStatValue}>
+                      {wizardData.deadliftKg > 0
+                        ? `${wizardData.deadliftKg} kg`
+                        : "Not set"}
+                    </Text>
+                  </View>
+                  <View
+                    style={[styles.strengthStatItem, styles.strengthStatTotal]}
+                  >
+                    <Text style={styles.strengthStatLabel}>Total</Text>
+                    <Text
+                      style={[
+                        styles.strengthStatValue,
+                        styles.strengthStatTotalValue,
+                      ]}
+                    >
+                      {(wizardData.squatKg || 0) +
+                        (wizardData.benchKg || 0) +
+                        (wizardData.deadliftKg || 0)}{" "}
+                      kg
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>

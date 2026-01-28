@@ -213,4 +213,38 @@ export const styles = StyleSheet.create({
     color: colors.lightGray,
     marginTop: 4,
   },
+
+  // Big 3 Lifts Styles
+  strengthStatsGrid: {
+    gap: 12,
+  },
+  strengthStatItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.dark,
+    borderRadius: 8,
+    padding: 16,
+  },
+  strengthStatLabel: {
+    ...typography.body,
+    color: colors.lightGray,
+    fontSize: 16,
+  },
+  strengthStatValue: {
+    ...typography.h3,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  strengthStatTotal: {
+    backgroundColor: colors.darkGray,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    marginTop: 8,
+  },
+  strengthStatTotalValue: {
+    color: colors.primary,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
 });

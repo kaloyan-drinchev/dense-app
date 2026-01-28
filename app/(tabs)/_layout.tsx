@@ -40,6 +40,7 @@ export default function TabLayout() {
             ...typography.h3,
           },
           headerShadowVisible: false,
+          lazy: true, // Prevent Expo Go from pre-rendering tabs before providers are ready
         }}
       >
         <Tabs.Screen
